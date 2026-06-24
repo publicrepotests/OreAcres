@@ -1,0 +1,11 @@
+node_modules/
+dist/
+server/node_modules/
+server/dist/
+outputs/
+work/
+*.log
+tsconfig.tsbuildinfo
+.DS_Store
+.env
+.env.*
