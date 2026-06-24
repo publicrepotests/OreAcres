@@ -1411,8 +1411,20 @@ function gameDigest(state: GameState, wallet: PublicKey | null) {
 
 function resolveMultiplayerUrl() {
   const explicit = import.meta.env.VITE_MULTIPLAYER_WS_URL as string | undefined;
-  if (explicit && explicit.trim()) {
-    return explicit.trim();
+  const raw = explicit?.trim();
+  if (raw) {
+    try {
+      const parsed = new URL(raw, window.location.href);
+      if (window.location.protocol === "https:" && parsed.protocol === "ws:") {
+        parsed.protocol = "wss:";
+      }
+      return parsed.toString();
+    } catch {
+      if (window.location.protocol === "https:" && raw.startsWith("ws://")) {
+        return raw.replace(/^ws:\/\//, "wss://");
+      }
+      return raw;
+    }
   }
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -2010,9 +2022,16 @@ function App() {
     }
 
     const room = "lobby";
-    const socket = new WebSocket(
-      `${wsUrl}${wsUrl.includes("?") ? "&" : "?"}room=${encodeURIComponent(room)}&name=${encodeURIComponent(playerName)}`,
-    );
+    let socket: WebSocket | null = null;
+
+    try {
+      socket = new WebSocket(
+        `${wsUrl}${wsUrl.includes("?") ? "&" : "?"}room=${encodeURIComponent(room)}&name=${encodeURIComponent(playerName)}`,
+      );
+    } catch {
+      setMultiplayerStatus("offline");
+      return;
+    }
 
     socketRef.current = socket;
     myPlayerIdRef.current = null;
