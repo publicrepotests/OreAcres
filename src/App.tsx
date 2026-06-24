@@ -183,6 +183,23 @@ type RemotePlayer = {
   y: number;
 };
 
+type SharedPlotSnapshot = {
+  id: string;
+  name: string;
+  ownerLabel: string | null;
+  structures: Record<
+    string,
+    {
+      type: StructureType;
+      level: number;
+      opened?: boolean;
+      reward?: string;
+    }
+  >;
+  chest: { id: string } | null;
+  totalCollectedSol: number;
+};
+
 type InjectedSolanaProvider = {
   isPhantom?: boolean;
   publicKey: PublicKey | null;
@@ -1431,6 +1448,63 @@ function resolveMultiplayerUrl() {
   return `${protocol}//127.0.0.1:8080/ws`;
 }
 
+function sanitizeRoomId(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24) || "lobby";
+}
+
+function toSharedPlotSnapshot(plot: Plot, ownerLabel: string | null): SharedPlotSnapshot {
+  return {
+    id: plot.id,
+    name: plot.name,
+    ownerLabel,
+    structures: Object.fromEntries(
+      Object.entries(plot.structures).map(([tile, structure]) => [
+        tile,
+        {
+          type: structure.type,
+          level: structure.level,
+          opened: structure.opened,
+          reward: structure.reward,
+        },
+      ]),
+    ),
+    chest: plot.chest ? { ...plot.chest } : null,
+    totalCollectedSol: round(plot.totalCollectedSol),
+  };
+}
+
+function mergeSharedPlotSnapshot(
+  localPlot: Plot,
+  sharedPlot: SharedPlotSnapshot,
+  isMine: boolean,
+  fallbackOwner: string,
+) {
+  return {
+    ...localPlot,
+    name: sharedPlot.name || localPlot.name,
+    owner: isMine
+      ? { label: fallbackOwner, me: true }
+      : sharedPlot.ownerLabel
+        ? { label: sharedPlot.ownerLabel, me: false }
+        : localPlot.owner,
+    structures: Object.fromEntries(
+      Object.entries(sharedPlot.structures ?? {}).map(([tile, structure]) => [
+        tile,
+        {
+          type: structure.type,
+          level: Math.max(1, Math.floor(structure.level || 1)),
+          opened: typeof structure.opened === "boolean" ? structure.opened : undefined,
+          reward: typeof structure.reward === "string" ? structure.reward : undefined,
+        },
+      ]),
+    ),
+    chest: sharedPlot.chest ? { ...sharedPlot.chest } : null,
+    totalCollectedSol: Number.isFinite(sharedPlot.totalCollectedSol)
+      ? Math.max(0, sharedPlot.totalCollectedSol)
+      : localPlot.totalCollectedSol,
+  };
+}
+
 function buildCost(type: StructureType) {
   const costs: Record<StructureType, number> = {
     shack: 0,
@@ -1893,6 +1967,14 @@ function App() {
   const [multiplayerStatus, setMultiplayerStatus] = useState<"offline" | "connecting" | "online">(
     "connecting",
   );
+  const [roomDraft, setRoomDraft] = useState(() => {
+    const fromQuery = new URLSearchParams(window.location.search).get("room");
+    return sanitizeRoomId(fromQuery ?? window.localStorage.getItem("ore-acres-room") ?? "lobby");
+  });
+  const [roomCode, setRoomCode] = useState(() => {
+    const fromQuery = new URLSearchParams(window.location.search).get("room");
+    return sanitizeRoomId(fromQuery ?? window.localStorage.getItem("ore-acres-room") ?? "lobby");
+  });
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [placementPreview, setPlacementPreview] = useState<{ plotId: string; tile: string } | null>(null);
@@ -1914,6 +1996,20 @@ function App() {
   const saveKey = walletPublicKey
     ? `solana-tycoon:${walletPublicKey.toBase58()}`
     : "solana-tycoon:guest";
+
+  function sendSharedPlot(plot: Plot | null) {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN || !plot) {
+      return;
+    }
+
+    socket.send(
+      JSON.stringify({
+        type: "plot_state",
+        plot: toSharedPlotSnapshot(plot, playerName),
+      }),
+    );
+  }
 
   useEffect(() => {
     const syncWallet = () => {
@@ -1937,6 +2033,14 @@ function App() {
   useEffect(() => {
     setGame(loadGameState(saveKey));
   }, [saveKey]);
+
+  useEffect(() => {
+    const room = sanitizeRoomId(roomCode);
+    window.localStorage.setItem("ore-acres-room", room);
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set("room", room);
+    window.history.replaceState({}, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+  }, [roomCode]);
 
   useEffect(() => {
     avatarRef.current = game.avatar;
@@ -2021,7 +2125,7 @@ function App() {
       return;
     }
 
-    const room = "lobby";
+    const room = sanitizeRoomId(roomCode);
     let socket: WebSocket | null = null;
 
     try {
@@ -2079,6 +2183,37 @@ function App() {
         myPlayerIdRef.current = typeof message.playerId === "string" ? message.playerId : null;
         const players = Array.isArray(message.snapshot?.players) ? message.snapshot.players : [];
         const nextRemotePlayers: Record<string, RemotePlayer> = {};
+
+        const snapshotPlots = message.snapshot?.plots && typeof message.snapshot.plots === "object"
+          ? message.snapshot.plots
+          : {};
+
+        if (snapshotPlots && Object.keys(snapshotPlots).length > 0) {
+          setGame((current) => {
+            let next = current;
+
+            for (const [plotId, plot] of Object.entries(snapshotPlots)) {
+              if (!plot || typeof plot !== "object") continue;
+              const localPlot = next.plots[plotId];
+              if (!localPlot) continue;
+              const normalizedPlot = mergeSharedPlotSnapshot(
+                localPlot,
+                plot as SharedPlotSnapshot,
+                current.claimedPlotId === plotId,
+                playerName,
+              );
+              next = {
+                ...next,
+                plots: {
+                  ...next.plots,
+                  [plotId]: normalizedPlot,
+                },
+              };
+            }
+
+            return next;
+          });
+        }
 
         for (const entry of players) {
           if (!entry || typeof entry.id !== "string") continue;
@@ -2138,6 +2273,28 @@ function App() {
 
       if (message.type === "player_left" && typeof message.playerId === "string") {
         removeRemotePlayer(message.playerId);
+        return;
+      }
+
+      if (message.type === "plot_state" && message.plot && typeof message.plot.id === "string") {
+        const plot = message.plot as SharedPlotSnapshot;
+        setGame((current) => {
+          const localPlot = current.plots[plot.id];
+          if (!localPlot) return current;
+          const mergedPlot = mergeSharedPlotSnapshot(
+            localPlot,
+            plot,
+            current.claimedPlotId === plot.id,
+            playerName,
+          );
+          return {
+            ...current,
+            plots: {
+              ...current.plots,
+              [plot.id]: mergedPlot,
+            },
+          };
+        });
       }
     };
 
@@ -2158,7 +2315,7 @@ function App() {
       }
       socket.close();
     };
-  }, [playerName]);
+  }, [playerName, roomCode]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -2437,7 +2594,8 @@ function App() {
     }));
   }
 
-function claimSelectedPlot() {
+  function claimSelectedPlot() {
+    let syncedPlot: Plot | null = null;
     setGame((current) => {
       if (current.claimedPlotId) {
         return { ...current, message: "You already own a plot." };
@@ -2458,7 +2616,7 @@ function claimSelectedPlot() {
         },
       };
 
-      return {
+      const nextState: GameState = {
         ...current,
         plots: nextPlots,
         claimedPlotId: plot.id,
@@ -2489,10 +2647,14 @@ function claimSelectedPlot() {
         },
         message: "Plot claimed. Your shack and starter drill are ready.",
       };
+      syncedPlot = nextPlots[plot.id];
+      return nextState;
     });
+    sendSharedPlot(syncedPlot);
   }
 
   function buyShopItem(type: StructureType) {
+    let syncedPlot: Plot | null = null;
     setGame((current) => {
       const item = SHOP_ITEMS.find((entry) => entry.id === type);
       if (!item) return current;
@@ -2508,7 +2670,7 @@ function claimSelectedPlot() {
           return { ...current, message: `Need ${cost} SOL to buy ${item.label}.` };
         }
 
-        return {
+        const nextState = {
           ...current,
           sol: round(current.sol - cost),
           plots: {
@@ -2522,6 +2684,8 @@ function claimSelectedPlot() {
           shopOpen: false,
           message: `${item.label} spawned on your plot. Click the giant chest to reveal the prize.`,
         };
+        syncedPlot = nextState.plots[current.claimedPlotId];
+        return nextState;
       }
 
       if (current.sol < cost) {
@@ -2540,6 +2704,7 @@ function claimSelectedPlot() {
         message: `${item.label} bought. Click inside your plot to place it.`,
       };
     });
+    sendSharedPlot(syncedPlot);
   }
 
   function buyPetItem(type: PetType) {
@@ -2600,6 +2765,7 @@ function claimSelectedPlot() {
 
   function openChest(plotId: string) {
     const reward = pickChestReward();
+    let syncedPlot: Plot | null = null;
 
     setGame((current) => {
       if (!current.claimedPlotId || plotId !== current.claimedPlotId) {
@@ -2611,7 +2777,7 @@ function claimSelectedPlot() {
         return current;
       }
 
-      return {
+      const nextState = {
         ...current,
         plots: {
           ...current.plots,
@@ -2628,7 +2794,11 @@ function claimSelectedPlot() {
         },
         message: `The chest bursts open. You won ${reward.label}.`,
       };
+      syncedPlot = nextState.plots[plotId];
+      return nextState;
     });
+
+    sendSharedPlot(syncedPlot);
 
     setJackpotReveal(reward);
 
@@ -2647,6 +2817,7 @@ function claimSelectedPlot() {
   }
 
   function collectBonusDrop(dropId: string) {
+    let syncedPlot: Plot | null = null;
     setGame((current) => {
       const drop = current.bonusDrops.find((entry) => entry.id === dropId);
       if (!drop) return current;
@@ -2657,7 +2828,7 @@ function claimSelectedPlot() {
       const pickaxeSkin = current.equippedPickaxeSkin;
       const bonusMultiplier = pickaxeMultiplier(pickaxeSkin);
 
-      return {
+      const nextState = {
         ...current,
         sol: round(current.sol + drop.reward * bonusMultiplier),
         plots: current.claimedPlotId
@@ -2688,7 +2859,11 @@ function claimSelectedPlot() {
             ? `Collected ${drop.label}. ${nftLabel(drop.nftId)} secured.`
             : `Collected ${drop.label} for ${(drop.reward * bonusMultiplier).toFixed(2)} SOL.`,
       };
+      syncedPlot = current.claimedPlotId ? nextState.plots[current.claimedPlotId] : null;
+      return nextState;
     });
+
+    sendSharedPlot(syncedPlot);
   }
 
   function openQuestBox() {
@@ -2816,6 +2991,7 @@ function claimSelectedPlot() {
   }
 
   function placeStructure(plotId: string, clientX: number, clientY: number, element: HTMLElement) {
+    let syncedPlot: Plot | null = null;
     setGame((current) => {
       if (!current.claimedPlotId || plotId !== current.claimedPlotId) {
         return { ...current, message: "You can only build on your claimed plot." };
@@ -2848,7 +3024,7 @@ function claimSelectedPlot() {
         };
       }
 
-      return {
+      const nextState = {
         ...current,
         moveSource: null,
         plots: {
@@ -2872,7 +3048,10 @@ function claimSelectedPlot() {
         selectedTile: key,
         message: `${structureLabel({ type: current.activeTool, level: 1 })} placed.`,
       };
+      syncedPlot = nextState.plots[plotId];
+      return nextState;
     });
+    sendSharedPlot(syncedPlot);
   }
 
   function startMoveSelected() {
@@ -2898,6 +3077,7 @@ function claimSelectedPlot() {
   }
 
   function moveStructure(plotId: string, fromTile: string, toTile: string) {
+    let syncedPlot: Plot | null = null;
     setGame((current) => {
       if (!current.claimedPlotId || plotId !== current.claimedPlotId) {
         return { ...current, message: "You can only move items on your claimed plot." };
@@ -2929,7 +3109,7 @@ function claimSelectedPlot() {
       delete nextStructures[fromTile];
       nextStructures[toTile] = sourceStructure;
 
-      return {
+      const nextState = {
         ...current,
         plots: {
           ...current.plots,
@@ -2942,10 +3122,14 @@ function claimSelectedPlot() {
         selectedTile: toTile,
         message: `${structureLabel(sourceStructure)} moved.`,
       };
+      syncedPlot = nextState.plots[plotId];
+      return nextState;
     });
+    sendSharedPlot(syncedPlot);
   }
 
   function upgradeSelected() {
+    let syncedPlot: Plot | null = null;
     setGame((current) => {
       if (!current.claimedPlotId) return { ...current, message: "Claim a plot first." };
 
@@ -2981,7 +3165,7 @@ function claimSelectedPlot() {
         };
       }
 
-      return {
+      const nextState = {
         ...current,
         sol: cost > 0 ? round(current.sol - cost) : current.sol,
         plots: {
@@ -3000,7 +3184,10 @@ function claimSelectedPlot() {
         },
         message: `${structureLabel(structure)} upgraded.`,
       };
+      syncedPlot = nextState.plots[current.claimedPlotId];
+      return nextState;
     });
+    sendSharedPlot(syncedPlot);
   }
 
   async function signProof() {
@@ -3213,6 +3400,30 @@ function claimSelectedPlot() {
                       : "Claim a plot to start"}
                 </strong>
               </div>
+              <form
+                className="world-header__room"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const nextRoom = sanitizeRoomId(roomDraft);
+                  setRoomDraft(nextRoom);
+                  setRoomCode(nextRoom);
+                }}
+              >
+                <span>Room</span>
+                <div className="world-header__room-row">
+                  <input
+                    className="world-header__room-input"
+                    value={roomDraft}
+                    onChange={(event) => setRoomDraft(event.target.value)}
+                    spellCheck={false}
+                    maxLength={24}
+                    aria-label="Room code"
+                  />
+                  <button type="submit" className="ghost">
+                    Join
+                  </button>
+                </div>
+              </form>
               <button type="button" className="ghost" onClick={signProof} disabled={!walletPublicKey}>
                 Sign mine proof
               </button>

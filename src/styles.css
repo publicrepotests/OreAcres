@@ -278,6 +278,42 @@ h1 {
   align-items: center;
 }
 
+.world-header__room {
+  display: grid;
+  gap: 6px;
+  width: min(260px, 100%);
+}
+
+.world-header__room > span {
+  color: var(--muted);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-family: "Press Start 2P", monospace;
+}
+
+.world-header__room-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.world-header__room-input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(3, 6, 12, 0.72);
+  color: var(--text);
+  padding: 10px 12px;
+  outline: none;
+}
+
+.world-header__room-input:focus {
+  border-color: rgba(103, 245, 211, 0.34);
+  box-shadow: 0 0 0 3px rgba(103, 245, 211, 0.08);
+}
+
 .world-action-bar {
   display: flex;
   flex-wrap: wrap;
