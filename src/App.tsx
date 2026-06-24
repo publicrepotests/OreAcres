@@ -1452,6 +1452,21 @@ function sanitizeRoomId(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24) || "lobby";
 }
 
+function hashString(value: string) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function remoteAvatarOffset(id: string) {
+  const hash = hashString(id);
+  const x = ((hash % 5) - 2) * 18;
+  const y = ((Math.floor(hash / 5) % 5) - 2) * 12;
+  return { x, y };
+}
+
 function toSharedPlotSnapshot(plot: Plot, ownerLabel: string | null): SharedPlotSnapshot {
   return {
     id: plot.id,
@@ -3793,6 +3808,7 @@ function App() {
                     style={{
                       left: `${player.x}px`,
                       top: `${player.y}px`,
+                      transform: `translate(calc(-50% + ${remoteAvatarOffset(player.id).x}px), calc(-50% + ${remoteAvatarOffset(player.id).y}px))`,
                     }}
                   >
                     <AvatarSprite moving={false} variant="remote" />

@@ -4242,7 +4242,7 @@ h1 {
 .remote-avatar-anchor {
   position: absolute;
   transform: translate(-50%, -50%);
-  z-index: 5;
+  z-index: 8;
   pointer-events: none;
   display: grid;
   justify-items: center;
