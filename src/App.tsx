@@ -176,6 +176,13 @@ type GameState = {
   lastUpdatedAt: number;
 };
 
+type RemotePlayer = {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+};
+
 type InjectedSolanaProvider = {
   isPhantom?: boolean;
   publicKey: PublicKey | null;
@@ -1402,6 +1409,16 @@ function gameDigest(state: GameState, wallet: PublicKey | null) {
   });
 }
 
+function resolveMultiplayerUrl() {
+  const explicit = import.meta.env.VITE_MULTIPLAYER_WS_URL as string | undefined;
+  if (explicit && explicit.trim()) {
+    return explicit.trim();
+  }
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//127.0.0.1:8080/ws`;
+}
+
 function buildCost(type: StructureType) {
   const costs: Record<StructureType, number> = {
     shack: 0,
@@ -1506,16 +1523,19 @@ function AvatarSprite({
   moving,
   pickaxeSkin,
   clothesSkin,
+  variant = "local",
 }: {
   moving: boolean;
   pickaxeSkin?: SkinId | null;
   clothesSkin?: SkinId | null;
+  variant?: "local" | "remote";
 }) {
   return (
-    <div
+      <div
       className={[
         "avatar",
         moving ? "avatar--moving" : "",
+        variant === "remote" ? "avatar--remote" : "",
         pickaxeSkin ? `avatar--pickaxe-${pickaxeSkin}` : "",
         clothesSkin ? `avatar--clothes-${clothesSkin}` : "",
       ]
@@ -1857,12 +1877,27 @@ function App() {
   const [jackpotReveal, setJackpotReveal] = useState<ChestReward | null>(null);
   const [shopFilter, setShopFilter] = useState<ShopItem["category"] | "all">("all");
   const [game, setGame] = useState<GameState>(() => createInitialState());
+  const [remotePlayers, setRemotePlayers] = useState<Record<string, RemotePlayer>>({});
+  const [multiplayerStatus, setMultiplayerStatus] = useState<"offline" | "connecting" | "online">(
+    "connecting",
+  );
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [placementPreview, setPlacementPreview] = useState<{ plotId: string; tile: string } | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
   const ignoreTileClickRef = useRef(false);
   const chestRevealTimerRef = useRef<number | null>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+  const myPlayerIdRef = useRef<string | null>(null);
+  const avatarRef = useRef(game.avatar);
+  const lastSentMoveRef = useRef({ x: Number.NaN, y: Number.NaN, at: 0 });
+  const playerName = useMemo(() => {
+    if (!walletPublicKey) {
+      return "Guest Miner";
+    }
+
+    return `Miner ${walletPublicKey.toBase58().slice(0, 4)}`;
+  }, [walletPublicKey]);
 
   const saveKey = walletPublicKey
     ? `solana-tycoon:${walletPublicKey.toBase58()}`
@@ -1890,6 +1925,10 @@ function App() {
   useEffect(() => {
     setGame(loadGameState(saveKey));
   }, [saveKey]);
+
+  useEffect(() => {
+    avatarRef.current = game.avatar;
+  }, [game.avatar.x, game.avatar.y]);
 
   useEffect(() => {
     const saveState = { ...game, chestReveal: null, lastUpdatedAt: Date.now() };
@@ -1961,6 +2000,146 @@ function App() {
       cancelled = true;
     };
   }, [connection, walletPublicKey]);
+
+  useEffect(() => {
+    const wsUrl = resolveMultiplayerUrl();
+    if (!wsUrl) {
+      setMultiplayerStatus("offline");
+      setRemotePlayers({});
+      return;
+    }
+
+    const room = "lobby";
+    const socket = new WebSocket(
+      `${wsUrl}${wsUrl.includes("?") ? "&" : "?"}room=${encodeURIComponent(room)}&name=${encodeURIComponent(playerName)}`,
+    );
+
+    socketRef.current = socket;
+    myPlayerIdRef.current = null;
+    setMultiplayerStatus("connecting");
+
+    const upsertRemotePlayer = (player: RemotePlayer) => {
+      if (player.id === myPlayerIdRef.current) return;
+      setRemotePlayers((current) => ({
+        ...current,
+        [player.id]: player,
+      }));
+    };
+
+    const removeRemotePlayer = (playerId: string) => {
+      if (playerId === myPlayerIdRef.current) return;
+      setRemotePlayers((current) => {
+        if (!(playerId in current)) return current;
+        const next = { ...current };
+        delete next[playerId];
+        return next;
+      });
+    };
+
+    socket.onopen = () => {
+      setMultiplayerStatus("online");
+      socket.send(JSON.stringify({ type: "rename", name: playerName }));
+      socket.send(
+        JSON.stringify({
+          type: "move",
+          x: Math.round(avatarRef.current.x),
+          y: Math.round(avatarRef.current.y),
+        }),
+      );
+    };
+
+    socket.onmessage = (event) => {
+      let message: any;
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        return;
+      }
+
+      if (message.type === "welcome") {
+        myPlayerIdRef.current = typeof message.playerId === "string" ? message.playerId : null;
+        const players = Array.isArray(message.snapshot?.players) ? message.snapshot.players : [];
+        const nextRemotePlayers: Record<string, RemotePlayer> = {};
+
+        for (const entry of players) {
+          if (!entry || typeof entry.id !== "string") continue;
+          if (entry.id === myPlayerIdRef.current) continue;
+          nextRemotePlayers[entry.id] = {
+            id: entry.id,
+            name: typeof entry.name === "string" ? entry.name : "Miner",
+            x: Number(entry.x ?? 0),
+            y: Number(entry.y ?? 0),
+          };
+        }
+
+        setRemotePlayers(nextRemotePlayers);
+        return;
+      }
+
+      if (message.type === "player_joined" && message.player) {
+        upsertRemotePlayer({
+          id: String(message.player.id),
+          name: typeof message.player.name === "string" ? message.player.name : "Miner",
+          x: Number(message.player.x ?? 0),
+          y: Number(message.player.y ?? 0),
+        });
+        return;
+      }
+
+      if (message.type === "player_moved" && message.player) {
+        setRemotePlayers((current) => {
+          const existing = current[String(message.player.id)];
+          if (!existing) return current;
+          return {
+            ...current,
+            [existing.id]: {
+              ...existing,
+              x: Number(message.player.x ?? existing.x),
+              y: Number(message.player.y ?? existing.y),
+            },
+          };
+        });
+        return;
+      }
+
+      if (message.type === "player_renamed" && message.player) {
+        setRemotePlayers((current) => {
+          const existing = current[String(message.player.id)];
+          if (!existing) return current;
+          return {
+            ...current,
+            [existing.id]: {
+              ...existing,
+              name: typeof message.player.name === "string" ? message.player.name : existing.name,
+            },
+          };
+        });
+        return;
+      }
+
+      if (message.type === "player_left" && typeof message.playerId === "string") {
+        removeRemotePlayer(message.playerId);
+      }
+    };
+
+    socket.onclose = () => {
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
+      setMultiplayerStatus("offline");
+    };
+
+    socket.onerror = () => {
+      setMultiplayerStatus("offline");
+    };
+
+    return () => {
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
+      socket.close();
+    };
+  }, [playerName]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -2125,6 +2304,31 @@ function App() {
     raf = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(raf);
   }, []);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN || multiplayerStatus !== "online") {
+      return;
+    }
+
+    const now = Date.now();
+    const avatar = avatarRef.current;
+    const last = lastSentMoveRef.current;
+    const moved = Number.isNaN(last.x) || Math.hypot(avatar.x - last.x, avatar.y - last.y) > 2;
+
+    if (!moved || now - last.at < 80) {
+      return;
+    }
+
+    lastSentMoveRef.current = { x: avatar.x, y: avatar.y, at: now };
+    socket.send(
+      JSON.stringify({
+        type: "move",
+        x: Math.round(avatar.x),
+        y: Math.round(avatar.y),
+      }),
+    );
+  }, [game.avatar.x, game.avatar.y, multiplayerStatus]);
 
   const claimedPlot = game.claimedPlotId ? game.plots[game.claimedPlotId] : null;
   const selectedPlot = game.plots[game.selectedPlotId];
@@ -3352,6 +3556,20 @@ function claimSelectedPlot() {
                   ) : null}
                 </div>
 
+                {Object.values(remotePlayers).map((player) => (
+                  <div
+                    key={player.id}
+                    className="remote-avatar-anchor"
+                    style={{
+                      left: `${player.x}px`,
+                      top: `${player.y}px`,
+                    }}
+                  >
+                    <AvatarSprite moving={false} variant="remote" />
+                    <span className="remote-avatar__name">{player.name}</span>
+                  </div>
+                ))}
+
                 {plotUnderAvatar && !plotUnderAvatar.owner?.me ? (
                   <div
                     className="plot-prompt"
@@ -3370,7 +3588,14 @@ function claimSelectedPlot() {
                 ) : null}
 
                 <div className="world-hud">
-                  <span>{game.claimedPlotId ? "Your plot is active" : "Find an open plot"}</span>
+                  <span>
+                    {game.claimedPlotId ? "Your plot is active" : "Find an open plot"} •{" "}
+                    {multiplayerStatus === "online"
+                      ? `${Object.keys(remotePlayers).length} others online`
+                      : multiplayerStatus === "connecting"
+                        ? "Connecting to multiplayer"
+                        : "Multiplayer offline"}
+                  </span>
                   <strong>{game.message}</strong>
                 </div>
               </div>
