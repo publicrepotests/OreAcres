@@ -735,6 +735,13 @@ function tileKey(x: number, y: number) {
   return `${x}:${y}`;
 }
 
+function defaultAvatarPosition() {
+  return {
+    x: Math.floor(WORLD_WIDTH / 2),
+    y: Math.floor(WORLD_HEIGHT / 2),
+  };
+}
+
 function plotKey(x: number, y: number) {
   return `plot-${x}-${y}`;
 }
@@ -1283,10 +1290,7 @@ function createInitialState(): GameState {
     selectedTile: null,
     moveSource: null,
     activeTool: "drill",
-    avatar: {
-      x: WORLD_PADDING + WORLD_WIDTH / 2,
-      y: WORLD_PADDING + WORLD_HEIGHT / 2,
-    },
+    avatar: defaultAvatarPosition(),
     inventory: {
       shack: 0,
       drill: 0,
@@ -1477,7 +1481,10 @@ function loadGameState(saveKey: string): GameState {
       activeTool: isStructureType(parsed.activeTool) ? parsed.activeTool : fallback.activeTool,
       avatar:
         parsed.avatar && Number.isFinite(parsed.avatar.x) && Number.isFinite(parsed.avatar.y)
-          ? { x: Math.floor(parsed.avatar.x), y: Math.floor(parsed.avatar.y) }
+          ? {
+              x: clamp(Math.floor(parsed.avatar.x), 0, WORLD_WIDTH),
+              y: clamp(Math.floor(parsed.avatar.y), 0, WORLD_HEIGHT),
+            }
           : fallback.avatar,
       inventory: { ...fallback.inventory, ...(parsed.inventory ?? {}) },
       petInventory: { ...DEFAULT_PET_INVENTORY, ...(parsed.petInventory ?? {}) },
@@ -2784,6 +2791,22 @@ function App() {
     }
   }
 
+  function scrollToSection(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function openMarketplace() {
+    if (page !== "game") {
+      goToPage("game");
+      window.setTimeout(() => {
+        setGame((current) => ({ ...current, marketOpen: true }));
+      }, 0);
+      return;
+    }
+
+    setGame((current) => ({ ...current, marketOpen: true }));
+  }
+
   async function connectWallet() {
     if (!window.solana) {
       setWalletMessage("Install Phantom to connect.");
@@ -3679,6 +3702,40 @@ function App() {
 
   return (
     <main className="shell">
+      <header className="site-nav">
+        <button type="button" className="site-nav__brand" onClick={() => goToPage("home")}>
+          <span className="site-nav__icon">⛏</span>
+          <span className="site-nav__text">
+            <strong>Ore Acres</strong>
+            <small>Pixel idle miner</small>
+          </span>
+        </button>
+
+        <nav className="site-nav__links" aria-label="Primary">
+          <button type="button" className={`site-nav__link ${page === "home" ? "active" : ""}`} onClick={() => goToPage("home")}>
+            Home
+          </button>
+          <button type="button" className={`site-nav__link ${page === "game" ? "active" : ""}`} onClick={() => goToPage("game")}>
+            Game
+          </button>
+          <button type="button" className="site-nav__link" onClick={() => scrollToSection("whitepaper")}>
+            Whitepaper
+          </button>
+          <button type="button" className="site-nav__link" onClick={() => scrollToSection("roadmap")}>
+            Roadmap
+          </button>
+          <button type="button" className="site-nav__link" onClick={openMarketplace}>
+            Marketplace
+          </button>
+        </nav>
+
+        <div className="site-nav__wallet">
+          <button className="primary" onClick={walletPublicKey ? disconnectWallet : connectWallet}>
+            {walletPublicKey ? "Wallet connected" : "Connect wallet"}
+          </button>
+        </div>
+      </header>
+
       {page === "home" ? (
         <>
           <section className="hero">
