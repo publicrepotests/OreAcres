@@ -3788,8 +3788,10 @@ h1 {
 
 .plot-zone__grid {
   position: relative;
-  width: 100%;
+  width: auto;
+  aspect-ratio: 1 / 1;
   height: calc(100% - 50px);
+  margin: 0 auto;
   border-radius: 12px;
   overflow: hidden;
   display: grid;
@@ -3807,7 +3809,7 @@ h1 {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 60px 60px;
+  background-size: calc(100% / 7) calc(100% / 7);
   opacity: 0.35;
   pointer-events: none;
 }

@@ -287,8 +287,10 @@ const WORLD_WIDTH =
   WORLD_PADDING * 2 + WORLD_COLUMNS * PLOT_SIZE + (WORLD_COLUMNS - 1) * ROAD_GAP;
 const WORLD_HEIGHT =
   WORLD_PADDING * 2 + WORLD_ROWS * PLOT_SIZE + (WORLD_ROWS - 1) * ROAD_GAP;
+const PLOT_HEADER_HEIGHT = 50;
+const PLOT_BOARD_SIZE = PLOT_SIZE - PLOT_HEADER_HEIGHT;
 const TILE_COUNT = 7;
-const TILE_SIZE = PLOT_SIZE / TILE_COUNT;
+const TILE_SIZE = PLOT_BOARD_SIZE / TILE_COUNT;
 const STRUCTURE_ART_ATLASES = {
   core: "/assets/shop/item-atlas.png",
   special: "/assets/shop/item-atlas-special.png",
