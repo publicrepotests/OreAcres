@@ -2318,6 +2318,8 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (page !== "game") return;
+
     const element = viewportRef.current;
     if (!element) return;
 
@@ -2333,7 +2335,7 @@ function App() {
     const observer = new ResizeObserver(update);
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     const wsUrl = resolveMultiplayerUrl();
@@ -2765,8 +2767,10 @@ function App() {
 
   const camera = useMemo(() => {
     const center = avatarCenter(game.avatar);
-    const x = clamp(viewportSize.width / 2 - center.x - 88, viewportSize.width - WORLD_WIDTH, 0);
-    const y = clamp(viewportSize.height / 2 - center.y, viewportSize.height - WORLD_HEIGHT, 0);
+    const viewportWidth = viewportSize.width || 1280;
+    const viewportHeight = viewportSize.height || 720;
+    const x = clamp(viewportWidth / 2 - center.x, viewportWidth - WORLD_WIDTH, 0);
+    const y = clamp(viewportHeight / 2 - center.y, viewportHeight - WORLD_HEIGHT, 0);
     return { x, y };
   }, [game.avatar, viewportSize.height, viewportSize.width]);
 
