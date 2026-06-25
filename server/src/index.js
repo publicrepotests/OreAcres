@@ -7,6 +7,18 @@ import { WebSocketServer } from "ws";
 const PORT = Number(process.env.PORT || 8080);
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 const STATE_FILE = process.env.STATE_FILE || path.join(process.cwd(), "ore-acres-state.json");
+const PAYMENT_MINT_ADDRESS = process.env.PAYMENT_MINT_ADDRESS || "";
+const PAYMENT_RESERVE_TOKEN_ACCOUNT =
+  process.env.PAYMENT_RESERVE_TOKEN_ACCOUNT || process.env.PAYMENT_TREASURY_TOKEN_ACCOUNT || "";
+const PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT =
+  process.env.PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT || process.env.PAYMENT_BURN_TOKEN_ACCOUNT || "";
+const PAYMENT_OPS_TOKEN_ACCOUNT = process.env.PAYMENT_OPS_TOKEN_ACCOUNT || "";
+const PAYMENT_RESERVE_BPS = Number(process.env.PAYMENT_RESERVE_BPS || "8000");
+const PAYMENT_REWARD_RESERVE_BPS = Number(process.env.PAYMENT_REWARD_RESERVE_BPS || "1000");
+const PAYMENT_OPS_BPS = Number(process.env.PAYMENT_OPS_BPS || "1000");
+const PAYMENT_TOKEN_PRICE_USD_OVERRIDE = Number(process.env.PAYMENT_TOKEN_PRICE_USD_OVERRIDE || "");
+const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY || "";
+const BIRDEYE_PRICE_URL = process.env.BIRDEYE_PRICE_URL || "https://public-api.birdeye.so/defi/price";
 
 const rooms = new Map();
 let saveTimer = null;
@@ -43,6 +55,96 @@ function send(ws, type, payload = {}) {
   }
 
   ws.send(JSON.stringify({ type, ...payload }));
+}
+
+function corsHeaders() {
+  return {
+    "access-control-allow-origin": ALLOWED_ORIGIN,
+    "access-control-allow-methods": "GET,OPTIONS",
+    "access-control-allow-headers": "content-type",
+  };
+}
+
+function sendJson(res, statusCode, body) {
+  res.writeHead(statusCode, {
+    "content-type": "application/json",
+    ...corsHeaders(),
+  });
+  res.end(JSON.stringify(body));
+}
+
+function paymentAllocations() {
+  const entries = [
+    PAYMENT_RESERVE_TOKEN_ACCOUNT
+      ? { label: "reserve", tokenAccount: PAYMENT_RESERVE_TOKEN_ACCOUNT, bps: PAYMENT_RESERVE_BPS }
+      : null,
+    PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT
+      ? {
+          label: "reward_reserve",
+          tokenAccount: PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT,
+          bps: PAYMENT_REWARD_RESERVE_BPS,
+        }
+      : null,
+    PAYMENT_OPS_TOKEN_ACCOUNT
+      ? { label: "ops", tokenAccount: PAYMENT_OPS_TOKEN_ACCOUNT, bps: PAYMENT_OPS_BPS }
+      : null,
+  ].filter(Boolean);
+
+  const totalBps = entries.reduce((sum, entry) => sum + entry.bps, 0);
+  if (entries.length === 0 || totalBps <= 0) {
+    return null;
+  }
+
+  const normalized = entries.map((entry) => ({
+    ...entry,
+    bps: Math.floor((entry.bps / totalBps) * 10_000),
+  }));
+
+  const normalizedTotal = normalized.reduce((sum, entry) => sum + entry.bps, 0);
+  const remainder = 10_000 - normalizedTotal;
+  if (remainder > 0) {
+    normalized[0].bps += remainder;
+  }
+
+  return normalized;
+}
+
+async function resolveTokenPriceUsd() {
+  if (Number.isFinite(PAYMENT_TOKEN_PRICE_USD_OVERRIDE) && PAYMENT_TOKEN_PRICE_USD_OVERRIDE > 0) {
+    return PAYMENT_TOKEN_PRICE_USD_OVERRIDE;
+  }
+
+  if (!PAYMENT_MINT_ADDRESS || !BIRDEYE_API_KEY) {
+    return null;
+  }
+
+  const url = new URL(BIRDEYE_PRICE_URL);
+  url.searchParams.set("address", PAYMENT_MINT_ADDRESS);
+  url.searchParams.set("ui_amount_mode", "scaled");
+
+  const response = await fetch(url, {
+    headers: {
+      "x-chain": "solana",
+      "x-api-key": BIRDEYE_API_KEY,
+    },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = await response.json().catch(() => null);
+  const price =
+    Number(
+      payload?.data?.value ??
+        payload?.data?.price ??
+        payload?.data?.priceUsd ??
+        payload?.data?.price_usd ??
+        payload?.price ??
+        payload?.value,
+    );
+
+  return Number.isFinite(price) && price > 0 ? price : null;
 }
 
 function broadcast(roomId, message, exceptId = null) {
@@ -150,29 +252,86 @@ try {
   // No prior state file yet.
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, corsHeaders());
+    res.end();
+    return;
+  }
+
+  if (req.url && req.url.startsWith("/api/payment-quote")) {
+    (async () => {
+      try {
+        const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+        const usd = Number(url.searchParams.get("usd"));
+
+        if (!Number.isFinite(usd) || usd <= 0) {
+          sendJson(res, 400, { error: "Missing or invalid usd amount." });
+          return;
+        }
+
+        if (!PAYMENT_MINT_ADDRESS) {
+          sendJson(res, 503, {
+            error: "Payment configuration is missing.",
+            needs: ["PAYMENT_MINT_ADDRESS"],
+          });
+          return;
+        }
+
+        const tokenPriceUsd = await resolveTokenPriceUsd();
+        if (!tokenPriceUsd) {
+          sendJson(res, 503, {
+            error: "Token price is unavailable.",
+            needs: PAYMENT_TOKEN_PRICE_USD_OVERRIDE > 0 ? [] : ["BIRDEYE_API_KEY or PAYMENT_TOKEN_PRICE_USD_OVERRIDE"],
+          });
+          return;
+        }
+
+        const allocations = paymentAllocations();
+        if (!allocations) {
+          sendJson(res, 503, {
+            error: "Payment split configuration is missing.",
+            needs: [
+              "PAYMENT_RESERVE_TOKEN_ACCOUNT",
+              "PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT",
+              "PAYMENT_OPS_TOKEN_ACCOUNT",
+            ],
+          });
+          return;
+        }
+
+        const tokenAmountUi = usd / tokenPriceUsd;
+
+        sendJson(res, 200, {
+          mintAddress: PAYMENT_MINT_ADDRESS,
+          treasuryTokenAccount: PAYMENT_RESERVE_TOKEN_ACCOUNT,
+          usdAmount: usd,
+          tokenPriceUsd,
+          tokenAmountUi,
+          allocations,
+        });
+      } catch (error) {
+        sendJson(res, 500, {
+          error: "Failed to build payment quote.",
+          details: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })();
+    return;
+  }
+
   if (req.url === "/healthz") {
-    res.writeHead(200, {
-      "content-type": "application/json",
-      "access-control-allow-origin": "*",
-    });
-    res.end(
-      JSON.stringify({
-        ok: true,
-        rooms: rooms.size,
-      }),
-    );
+    sendJson(res, 200, { ok: true, rooms: rooms.size });
     return;
   }
 
   if (req.url === "/") {
-    res.writeHead(200, { "content-type": "text/plain" });
+    res.writeHead(200, { "content-type": "text/plain", ...corsHeaders() });
     res.end("Ore Acres realtime server");
     return;
   }
 
-  res.writeHead(404, { "content-type": "application/json" });
-  res.end(JSON.stringify({ error: "Not found" }));
+  sendJson(res, 404, { error: "Not found" });
 });
 
 const wss = new WebSocketServer({ noServer: true });

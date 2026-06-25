@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Connection, PublicKey, clusterApiUrl } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  createTransferCheckedInstruction,
+  getAssociatedTokenAddress,
+  getMint,
+} from "@solana/spl-token";
 
 type StructureType =
   | "shack"
@@ -19,10 +24,9 @@ type StructureType =
   | "vault"
   | "neon"
   | "statue"
-  | "sign"
-  | "manager";
+  | "sign";
 
-type PetType = "mole" | "fox" | "bot" | "drake";
+type PetType = "mole" | "fox" | "drake";
 
 type PetSide = "left" | "right" | "top" | "bottom";
 
@@ -34,6 +38,27 @@ type ChestReward = {
   description: string;
   rarity: ChestRarity;
   weight: number;
+};
+
+type EarningsScenarioId = "starter" | "builder" | "late";
+
+type EarningsScenario = {
+  id: EarningsScenarioId;
+  label: string;
+  description: string;
+  solPerDay: number;
+  solPerWeek: number;
+  solPerMonth: number;
+  setup: string[];
+  color: string;
+  points: number[];
+};
+
+type RoadmapItem = {
+  phase: string;
+  title: string;
+  copy: string;
+  status: "Live" | "In progress" | "Next" | "Planned";
 };
 
 type Structure = {
@@ -147,6 +172,8 @@ type BonusDrop = {
 
 type GameState = {
   sol: number;
+  mints: number;
+  rewardReserveSol: number;
   plots: Record<string, Plot>;
   claimedPlotId: string | null;
   selectedPlotId: string;
@@ -205,6 +232,8 @@ type InjectedSolanaProvider = {
   publicKey: PublicKey | null;
   connect: () => Promise<{ publicKey: PublicKey }>;
   disconnect: () => Promise<void>;
+  signTransaction?: (transaction: Transaction) => Promise<Transaction>;
+  signAndSendTransaction?: (transaction: Transaction) => Promise<{ signature: string } | string>;
   signMessage?: (
     message: Uint8Array,
   ) => Promise<{ signature: Uint8Array } | Uint8Array>;
@@ -226,6 +255,9 @@ declare global {
 
 const TICK_MS = 1000;
 const STARTING_SOL = 35;
+const STARTING_MINTS = 18;
+const STARTING_REWARD_RESERVE_SOL = 250;
+const SOLANA_RPC_URL = import.meta.env.VITE_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 const BASE_STORAGE = 60;
 const WORLD_COLUMNS = 3;
 const WORLD_ROWS = 3;
@@ -244,119 +276,112 @@ const SHOP_ITEMS: ShopItem[] = [
     id: "storage",
     label: "Ore Shed",
     description: "Raises your storage cap.",
-    cost: 14,
+    cost: 1.25,
     category: "utility",
   },
   {
     id: "relay",
     label: "Power Relay",
     description: "Boosts nearby drills.",
-    cost: 20,
+    cost: 1.75,
     category: "utility",
   },
   {
     id: "solar",
     label: "Solar Array",
     description: "Gives nearby drills a small output boost.",
-    cost: 18,
+    cost: 1.75,
     category: "power",
   },
   {
     id: "battery",
     label: "Battery Bank",
     description: "Adds storage and protects your idle gains.",
-    cost: 22,
+    cost: 2.25,
     category: "power",
   },
   {
     id: "cooling",
     label: "Cooling Fan",
     description: "Keeps nearby drills efficient.",
-    cost: 16,
+    cost: 1.5,
     category: "power",
   },
   {
     id: "conveyor",
     label: "Conveyor Belt",
     description: "Helps output move faster across the plot.",
-    cost: 17,
+    cost: 1.65,
     category: "automation",
   },
   {
     id: "drone",
     label: "Auto Drone",
     description: "Adds a tiny automated SOL trickle.",
-    cost: 24,
+    cost: 2.5,
     category: "automation",
   },
   {
     id: "scanner",
     label: "Scanner Tower",
     description: "Boosts every drill on the plot a little.",
-    cost: 26,
+    cost: 2.75,
     category: "automation",
   },
   {
     id: "refinery",
     label: "Refinery",
     description: "Turns raw output into better yield.",
-    cost: 30,
+    cost: 3.5,
     category: "automation",
   },
   {
     id: "decor",
     label: "Lantern Post",
     description: "A small glowing decor item.",
-    cost: 8,
+    cost: 0.55,
     category: "decor",
   },
   {
     id: "shop",
     label: "Build Kiosk",
     description: "A little plot shop stand.",
-    cost: 18,
+    cost: 1.25,
     category: "build",
   },
   {
     id: "vault",
     label: "Vault",
     description: "Adds serious storage and a little flex.",
-    cost: 28,
+    cost: 3.25,
     category: "utility",
   },
   {
     id: "neon",
     label: "Neon Sign",
     description: "Pure style with a tiny morale bump.",
-    cost: 12,
+    cost: 0.75,
     category: "decor",
   },
   {
     id: "statue",
     label: "Miner Statue",
     description: "A prestige flex piece for your plot.",
-    cost: 14,
+    cost: 0.95,
     category: "decor",
   },
   {
     id: "sign",
     label: "Billboard",
     description: "Showcase your brand and flex your plot.",
-    cost: 10,
+    cost: 0.65,
     category: "decor",
-  },
-  {
-    id: "manager",
-    label: "Manager Bot",
-    description: "Keeps your automation running.",
-    cost: 32,
-    category: "automation",
   },
   {
     id: "chest",
     label: "Gacha Chest",
     description: "A massive mystery chest that bursts open with a reveal.",
-    cost: 48,
+    cost: 9,
     category: "special",
   },
 ];
@@ -377,7 +402,6 @@ const INVENTORY_TYPES: StructureType[] = [
   "neon",
   "statue",
   "sign",
-  "manager",
   "chest",
 ];
 const CORE_TYPES: StructureType[] = ["shack", "drill"];
@@ -387,28 +411,21 @@ const PET_ITEMS: PetItem[] = [
     id: "mole",
     label: "Mole",
     description: "Digs around and slightly improves drilling.",
-    cost: 12,
+    cost: 3.5,
     boost: "+0.04 SOL/min",
   },
   {
     id: "fox",
     label: "Fox",
     description: "A sneaky little booster with sharp instincts.",
-    cost: 18,
+    cost: 7.5,
     boost: "+4% income",
-  },
-  {
-    id: "bot",
-    label: "Helper Bot",
-    description: "Keeps the plot running while you wander.",
-    cost: 24,
-    boost: "+0.06 SOL/min",
   },
   {
     id: "drake",
     label: "Drake",
     description: "A flashy dragon pet for late-game flexing.",
-    cost: 40,
+    cost: 19,
     boost: "+8% income",
   },
 ];
@@ -418,7 +435,7 @@ const SKIN_ITEMS: SkinItem[] = [
     id: "troll_pick",
     label: "Troll Pick",
     description: "A meme pickaxe with ridiculous teeth and a loud clonk.",
-    cost: 14,
+    cost: 1.5,
     category: "pickaxe",
     meme: "100% certified troll energy",
     oreMultiplier: 1.12,
@@ -427,7 +444,7 @@ const SKIN_ITEMS: SkinItem[] = [
     id: "laser_pick",
     label: "Laser Pick",
     description: "A clean sci-fi pick with a meme-laser hum.",
-    cost: 22,
+    cost: 3,
     category: "pickaxe",
     meme: "for serious degens only",
     oreMultiplier: 1.24,
@@ -436,7 +453,7 @@ const SKIN_ITEMS: SkinItem[] = [
     id: "banana_pick",
     label: "Banana Pick",
     description: "A banana-shaped tool nobody asked for, but everyone wants.",
-    cost: 18,
+    cost: 2.25,
     category: "pickaxe",
     meme: "potassium-powered mining",
     oreMultiplier: 1.18,
@@ -445,7 +462,7 @@ const SKIN_ITEMS: SkinItem[] = [
     id: "aura_hoodie",
     label: "Aura Hoodie",
     description: "A neon streetwear fit with glowing sleeves.",
-    cost: 16,
+    cost: 2,
     category: "clothes",
     meme: "main character drip",
     incomeMultiplier: 1.04,
@@ -454,7 +471,7 @@ const SKIN_ITEMS: SkinItem[] = [
     id: "cyber_jacket",
     label: "Cyber Jacket",
     description: "A sharp jacket with animated neon stripes.",
-    cost: 24,
+    cost: 4.5,
     category: "clothes",
     meme: "future rich vibes",
     incomeMultiplier: 1.06,
@@ -463,7 +480,7 @@ const SKIN_ITEMS: SkinItem[] = [
     id: "astronaut_fit",
     label: "Astronaut Fit",
     description: "A shiny suit for mining the moon before anyone else.",
-    cost: 30,
+    cost: 8,
     category: "clothes",
     meme: "space-time bag holder",
     incomeMultiplier: 1.08,
@@ -471,8 +488,8 @@ const SKIN_ITEMS: SkinItem[] = [
 ];
 
 const QUEST_BOX_REWARDS: RewardBoxReward[] = [
-  { id: "sol-small", label: "Tiny SOL Stack", description: "A little reward stack.", kind: "sol", rewardSol: 3, weight: 34 },
-  { id: "sol-med", label: "Mid SOL Stack", description: "A decent box payout.", kind: "sol", rewardSol: 6, weight: 20 },
+  { id: "sol-small", label: "Tiny SOL Stack", description: "A little reward stack.", kind: "sol", rewardSol: 1, weight: 34 },
+  { id: "sol-med", label: "Mid SOL Stack", description: "A decent box payout.", kind: "sol", rewardSol: 2, weight: 20 },
   { id: "skin-pick", label: "Pickaxe Skin", description: "A meme mining cosmetic.", kind: "skin", skinId: "banana_pick", weight: 16 },
   { id: "skin-clothes", label: "Clothes Skin", description: "A flashy wearable drop.", kind: "skin", skinId: "aura_hoodie", weight: 14 },
   { id: "nft-pass", label: "NFT Pass", description: "A placeholder on-chain style collectible.", kind: "nft", nftId: "genesis-miner-pass", weight: 9 },
@@ -538,10 +555,78 @@ const CHEST_REWARDS: ChestReward[] = [
   },
 ];
 
+const EARNINGS_SCENARIOS: EarningsScenario[] = [
+  {
+    id: "starter",
+    label: "Starter plot",
+    description: "A fresh acre with one drill, a shack, and a tiny trickle.",
+    solPerDay: 0.08,
+    solPerWeek: 0.56,
+    solPerMonth: 2.4,
+    setup: ["1 shack", "1 drill", "basic pet", "no premium skins"],
+    color: "#67f5d3",
+    points: [0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08],
+  },
+  {
+    id: "builder",
+    label: "Builder plot",
+    description: "A mid-game acre with drills, power, storage, and some cosmetics.",
+    solPerDay: 0.32,
+    solPerWeek: 2.24,
+    solPerMonth: 9.6,
+    setup: ["3 drills", "power relay", "solar", "one pet", "skins equipped"],
+    color: "#7aa7ff",
+    points: [0.08, 0.11, 0.16, 0.22, 0.27, 0.3, 0.32],
+  },
+  {
+    id: "late",
+    label: "Late-game plot",
+    description: "A dense production acre with a mansion, automation, and flex.",
+    solPerDay: 0.95,
+    solPerWeek: 6.65,
+    solPerMonth: 28.5,
+    setup: ["max drills", "automation", "mansion", "legendary pet", "rare skins"],
+    color: "#ffd166",
+    points: [0.2, 0.28, 0.42, 0.55, 0.7, 0.82, 0.95],
+  },
+];
+
+const ROADMAP: RoadmapItem[] = [
+  {
+    phase: "Phase 1",
+    title: "Launch world + plots",
+    copy: "Shared multiplayer plots, building placement, idle mining, and live SOL tracking.",
+    status: "Live",
+  },
+  {
+    phase: "Phase 2",
+    title: "Marketplace and cosmetics",
+    copy: "Skin listings, meme pickaxes, pets, and stronger visual progression loops.",
+    status: "Live",
+  },
+  {
+    phase: "Phase 3",
+    title: "Economy governance",
+    copy: "Reserve runway monitoring, reward tuning, payout caps, and event-backed emissions.",
+    status: "In progress",
+  },
+  {
+    phase: "Phase 4",
+    title: "Seasonal raids and on-chain rewards",
+    copy: "Timed world events, special chests, seasonal land cosmetics, and collectible rewards.",
+    status: "Next",
+  },
+  {
+    phase: "Phase 5",
+    title: "Mobile polish and scaling",
+    copy: "Responsive controls, performance passes, and a smoother multiplayer experience.",
+    status: "Planned",
+  },
+];
+
 const DEFAULT_PET_INVENTORY: Record<PetType, number> = {
   mole: 0,
   fox: 0,
-  bot: 0,
   drake: 0,
 };
 
@@ -579,14 +664,14 @@ const DEFAULT_NFT_INVENTORY: Record<string, number> = {
 };
 
 const MISSION_REWARDS: Record<MissionId, { title: string; reward: number }> = {
-  claim_plot: { title: "Claim a plot", reward: 1 },
-  second_drill: { title: "Place a second drill", reward: 2 },
-  first_upgrade: { title: "Upgrade anything once", reward: 2 },
-  equip_pet: { title: "Equip a pet", reward: 1 },
-  open_chest: { title: "Open a gacha chest", reward: 2 },
-  income_1: { title: "Hit 1 SOL/min", reward: 3 },
-  mansion: { title: "Reach mansion tier", reward: 6 },
-  balance_100: { title: "Hold 100 SOL", reward: 4 },
+  claim_plot: { title: "Claim a plot", reward: 0.05 },
+  second_drill: { title: "Place a second drill", reward: 0.1 },
+  first_upgrade: { title: "Upgrade anything once", reward: 0.1 },
+  equip_pet: { title: "Equip a pet", reward: 0.05 },
+  open_chest: { title: "Open a gacha chest", reward: 0.15 },
+  income_1: { title: "Hit 1 SOL/min", reward: 0.2 },
+  mansion: { title: "Reach mansion tier", reward: 0.35 },
+  balance_100: { title: "Hold 100 SOL", reward: 0.25 },
 };
 
 const MISSION_ORDER: MissionId[] = [
@@ -602,13 +687,7 @@ const MISSION_ORDER: MissionId[] = [
 
 const ECONOMY_SCALE = 0.0045;
 const COST_SCALE = 0.68;
-const QUEST_BOX_REWARD_SCALE = 0.2;
-
-const AMBIENT_MINERS = [
-  { name: "Mira", plotId: "plot-0-1" },
-  { name: "Sol", plotId: "plot-2-1" },
-  { name: "Ari", plotId: "plot-1-0" },
-];
+const QUEST_BOX_REWARD_SCALE = 0.03;
 
 function isStructureType(value: unknown): value is StructureType {
   return (
@@ -629,13 +708,12 @@ function isStructureType(value: unknown): value is StructureType {
     value === "neon" ||
     value === "statue" ||
     value === "sign" ||
-    value === "manager" ||
     value === "chest"
   );
 }
 
 function isPetType(value: unknown): value is PetType {
-  return value === "mole" || value === "fox" || value === "bot" || value === "drake";
+  return value === "mole" || value === "fox" || value === "drake";
 }
 
 function isSkinId(value: unknown): value is SkinId {
@@ -669,6 +747,24 @@ function scaledReward(value: number) {
   return round(value * QUEST_BOX_REWARD_SCALE);
 }
 
+function reserveRunwayDays(rewardReserveSol: number, dailyEmission: number) {
+  if (dailyEmission <= 0) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return rewardReserveSol / dailyEmission;
+}
+
+function reserveHealthLabel(runwayDays: number) {
+  if (!Number.isFinite(runwayDays)) return "Idle";
+  if (runwayDays >= 90) return "Stable";
+  if (runwayDays >= 30) return "Healthy";
+  if (runwayDays >= 14) return "Warm";
+  if (runwayDays >= 7) return "Tight";
+  if (runwayDays > 0) return "Critical";
+  return "Depleted";
+}
+
 function plotCenter(position: { x: number; y: number }) {
   return {
     x: position.x + PLOT_SIZE / 2,
@@ -696,7 +792,6 @@ function structureLabel(structure?: Structure) {
     neon: "Neon",
     statue: "Statue",
     sign: "Billboard",
-    manager: "Manager",
     chest: "Gacha Chest",
   };
   if (structure.type === "shack") {
@@ -708,14 +803,49 @@ function structureLabel(structure?: Structure) {
   return `${labels[structure.type]} Lv.${structure.level}`;
 }
 
+function chartPath(points: number[], width: number, height: number, padding = 16) {
+  if (points.length === 0) return "";
+
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = Math.max(0.01, max - min);
+  const innerWidth = width - padding * 2;
+  const innerHeight = height - padding * 2;
+  return points
+    .map((point, index) => {
+      const x = padding + (index / Math.max(1, points.length - 1)) * innerWidth;
+      const normalized = (point - min) / range;
+      const y = padding + innerHeight - normalized * innerHeight;
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
+
+function chartAreaPath(points: number[], width: number, height: number, padding = 16) {
+  if (points.length === 0) return "";
+
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = Math.max(0.01, max - min);
+  const innerWidth = width - padding * 2;
+  const innerHeight = height - padding * 2;
+  const line = points
+    .map((point, index) => {
+      const x = padding + (index / Math.max(1, points.length - 1)) * innerWidth;
+      const normalized = (point - min) / range;
+      const y = padding + innerHeight - normalized * innerHeight;
+      return `${index === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return `${line} L ${width - padding} ${height - padding} L ${padding} ${height - padding} Z`;
+}
+
 function petLabel(pet?: PetType | null) {
   switch (pet) {
     case "mole":
       return "Mole";
     case "fox":
       return "Fox";
-    case "bot":
-      return "Helper Bot";
     case "drake":
       return "Drake";
     default:
@@ -871,7 +1001,6 @@ function baseIncomeFor(structure: Structure) {
     case "neon":
     case "statue":
     case "sign":
-    case "manager":
     case "chest":
       return 0;
   }
@@ -900,7 +1029,6 @@ function storageFor(structure: Structure) {
     case "neon":
     case "statue":
     case "sign":
-    case "manager":
       return 0;
   }
 }
@@ -960,10 +1088,6 @@ function computeEconomy(
       globalMultiplier += 0.04 + currentStructure.level * 0.03;
       continue;
     }
-    if (currentStructure.type === "manager") {
-      globalMultiplier += 0.02 + currentStructure.level * 0.02;
-      continue;
-    }
     if (currentStructure.type === "refinery") {
       income += baseIncomeFor(currentStructure) * (1 + currentStructure.level * 0.12);
       continue;
@@ -1020,9 +1144,6 @@ function computeEconomy(
 
   if (activePet === "mole") {
     income += 0.04;
-  } else if (activePet === "bot") {
-    income += 0.06;
-    storage += 12;
   } else if (activePet === "fox") {
     globalMultiplier += 0.04;
   } else if (activePet === "drake") {
@@ -1061,9 +1182,12 @@ function resolveMissionRewards(state: GameState) {
   for (const [id, met] of missionChecks) {
     if (!met || next.missions[id]) continue;
     const reward = MISSION_REWARDS[id].reward;
+    const mintReward = Math.max(2, Math.round(reward * 4));
     next = {
       ...next,
       sol: round(next.sol + reward),
+      rewardReserveSol: round(Math.max(0, next.rewardReserveSol - reward)),
+      mints: round(next.mints + mintReward),
       questBoxes: next.questBoxes + 1,
       missions: {
         ...next.missions,
@@ -1081,7 +1205,7 @@ function resolveMissionRewards(state: GameState) {
   if (completed.length > 0) {
     next = {
       ...next,
-      message: `Mission complete: ${completed.join(" • ")}. +${rewardTotal.toFixed(0)} SOL and quest boxes.`,
+      message: `Mission complete: ${completed.join(" • ")}. +${rewardTotal.toFixed(2)} SOL, mint bonuses, and quest boxes.`,
     };
   }
 
@@ -1096,11 +1220,7 @@ function starterStructures() {
 }
 
 function seededMarketListings(): MarketplaceListing[] {
-  return [
-    { id: "listing-1", skinId: "laser_pick", seller: "Mira", price: 18, createdAt: Date.now() },
-    { id: "listing-2", skinId: "cyber_jacket", seller: "Sol", price: 22, createdAt: Date.now() },
-    { id: "listing-3", skinId: "troll_pick", seller: "Ari", price: 12, createdAt: Date.now() },
-  ];
+  return [];
 }
 
 function makePlot(x: number, y: number, owner: PlotOwner | null): Plot {
@@ -1125,30 +1245,14 @@ function createInitialState(): GameState {
 
   for (let x = 0; x < WORLD_COLUMNS; x += 1) {
     for (let y = 0; y < WORLD_ROWS; y += 1) {
-      const owner =
-        x === 1 && y === 1
-          ? null
-          : x === 0 && y === 1
-            ? { label: "Mira", me: false }
-            : x === 2 && y === 1
-              ? { label: "Sol", me: false }
-              : x === 1 && y === 0
-                ? { label: "Ari", me: false }
-                : null;
-
-      plots[plotKey(x, y)] = makePlot(x, y, owner);
-
-      if (owner && !owner.me) {
-        plots[plotKey(x, y)].structures = {
-          [tileKey(3, 3)]: { type: "shack", level: 1 },
-          [tileKey(4, 3)]: { type: "drill", level: 1 },
-        };
-      }
+      plots[plotKey(x, y)] = makePlot(x, y, null);
     }
   }
 
   return {
     sol: STARTING_SOL,
+    mints: STARTING_MINTS,
+    rewardReserveSol: STARTING_REWARD_RESERVE_SOL,
     plots,
     claimedPlotId: null,
     selectedPlotId: plotKey(1, 1),
@@ -1177,7 +1281,6 @@ function createInitialState(): GameState {
       neon: 0,
       statue: 0,
       sign: 0,
-      manager: 0,
       chest: 0,
     },
     petInventory: { ...DEFAULT_PET_INVENTORY },
@@ -1341,6 +1444,11 @@ function loadGameState(saveKey: string): GameState {
       marketOpen: false,
       questReveal: null,
       sol: typeof parsed.sol === "number" ? parsed.sol : fallback.sol,
+      mints: typeof parsed.mints === "number" ? parsed.mints : fallback.mints,
+      rewardReserveSol:
+        typeof parsed.rewardReserveSol === "number"
+          ? Math.max(0, parsed.rewardReserveSol)
+          : fallback.rewardReserveSol,
       lastUpdatedAt: typeof parsed.lastUpdatedAt === "number" ? parsed.lastUpdatedAt : Date.now(),
     };
 
@@ -1358,6 +1466,8 @@ function loadGameState(saveKey: string): GameState {
       const offlineGain = Math.min(economy.storage, round(economy.income * offlineSeconds));
       if (offlineGain > 0) {
         loaded.sol = round(Math.min(loaded.sol + offlineGain, economy.storage));
+        loaded.rewardReserveSol = round(Math.max(0, loaded.rewardReserveSol - offlineGain));
+        loaded.mints = round(loaded.mints + Math.max(0.2, economy.income * 0.45) * offlineSeconds / 60);
         loaded.plots[claimedPlot.id] = {
           ...claimedPlot,
           totalCollectedSol: round((claimedPlot.totalCollectedSol ?? 0) + offlineGain),
@@ -1389,6 +1499,8 @@ function gameDigest(state: GameState, wallet: PublicKey | null) {
   return JSON.stringify({
     wallet: wallet?.toBase58() ?? "guest",
     sol: round(state.sol),
+    mints: round(state.mints),
+    rewardReserveSol: round(state.rewardReserveSol),
     claimedPlotId: state.claimedPlotId,
     activePet: state.activePet,
     petInventory: state.petInventory,
@@ -1446,6 +1558,78 @@ function resolveMultiplayerUrl() {
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//127.0.0.1:8080/ws`;
+}
+
+function resolvePaymentApiBase() {
+  const explicit = (import.meta.env.VITE_PAYMENT_API_URL as string | undefined)?.trim();
+  if (explicit) {
+    try {
+      const parsed = new URL(explicit, window.location.href);
+      if (parsed.pathname.endsWith("/")) {
+        parsed.pathname = parsed.pathname.slice(0, -1);
+      }
+      return parsed.toString().replace(/\/$/, "");
+    } catch {
+      return explicit.replace(/\/$/, "");
+    }
+  }
+
+  const wsUrl = resolveMultiplayerUrl();
+  try {
+    const parsed = new URL(wsUrl);
+    parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
+    parsed.pathname = parsed.pathname.replace(/\/ws\/?$/, "");
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return window.location.origin;
+  }
+}
+
+type PaymentQuote = {
+  mintAddress: string;
+  treasuryTokenAccount: string;
+  usdAmount: number;
+  tokenPriceUsd: number;
+  tokenAmountUi: number;
+  allocations: Array<{
+    label: string;
+    tokenAccount: string;
+    bps: number;
+  }>;
+};
+
+async function fetchPaymentQuote(usdAmount: number): Promise<PaymentQuote> {
+  const response = await fetch(
+    `${resolvePaymentApiBase()}/api/payment-quote?usd=${encodeURIComponent(usdAmount.toFixed(2))}`,
+  );
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error || "Could not load token price.");
+  }
+
+  if (
+    typeof data?.mintAddress !== "string" ||
+    typeof data?.treasuryTokenAccount !== "string" ||
+    typeof data?.tokenPriceUsd !== "number" ||
+    typeof data?.tokenAmountUi !== "number" ||
+    !Array.isArray(data?.allocations)
+  ) {
+    throw new Error("Payment quote response was invalid.");
+  }
+
+  if (
+    !data.allocations.every(
+      (entry: unknown) =>
+        !!entry &&
+        typeof (entry as { label?: unknown }).label === "string" &&
+        typeof (entry as { tokenAccount?: unknown }).tokenAccount === "string" &&
+        typeof (entry as { bps?: unknown }).bps === "number",
+    )
+  ) {
+    throw new Error("Payment split response was invalid.");
+  }
+
+  return data as PaymentQuote;
 }
 
 function sanitizeRoomId(value: string) {
@@ -1539,46 +1723,44 @@ function buildCost(type: StructureType) {
     neon: 12,
     statue: 14,
     sign: 10,
-    manager: 32,
     chest: 48,
   };
-  return scaledCost(costs[type]);
+  return costs[type];
 }
 
 function upgradeCost(structure: Structure) {
   switch (structure.type) {
     case "shack":
-      return structure.level >= 4 ? 0 : scaledCost(12 + structure.level * 7);
+      return structure.level >= 4 ? 0 : 12 + structure.level * 7;
     case "drill":
-      return structure.level >= 3 ? 0 : scaledCost(10 + structure.level * 6);
+      return structure.level >= 3 ? 0 : 10 + structure.level * 6;
     case "storage":
-      return scaledCost(8 + structure.level * 5);
+      return 8 + structure.level * 5;
     case "relay":
-      return scaledCost(12 + structure.level * 7);
+      return 12 + structure.level * 7;
     case "solar":
-      return scaledCost(10 + structure.level * 6);
+      return 10 + structure.level * 6;
     case "battery":
-      return scaledCost(10 + structure.level * 6);
+      return 10 + structure.level * 6;
     case "cooling":
-      return scaledCost(9 + structure.level * 5);
+      return 9 + structure.level * 5;
     case "conveyor":
-      return scaledCost(9 + structure.level * 5);
+      return 9 + structure.level * 5;
     case "drone":
-      return scaledCost(11 + structure.level * 6);
+      return 11 + structure.level * 6;
     case "scanner":
-      return scaledCost(14 + structure.level * 7);
+      return 14 + structure.level * 7;
     case "refinery":
-      return scaledCost(15 + structure.level * 8);
+      return 15 + structure.level * 8;
     case "vault":
-      return scaledCost(13 + structure.level * 7);
+      return 13 + structure.level * 7;
     case "decor":
     case "shop":
     case "neon":
     case "statue":
     case "sign":
-    case "manager":
     case "chest":
-      return scaledCost(5 + structure.level * 3);
+      return 5 + structure.level * 3;
   }
 }
 
@@ -1603,7 +1785,6 @@ function maxStructureLevel(type: StructureType) {
     case "neon":
     case "statue":
     case "sign":
-    case "manager":
     case "chest":
       return 3;
   }
@@ -1677,16 +1858,6 @@ function PetSprite({ type }: { type: PetType }) {
           <div className="pet-sprite__eye pet-sprite__eye--right" />
         </>
       ) : null}
-      {type === "bot" ? (
-        <>
-          <div className="pet-sprite__antenna" />
-          <div className="pet-sprite__antenna-tip" />
-          <div className="pet-sprite__body" />
-          <div className="pet-sprite__screen" />
-          <div className="pet-sprite__wheel pet-sprite__wheel--left" />
-          <div className="pet-sprite__wheel pet-sprite__wheel--right" />
-        </>
-      ) : null}
       {type === "drake" ? (
         <>
           <div className="pet-sprite__wing pet-sprite__wing--left" />
@@ -1700,18 +1871,6 @@ function PetSprite({ type }: { type: PetType }) {
           <div className="pet-sprite__flame" />
         </>
       ) : null}
-    </div>
-  );
-}
-
-function NeighborMiner({ name }: { name: string }) {
-  return (
-    <div className="neighbor">
-      <div className="neighbor__sprite">
-        <div className="neighbor__head" />
-        <div className="neighbor__body" />
-      </div>
-      <span className="neighbor__name">{name}</span>
     </div>
   );
 }
@@ -1928,17 +2087,6 @@ function BuildingSprite({ type, level, opened }: { type: StructureType; level: n
     );
   }
 
-  if (type === "manager") {
-    return (
-      <div className="sprite sprite--manager">
-        <div className="manager__screen" />
-        <div className="manager__antenna" />
-        <div className="manager__arm manager__arm--left" />
-        <div className="manager__arm manager__arm--right" />
-      </div>
-    );
-  }
-
   if (type === "shop") {
     return (
       <div className="sprite sprite--shop">
@@ -1962,16 +2110,10 @@ function pointInRect(x: number, y: number, rect: { x: number; y: number; width: 
 }
 
 function App() {
-  const connection = useMemo(
-    () => new Connection(clusterApiUrl("devnet"), "confirmed"),
-    [],
-  );
   const provider = window.solana;
   const [walletPublicKey, setWalletPublicKey] = useState<PublicKey | null>(
     provider?.publicKey ?? null,
   );
-  const [devnetBalance, setDevnetBalance] = useState<number | null>(null);
-  const [loadingBalance, setLoadingBalance] = useState(false);
   const [walletMessage, setWalletMessage] = useState("");
   const [moving, setMoving] = useState(false);
   const [petSide, setPetSide] = useState<PetSide>("right");
@@ -1990,7 +2132,10 @@ function App() {
     const fromQuery = new URLSearchParams(window.location.search).get("room");
     return sanitizeRoomId(fromQuery ?? window.localStorage.getItem("ore-acres-room") ?? "lobby");
   });
+  const [earningsScenarioId, setEarningsScenarioId] = useState<EarningsScenarioId>("starter");
+  const [earningsHoverIndex, setEarningsHoverIndex] = useState<number | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const gamePanelRef = useRef<HTMLElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [placementPreview, setPlacementPreview] = useState<{ plotId: string; tile: string } | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
@@ -2106,31 +2251,6 @@ function App() {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-
-  useEffect(() => {
-    if (!walletPublicKey) {
-      setDevnetBalance(null);
-      return;
-    }
-
-    let cancelled = false;
-    setLoadingBalance(true);
-    connection
-      .getBalance(walletPublicKey)
-      .then((lamports) => {
-        if (!cancelled) setDevnetBalance(lamports / 1_000_000_000);
-      })
-      .catch(() => {
-        if (!cancelled) setDevnetBalance(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingBalance(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [connection, walletPublicKey]);
 
   useEffect(() => {
     const wsUrl = resolveMultiplayerUrl();
@@ -2349,6 +2469,7 @@ function App() {
           next.equippedClothesSkin,
         );
         const nextSol = round(Math.min(next.sol + economy.income / 60, economy.storage));
+        const nextMints = round(next.mints + Math.max(0.35, economy.income * 0.45) / 60);
         const earned = round(nextSol - next.sol);
 
         if (earned > 0) {
@@ -2362,11 +2483,18 @@ function App() {
               },
             },
             sol: nextSol,
+            rewardReserveSol: round(Math.max(0, next.rewardReserveSol - earned)),
+            mints: nextMints,
             stats: {
               ...next.stats,
               totalEarned: round(next.stats.totalEarned + earned),
             },
             message: `Your plot is producing ${economy.income.toFixed(2)} SOL/min.`,
+          };
+        } else if (nextMints !== next.mints) {
+          next = {
+            ...next,
+            mints: nextMints,
           };
         }
 
@@ -2526,6 +2654,11 @@ function App() {
   const selectedPlotEconomy = claimedPlot
     ? computeEconomy(claimedPlot, game.activePet, game.equippedPickaxeSkin, game.equippedClothesSkin)
     : null;
+  const rewardReserveRunwayDays = reserveRunwayDays(
+    game.rewardReserveSol,
+    selectedPlotEconomy ? selectedPlotEconomy.income * 1440 : 0,
+  );
+  const rewardReserveHealth = reserveHealthLabel(rewardReserveRunwayDays);
   const selectedChest = selectedPlot.chest;
   const selectedStructure =
     claimedPlot && game.selectedTile ? claimedPlot.structures[game.selectedTile] ?? null : null;
@@ -2558,6 +2691,10 @@ function App() {
     setGame((current) => ({ ...current, message }));
   }
 
+  function scrollToGame() {
+    gamePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   async function connectWallet() {
     if (!window.solana) {
       setWalletMessage("Install Phantom to connect.");
@@ -2575,25 +2712,104 @@ function App() {
   async function disconnectWallet() {
     try {
       await window.solana?.disconnect();
-      setDevnetBalance(null);
       setWalletMessage("Wallet disconnected.");
     } catch {
       setWalletMessage("Could not disconnect wallet.");
     }
   }
 
-  async function requestAirdrop() {
-    if (!walletPublicKey) return;
+  async function chargePumpMint(usdAmount: number, label: string) {
+    if (!walletPublicKey || !provider) {
+      setWalletMessage("Connect Phantom first.");
+      return null;
+    }
 
-    setWalletMessage("Requesting devnet airdrop...");
+    if (!provider.signTransaction && !provider.signAndSendTransaction) {
+      setWalletMessage("Your wallet needs to support transaction signing.");
+      return null;
+    }
+
+    let quote: PaymentQuote;
     try {
-      const sig = await connection.requestAirdrop(walletPublicKey, 1_000_000_000);
-      await connection.confirmTransaction(sig, "confirmed");
-      const refreshed = await connection.getBalance(walletPublicKey);
-      setDevnetBalance(refreshed / 1_000_000_000);
-      setWalletMessage("Devnet SOL received.");
+      quote = await fetchPaymentQuote(usdAmount);
     } catch (error) {
-      setWalletMessage(error instanceof Error ? error.message : "Airdrop failed.");
+      setWalletMessage(error instanceof Error ? error.message : "Could not load payment quote.");
+      return null;
+    }
+
+    if (game.mints < quote.tokenAmountUi) {
+      setWalletMessage(
+        `Need ${quote.tokenAmountUi.toFixed(2)} Pump.fun mints to buy ${label}.`,
+      );
+      return null;
+    }
+
+    const connection = new Connection(SOLANA_RPC_URL, "confirmed");
+    const mint = new PublicKey(quote.mintAddress);
+
+    try {
+      const mintInfo = await getMint(connection, mint);
+      const sourceTokenAccount = await getAssociatedTokenAddress(mint, walletPublicKey);
+      const atomicAmount = BigInt(Math.max(1, Math.round(quote.tokenAmountUi * 10 ** mintInfo.decimals)));
+      const splitAmounts = quote.allocations.map((allocation) => (atomicAmount * BigInt(allocation.bps)) / 10_000n);
+      const splitTotal = splitAmounts.reduce((sum, amount) => sum + amount, 0n);
+      if (splitTotal < atomicAmount) {
+        splitAmounts[0] += atomicAmount - splitTotal;
+      }
+
+      const transaction = new Transaction();
+      for (let index = 0; index < quote.allocations.length; index += 1) {
+        const allocation = quote.allocations[index];
+        const amount = splitAmounts[index];
+        if (amount <= 0n) continue;
+
+        transaction.add(
+          createTransferCheckedInstruction(
+            sourceTokenAccount,
+            mint,
+            new PublicKey(allocation.tokenAccount),
+            walletPublicKey,
+            amount,
+            mintInfo.decimals,
+          ),
+        );
+      }
+
+      const latestBlockhash = await connection.getLatestBlockhash("confirmed");
+      transaction.feePayer = walletPublicKey;
+      transaction.recentBlockhash = latestBlockhash.blockhash;
+
+      let signature: string | null = null;
+      if (provider.signAndSendTransaction) {
+        const result = await provider.signAndSendTransaction(transaction);
+        signature = typeof result === "string" ? result : result.signature;
+      } else if (provider.signTransaction) {
+        const signed = await provider.signTransaction(transaction);
+        signature = await connection.sendRawTransaction(signed.serialize());
+      }
+
+      if (!signature) {
+        setWalletMessage("Wallet could not submit the payment transaction.");
+        return null;
+      }
+
+      await connection.confirmTransaction(
+        {
+          signature,
+          ...latestBlockhash,
+        },
+        "confirmed",
+      );
+
+      return {
+        signature,
+        tokenAmountUi: quote.tokenAmountUi,
+        usdAmount: quote.usdAmount,
+        tokenPriceUsd: quote.tokenPriceUsd,
+      };
+    } catch (error) {
+      setWalletMessage(error instanceof Error ? error.message : "Token payment failed.");
+      return null;
     }
   }
 
@@ -2658,7 +2874,6 @@ function App() {
           neon: 0,
           statue: 0,
           sign: 0,
-          manager: 0,
         },
         message: "Plot claimed. Your shack and starter drill are ready.",
       };
@@ -2668,26 +2883,36 @@ function App() {
     sendSharedPlot(syncedPlot);
   }
 
-  function buyShopItem(type: StructureType) {
+  async function buyShopItem(type: StructureType) {
     let syncedPlot: Plot | null = null;
+    const item = SHOP_ITEMS.find((entry) => entry.id === type);
+    if (!item) return;
+    if (!game.claimedPlotId) {
+      setMessage("Claim a plot first.");
+      return;
+    }
+
+    let payment: { tokenAmountUi: number } | null = null;
+    if (item.cost > 0) {
+      payment = await chargePumpMint(item.cost, item.label);
+      if (!payment) return;
+    } else {
+      payment = { tokenAmountUi: 0 };
+    }
+
     setGame((current) => {
-      const item = SHOP_ITEMS.find((entry) => entry.id === type);
-      if (!item) return current;
       if (!current.claimedPlotId) return { ...current, message: "Claim a plot first." };
-      const cost = scaledCost(item.cost);
+
+      const plot = current.plots[current.claimedPlotId];
 
       if (type === "chest") {
-        const plot = current.plots[current.claimedPlotId];
         if (plot.chest) {
           return { ...current, message: "You already have a gacha chest on this plot." };
-        }
-        if (current.sol < cost) {
-          return { ...current, message: `Need ${cost} SOL to buy ${item.label}.` };
         }
 
         const nextState = {
           ...current,
-          sol: round(current.sol - cost),
+          mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
           plots: {
             ...current.plots,
             [current.claimedPlotId]: {
@@ -2703,13 +2928,9 @@ function App() {
         return nextState;
       }
 
-      if (current.sol < cost) {
-        return { ...current, message: `Need ${cost} SOL to buy ${item.label}.` };
-      }
-
       return {
         ...current,
-        sol: round(current.sol - cost),
+        mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
         inventory: {
           ...current.inventory,
           [type]: (current.inventory[type] ?? 0) + 1,
@@ -2722,60 +2943,59 @@ function App() {
     sendSharedPlot(syncedPlot);
   }
 
-  function buyPetItem(type: PetType) {
-    setGame((current) => {
-      const item = PET_ITEMS.find((entry) => entry.id === type);
-      if (!item) return current;
-      if (!current.claimedPlotId) return { ...current, message: "Claim a plot first." };
+  async function buyPetItem(type: PetType) {
+    const item = PET_ITEMS.find((entry) => entry.id === type);
+    if (!item) return;
+    if (!game.claimedPlotId) {
+      setMessage("Claim a plot first.");
+      return;
+    }
 
-      const owned = (current.petInventory[type] ?? 0) > 0;
-      const cost = scaledCost(item.cost);
-      if (owned) {
-        return {
-          ...current,
-          activePet: type,
-          message: `${item.label} equipped.`,
-        };
-      }
-
-      if (current.sol < cost) {
-        return { ...current, message: `Need ${cost} SOL to buy ${item.label}.` };
-      }
-
-      return {
+    const owned = (game.petInventory[type] ?? 0) > 0;
+    if (owned) {
+      setGame((current) => ({
         ...current,
-        sol: round(current.sol - cost),
-        petInventory: {
-          ...current.petInventory,
-          [type]: 1,
-        },
         activePet: type,
-        message: `${item.label} joined your crew.`,
-      };
-    });
+        message: `${item.label} equipped.`,
+      }));
+      return;
+    }
+
+    const payment = await chargePumpMint(item.cost, item.label);
+    if (!payment) return;
+
+    setGame((current) => ({
+      ...current,
+      mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+      petInventory: {
+        ...current.petInventory,
+        [type]: 1,
+      },
+      activePet: type,
+      message: `${item.label} joined your crew.`,
+    }));
   }
 
-  function buySkinItem(skinId: SkinId) {
-    setGame((current) => {
-      const skin = skinItem(skinId);
-      if (!skin) return current;
-      if (!current.claimedPlotId) return { ...current, message: "Claim a plot first." };
+  async function buySkinItem(skinId: SkinId) {
+    const skin = skinItem(skinId);
+    if (!skin) return;
+    if (!game.claimedPlotId) {
+      setMessage("Claim a plot first.");
+      return;
+    }
 
-      const cost = scaledCost(skin.cost);
-      if (current.sol < cost) {
-        return { ...current, message: `Need ${cost} SOL to buy ${skin.label}.` };
-      }
+    const payment = await chargePumpMint(skin.cost, skin.label);
+    if (!payment) return;
 
-      return {
-        ...current,
-        sol: round(current.sol - cost),
-        skinInventory: {
-          ...current.skinInventory,
-          [skinId]: (current.skinInventory[skinId] ?? 0) + 1,
-        },
-        message: `${skin.label} added to your wardrobe.`,
-      };
-    });
+    setGame((current) => ({
+      ...current,
+      mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+      skinInventory: {
+        ...current.skinInventory,
+        [skinId]: (current.skinInventory[skinId] ?? 0) + 1,
+      },
+      message: `${skin.label} added to your wardrobe.`,
+    }));
   }
 
   function openChest(plotId: string) {
@@ -2846,6 +3066,9 @@ function App() {
       const nextState = {
         ...current,
         sol: round(current.sol + drop.reward * bonusMultiplier),
+        rewardReserveSol: round(
+          Math.max(0, current.rewardReserveSol - drop.reward * bonusMultiplier),
+        ),
         plots: current.claimedPlotId
           ? {
               ...current.plots,
@@ -2899,6 +3122,7 @@ function App() {
         return {
           ...next,
           sol: round(next.sol + amount),
+          rewardReserveSol: round(Math.max(0, next.rewardReserveSol - amount)),
           stats: {
             ...next.stats,
             totalEarned: round(next.stats.totalEarned + amount),
@@ -3143,53 +3367,60 @@ function App() {
     sendSharedPlot(syncedPlot);
   }
 
-  function upgradeSelected() {
+  async function upgradeSelected() {
     let syncedPlot: Plot | null = null;
+    if (!game.claimedPlotId) {
+      setMessage("Claim a plot first.");
+      return;
+    }
+
+    const plot = game.plots[game.claimedPlotId];
+    const selectedTile = game.selectedTile;
+    if (!selectedTile) {
+      setMessage("Select a structure first.");
+      return;
+    }
+
+    const structure = plot.structures[selectedTile];
+    if (!structure) {
+      setMessage("That tile is empty.");
+      return;
+    }
+    if (structure.type !== "drill" && structure.type !== "shack") {
+      setMessage("That structure cannot be upgraded.");
+      return;
+    }
+
+    const maxLevel = maxStructureLevel(structure.type);
+    if (structure.level >= maxLevel) {
+      setMessage(structure.type === "shack" ? "That shack is already a mansion." : "That drill is already fully upgraded.");
+      return;
+    }
+
+    const payment = await chargePumpMint(upgradeCost(structure), `${structureLabel(structure)} upgrade`);
+    if (!payment) return;
+
     setGame((current) => {
       if (!current.claimedPlotId) return { ...current, message: "Claim a plot first." };
 
-      const plot = current.plots[current.claimedPlotId];
-      const selectedTile = current.selectedTile;
-      if (!selectedTile) return { ...current, message: "Select a structure first." };
+      const plotNow = current.plots[current.claimedPlotId];
+      const selectedTileNow = current.selectedTile;
+      if (!selectedTileNow) return { ...current, message: "Select a structure first." };
 
-      const structure = plot.structures[selectedTile];
-      if (!structure) return { ...current, message: "That tile is empty." };
-      if (structure.type !== "drill" && structure.type !== "shack") {
-        return {
-          ...current,
-          message: "That structure cannot be upgraded.",
-        };
-      }
+      const structureNow = plotNow.structures[selectedTileNow];
+      if (!structureNow) return { ...current, message: "That tile is empty." };
 
-      const maxLevel = maxStructureLevel(structure.type);
-      if (structure.level >= maxLevel) {
-        return {
-          ...current,
-          message:
-            structure.type === "shack"
-              ? "That shack is already a mansion."
-              : "That drill is already fully upgraded.",
-        };
-      }
-
-      const cost = upgradeCost(structure);
-      if (cost > 0 && current.sol < cost) {
-        return {
-          ...current,
-          message: `Need ${cost} SOL to upgrade ${structureLabel(structure)}.`,
-        };
-      }
-
+      const maxLevelNow = maxStructureLevel(structureNow.type);
       const nextState = {
         ...current,
-        sol: cost > 0 ? round(current.sol - cost) : current.sol,
+        mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
         plots: {
           ...current.plots,
           [current.claimedPlotId]: {
-            ...plot,
+            ...plotNow,
             structures: {
-              ...plot.structures,
-              [selectedTile]: { ...structure, level: Math.min(maxLevel, structure.level + 1) },
+              ...plotNow.structures,
+              [selectedTileNow]: { ...structureNow, level: Math.min(maxLevelNow, structureNow.level + 1) },
             },
           },
         },
@@ -3197,7 +3428,7 @@ function App() {
           ...current.stats,
           upgradesDone: current.stats.upgradesDone + 1,
         },
-        message: `${structureLabel(structure)} upgraded.`,
+        message: `${structureLabel(structureNow)} upgraded.`,
       };
       syncedPlot = nextState.plots[current.claimedPlotId];
       return nextState;
@@ -3280,6 +3511,21 @@ function App() {
       progress,
     };
   });
+  const earningsScenario = EARNINGS_SCENARIOS.find((scenario) => scenario.id === earningsScenarioId) ?? EARNINGS_SCENARIOS[0];
+  const chartWidth = 760;
+  const chartHeight = 320;
+  const chartPoints = earningsScenario.points;
+  const chartMin = Math.min(...chartPoints);
+  const chartMax = Math.max(...chartPoints);
+  const chartRange = Math.max(0.01, chartMax - chartMin);
+  const chartPathValue = chartPath(chartPoints, chartWidth, chartHeight);
+  const chartAreaValue = chartAreaPath(chartPoints, chartWidth, chartHeight);
+  const chartPointIndex = earningsHoverIndex ?? chartPoints.length - 1;
+  const chartPointX =
+    16 + (chartPointIndex / Math.max(1, chartPoints.length - 1)) * (chartWidth - 32);
+  const chartPointValue = chartPoints[chartPointIndex] ?? chartPoints[chartPoints.length - 1] ?? 0;
+  const chartPointY =
+    16 + (chartHeight - 32) - ((chartPointValue - chartMin) / chartRange) * (chartHeight - 32);
 
   return (
     <main className="shell">
@@ -3292,6 +3538,18 @@ function App() {
             mining empire. Everyone can see how much SOL each plot has
             collected, so the good land stands out immediately.
           </p>
+          <div className="hero__actions">
+            <button type="button" className="primary" onClick={scrollToGame}>
+              Enter the game
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: "smooth" })}
+            >
+              View roadmap
+            </button>
+          </div>
         </div>
 
         <div className="wallet-card">
@@ -3308,25 +3566,12 @@ function App() {
               <dd>{formatAddress(walletPublicKey)}</dd>
             </div>
             <div>
-              <dt>Devnet balance</dt>
-              <dd>
-                {loadingBalance
-                  ? "Loading..."
-                  : devnetBalance === null
-                    ? "0.000 SOL"
-                    : `${devnetBalance.toFixed(3)} SOL`}
-              </dd>
-            </div>
-            <div>
               <dt>Status</dt>
               <dd>{walletMessage || game.message}</dd>
             </div>
           </dl>
 
           <div className="wallet-actions">
-            <button className="ghost" onClick={requestAirdrop} disabled={!walletPublicKey}>
-              Request devnet SOL
-            </button>
             <button className="ghost" onClick={resetWorld}>
               Reset world
             </button>
@@ -3334,11 +3579,222 @@ function App() {
         </div>
       </section>
 
-      <section className="game-panel">
+      <section className="landing-grid">
+        <article className="landing-card landing-card--feature">
+          <span className="landing-card__eyebrow">Why it feels alive</span>
+          <h2>One world. Real players. Visible value.</h2>
+          <p>
+            Ore Acres is built around a shared multiplayer map where every plot
+            can be claimed, customized, and judged at a glance. The deeper you
+            build, the more your acre stands out.
+          </p>
+          <div className="landing-card__pills">
+            <span>Idle mining</span>
+            <span>Shared plots</span>
+            <span>Marketplace</span>
+            <span>Reserve-backed payouts</span>
+          </div>
+        </article>
+
+        <article className="landing-card landing-card--stats">
+          <span className="landing-card__eyebrow">Earnings examples</span>
+          <h2>{earningsScenario.label}</h2>
+          <p>{earningsScenario.description}</p>
+          <div className="landing-card__stats-row">
+            <div>
+              <span>Day</span>
+              <strong>{earningsScenario.solPerDay.toFixed(2)} SOL</strong>
+            </div>
+            <div>
+              <span>Week</span>
+              <strong>{earningsScenario.solPerWeek.toFixed(2)} SOL</strong>
+            </div>
+            <div>
+              <span>Month</span>
+              <strong>{earningsScenario.solPerMonth.toFixed(1)} SOL</strong>
+            </div>
+          </div>
+          <div className="landing-card__legend">
+            {earningsScenario.setup.map((entry) => (
+              <span key={entry}>{entry}</span>
+            ))}
+          </div>
+        </article>
+
+        <article className="landing-card landing-card--chart">
+          <div className="landing-card__header">
+            <span className="landing-card__eyebrow">Interactive earnings graph</span>
+            <div className="scenario-tabs">
+              {EARNINGS_SCENARIOS.map((scenario) => (
+                <button
+                  key={scenario.id}
+                  type="button"
+                  className={`chip ${earningsScenarioId === scenario.id ? "active" : ""}`}
+                  onClick={() => {
+                    setEarningsScenarioId(scenario.id);
+                    setEarningsHoverIndex(null);
+                  }}
+                >
+                  {scenario.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="earnings-chart">
+            <svg
+              viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+              role="img"
+              aria-label="Interactive earnings chart"
+              onMouseMove={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const index = Math.max(
+                  0,
+                  Math.min(
+                    chartPoints.length - 1,
+                    Math.round(((x / rect.width) * (chartPoints.length - 1)) || 0),
+                  ),
+                );
+                setEarningsHoverIndex(index);
+              }}
+              onMouseLeave={() => setEarningsHoverIndex(null)}
+            >
+              <defs>
+                <linearGradient id={`earnings-fill-${earningsScenario.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor={earningsScenario.color} stopOpacity="0.36" />
+                  <stop offset="100%" stopColor={earningsScenario.color} stopOpacity="0.02" />
+                </linearGradient>
+              </defs>
+              <rect x="0" y="0" width={chartWidth} height={chartHeight} rx="24" fill="rgba(255,255,255,0.03)" />
+              {Array.from({ length: 5 }).map((_, index) => (
+                <line
+                  key={index}
+                  x1="16"
+                  x2={chartWidth - 16}
+                  y1={16 + (index * (chartHeight - 32)) / 4}
+                  y2={16 + (index * (chartHeight - 32)) / 4}
+                  stroke="rgba(255,255,255,0.06)"
+                  strokeWidth="1"
+                />
+              ))}
+              <path d={chartAreaValue} fill={`url(#earnings-fill-${earningsScenario.id})`} />
+              <path d={chartPathValue} fill="none" stroke={earningsScenario.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+              {chartPoints.map((point, index) => {
+                const x = 16 + (index / Math.max(1, chartPoints.length - 1)) * (chartWidth - 32);
+                const normalized = (point - chartMin) / chartRange;
+                const y = 16 + (chartHeight - 32) - normalized * (chartHeight - 32);
+                const active = index === chartPointIndex;
+                return (
+                  <g key={`${earningsScenario.id}-${index}`}>
+                    <circle cx={x} cy={y} r={active ? 9 : 6} fill={active ? "#0b1020" : earningsScenario.color} stroke={earningsScenario.color} strokeWidth="3" />
+                  </g>
+                );
+              })}
+              <line
+                x1={chartPointX}
+                x2={chartPointX}
+                y1="16"
+                y2={chartHeight - 16}
+                stroke="rgba(255,255,255,0.14)"
+                strokeDasharray="8 8"
+              />
+              <circle cx={chartPointX} cy={chartPointY} r="12" fill={earningsScenario.color} opacity="0.18" />
+            </svg>
+            <div
+              className="earnings-chart__tooltip"
+              style={{
+                left: `${Math.max(16, Math.min(88, (chartPointIndex / Math.max(1, chartPoints.length - 1)) * 100))}%`,
+                top: `${Math.max(12, Math.min(84, (1 - (chartPointValue - chartMin) / chartRange) * 100))}%`,
+              }}
+            >
+              <strong>Day {chartPointIndex + 1}</strong>
+              <span>{chartPointValue.toFixed(2)} SOL/day</span>
+            </div>
+          </div>
+          <div className="landing-card__meta">
+            <span>Hover the chart and swap scenarios to compare how an acre scales.</span>
+          </div>
+        </article>
+      </section>
+
+      <section className="whitepaper" id="whitepaper">
+        <div className="section-heading">
+          <span className="eyebrow">Whitepaper</span>
+          <h2>What this game is supposed to be</h2>
+          <p>
+            A social idle miner where land ownership, cosmetics, and live
+            rewards create a loop that is fun to watch even when you are not
+            actively grinding.
+          </p>
+        </div>
+
+        <div className="whitepaper-grid">
+          <article className="whitepaper-card">
+            <h3>Core loop</h3>
+            <p>
+              Claim a plot, place drills, upgrade your shack into a mansion,
+              and stack tiny SOL earnings over time.
+            </p>
+          </article>
+          <article className="whitepaper-card">
+            <h3>Economy</h3>
+            <p>
+              Item purchases are priced in the Pump.fun mint, while gameplay
+              rewards stay denominated in SOL and are constrained by reserve
+              runway.
+            </p>
+          </article>
+          <article className="whitepaper-card">
+            <h3>Social layer</h3>
+            <p>
+              Players can walk past each other, inspect each plot, show off
+              skins, and compare total collected SOL publicly.
+            </p>
+          </article>
+          <article className="whitepaper-card">
+            <h3>Marketplace</h3>
+            <p>
+              Cosmetics can be listed for SOL, creating a simple sink and a
+              secondary play-to-trade loop.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="roadmap" id="roadmap">
+        <div className="section-heading">
+          <span className="eyebrow">Roadmap</span>
+          <h2>Launch plan</h2>
+          <p>
+            The first version is already playable. The roadmap focuses on making
+            the economy safer, the visuals richer, and the social systems deeper.
+          </p>
+        </div>
+
+        <div className="roadmap-grid">
+          {ROADMAP.map((item, index) => (
+            <article key={item.phase} className="roadmap-card">
+              <div className="roadmap-card__head">
+                <span>{item.phase}</span>
+                <strong>{item.status}</strong>
+              </div>
+              <h3>{item.title}</h3>
+              <p>{item.copy}</p>
+              <div className="roadmap-card__index">0{index + 1}</div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="game-panel" ref={gamePanelRef}>
         <div className="stats">
           <div>
             <span>Idle SOL</span>
             <strong>{game.sol.toFixed(2)}</strong>
+          </div>
+          <div>
+            <span>Pump.fun mint balance</span>
+            <strong>{game.mints.toFixed(2)}</strong>
           </div>
           <div>
             <span>Income</span>
@@ -3359,6 +3815,33 @@ function App() {
           <div>
             <span>Total earned</span>
             <strong>{game.stats.totalEarned.toFixed(2)}</strong>
+          </div>
+          <div className="stats__meter">
+            <span>Reward reserve</span>
+            <strong>{game.rewardReserveSol.toFixed(2)} SOL</strong>
+            <div className="stats__meter-bar" aria-hidden="true">
+              <div
+                className="stats__meter-fill"
+                style={{
+                  width: `${Math.max(
+                    0,
+                    Math.min(
+                      100,
+                      Number.isFinite(rewardReserveRunwayDays)
+                        ? (rewardReserveRunwayDays / 90) * 100
+                        : 100,
+                    ),
+                  )}%`,
+                }}
+              />
+            </div>
+            <small>
+              {Number.isFinite(rewardReserveRunwayDays)
+                ? `${rewardReserveRunwayDays.toFixed(1)} days runway`
+                : "No active emissions"}
+              {" · "}
+              {rewardReserveHealth}
+            </small>
           </div>
           <div>
             <span>Quest boxes</span>
@@ -3526,7 +4009,6 @@ function App() {
                   const selected = plot.id === game.selectedPlotId;
                   const owned = Boolean(plot.owner?.me);
                   const claimed = Boolean(plot.owner && !plot.owner.me);
-                  const ambient = AMBIENT_MINERS.find((miner) => miner.plotId === plot.id);
                   const plotEconomy = owned
                     ? computeEconomy(plot, game.activePet, game.equippedPickaxeSkin, game.equippedClothesSkin)
                     : null;
@@ -3776,7 +4258,6 @@ function App() {
                         })()
                       ) : null}
 
-                      {ambient ? <NeighborMiner name={ambient.name} /> : null}
                       <div className="plot-zone__badge">Lifetime: {plot.totalCollectedSol.toFixed(2)} SOL</div>
                     </div>
                   );
@@ -3973,7 +4454,7 @@ function App() {
                               </div>
                               <div className="inventory-item__meta">
                                 <strong>{skin.label}</strong>
-                                <span>{count > 0 ? skin.description : `Not owned · ${scaledCost(skin.cost)} SOL`}</span>
+                                <span>{count > 0 ? skin.description : `Not owned · $${skin.cost.toFixed(2)} USD`}</span>
                                 <div className="inventory-item__actions">
                                   <button
                                     type="button"
@@ -4118,7 +4599,7 @@ function App() {
                               <h4>{item.label}</h4>
                               <p>{item.description}</p>
                               <div className="shop-card__meta">
-                                <span>{scaledCost(item.cost)} SOL</span>
+                                <span>${item.cost.toFixed(2)} USD target</span>
                                 <span>{item.id === "chest" ? "Placed instantly" : owned ? `${game.inventory[item.id]} in inventory` : "Fresh stock"}</span>
                               </div>
                             </div>
@@ -4148,7 +4629,7 @@ function App() {
                               <p>{skin.description}</p>
                               <div className="shop-card__meta">
                                 <span>{skin.category === "pickaxe" ? `+${Math.round((skin.oreMultiplier ?? 1) * 100 - 100)}% ore value` : `+${Math.round((skin.incomeMultiplier ?? 1) * 100 - 100)}% idle income`}</span>
-                                <span>{owned ? "Owned" : `${scaledCost(skin.cost)} SOL`}</span>
+                                <span>{owned ? "Owned" : `$${skin.cost.toFixed(2)} USD target`}</span>
                               </div>
                             </div>
                             <button type="button" className="ghost cosmetic-buy" onClick={() => buySkinItem(skin.id)}>
@@ -4174,7 +4655,7 @@ function App() {
                               <p>{pet.description}</p>
                               <div className="shop-card__meta">
                                 <span>{pet.boost}</span>
-                                <span>{owned ? "Owned" : `${scaledCost(pet.cost)} SOL`}</span>
+                                <span>{owned ? "Owned" : `$${pet.cost.toFixed(2)} USD target`}</span>
                               </div>
                             </div>
                             <button type="button" className="primary" onClick={() => buyPetItem(pet.id)}>
@@ -4366,7 +4847,7 @@ function App() {
                     />
                   </div>
                   <small className="inspector-note">
-                    {nextStructureCost === null ? "No more upgrades available." : `${nextStructureCost} SOL to upgrade.`}
+                    {nextStructureCost === null ? "No more upgrades available." : `$${nextStructureCost.toFixed(2)} worth of token to upgrade.`}
                   </small>
                 </div>
               ) : null}

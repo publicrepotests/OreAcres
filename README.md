@@ -64,7 +64,24 @@ Server:
 
 - `PORT` - runtime port used by Fly
 - `ALLOWED_ORIGIN` - optional client origin allowlist
+- `PAYMENT_MINT_ADDRESS` - the pump.fun token mint used for item pricing
+- `PAYMENT_RESERVE_TOKEN_ACCOUNT` - main reward reserve token account
+- `PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT` - future rewards reserve token account
+- `PAYMENT_OPS_TOKEN_ACCOUNT` - ops / maintenance token account
+- `PAYMENT_RESERVE_BPS` - default `8000`
+- `PAYMENT_REWARD_RESERVE_BPS` - default `1000`
+- `PAYMENT_OPS_BPS` - default `1000`
+- `PAYMENT_TOKEN_PRICE_USD_OVERRIDE` - optional fallback USD price per token
+- `BIRDEYE_API_KEY` - optional price API key if you want live token pricing
+- `BIRDEYE_PRICE_URL` - optional price endpoint override
+
+Client can optionally also use:
+
+- `VITE_PAYMENT_API_URL` - base URL for the Fly server if it differs from the websocket URL
+- `VITE_SOLANA_RPC_URL` - RPC URL used to submit token payments, defaults to mainnet-beta
 
 ## Notes
 
 Solana is used here as the economy theme and wallet identity layer. The in-game resource loop can stay off-chain while the multiplayer state lives on Fly.
+
+See [ECONOMY.md](/mnt/c/Users/shane/Documents/Codex/2026-06-23/can/ECONOMY.md) for the launch pricing bands, reward caps, and reserve split plan.

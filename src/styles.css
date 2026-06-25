@@ -66,6 +66,13 @@ button {
   margin-bottom: 18px;
 }
 
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
 .eyebrow {
   margin: 0 0 12px;
   color: var(--accent);
@@ -137,6 +144,230 @@ h1 {
   gap: 10px;
 }
 
+.landing-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr) minmax(360px, 1.2fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.landing-card,
+.whitepaper-card,
+.roadmap-card {
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(circle at top left, rgba(103, 245, 211, 0.1), transparent 48%),
+    rgba(14, 20, 35, 0.78);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+}
+
+.landing-card {
+  padding: 18px;
+}
+
+.landing-card h2,
+.section-heading h2 {
+  margin: 10px 0 10px;
+  font-size: clamp(1.5rem, 3vw, 2.1rem);
+  line-height: 1.05;
+}
+
+.landing-card p,
+.section-heading p,
+.whitepaper-card p,
+.roadmap-card p {
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 0;
+}
+
+.landing-card__eyebrow,
+.section-heading .eyebrow {
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 0.64rem;
+  font-family: "Press Start 2P", monospace;
+}
+
+.landing-card__pills,
+.landing-card__legend,
+.scenario-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.landing-card__pills span,
+.landing-card__legend span {
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
+.landing-card__stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.landing-card__stats-row div {
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.landing-card__stats-row span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-family: "Press Start 2P", monospace;
+}
+
+.landing-card__stats-row strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 1.2rem;
+}
+
+.landing-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.landing-card--chart {
+  overflow: hidden;
+}
+
+.earnings-chart {
+  position: relative;
+  margin-top: 14px;
+}
+
+.earnings-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.earnings-chart__tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(7, 11, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  min-width: 132px;
+}
+
+.earnings-chart__tooltip strong,
+.earnings-chart__tooltip span {
+  display: block;
+}
+
+.earnings-chart__tooltip strong {
+  margin-bottom: 4px;
+  font-size: 0.78rem;
+}
+
+.earnings-chart__tooltip span {
+  color: var(--warm);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.86rem;
+}
+
+.landing-card__meta {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.whitepaper,
+.roadmap {
+  margin: 0 0 18px;
+}
+
+.section-heading {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.whitepaper-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.whitepaper-card {
+  padding: 18px;
+  min-height: 180px;
+}
+
+.whitepaper-card h3,
+.roadmap-card h3 {
+  margin: 10px 0 8px;
+  font-size: 1.08rem;
+}
+
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.roadmap-card {
+  position: relative;
+  padding: 18px;
+  min-height: 210px;
+  overflow: hidden;
+}
+
+.roadmap-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+
+.roadmap-card__head span {
+  color: var(--accent);
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.roadmap-card__head strong {
+  color: var(--warm);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.roadmap-card__index {
+  position: absolute;
+  right: 14px;
+  bottom: 10px;
+  color: rgba(255, 255, 255, 0.12);
+  font-size: 3.4rem;
+  font-family: "Press Start 2P", monospace;
+  pointer-events: none;
+}
+
 .game-panel {
   border-radius: 26px;
   padding: 16px;
@@ -178,6 +409,35 @@ h1 {
   display: block;
   margin-top: 10px;
   font-size: 1.55rem;
+}
+
+.stats__meter {
+  display: grid;
+  gap: 10px;
+}
+
+.stats__meter strong {
+  margin-top: 8px;
+}
+
+.stats__meter-bar {
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stats__meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #67f5d3 0%, #7aa7ff 55%, #ffd166 100%);
+  box-shadow: 0 0 16px rgba(103, 245, 211, 0.35);
+}
+
+.stats__meter small {
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .mission-board {
@@ -1271,8 +1531,7 @@ h1 {
 .sprite--vault,
 .sprite--neon,
 .sprite--statue,
-.sprite--sign,
-.sprite--manager {
+.sprite--sign {
   animation: float 3.2s ease-in-out infinite;
 }
 
@@ -1600,34 +1859,6 @@ h1 {
   border: 2px solid rgba(255, 255, 255, 0.12);
 }
 
-.manager__screen {
-  position: absolute;
-  left: 18px;
-  top: 10px;
-  width: 34px;
-  height: 28px;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #182037, #0d1322);
-  border: 2px solid rgba(103, 245, 211, 0.24);
-}
-.manager__antenna {
-  position: absolute;
-  left: 34px;
-  top: 2px;
-  width: 3px;
-  height: 12px;
-  background: #67f5d3;
-}
-.manager__arm {
-  position: absolute;
-  top: 24px;
-  width: 12px;
-  height: 3px;
-  background: #7aa7ff;
-}
-.manager__arm--left { left: 10px; }
-.manager__arm--right { right: 10px; }
-
 .pet-sprite {
   position: relative;
   width: 42px;
@@ -1643,10 +1874,6 @@ h1 {
 .pet-sprite--fox {
   width: 46px;
   height: 36px;
-  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.24));
-}
-
-.pet-sprite--bot {
   filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.24));
 }
 
@@ -1774,55 +2001,6 @@ h1 {
 
 .pet-sprite--fox .pet-sprite__eye--left { left: 28px; }
 .pet-sprite--fox .pet-sprite__eye--right { left: 34px; }
-
-.pet-sprite--bot .pet-sprite__antenna {
-  left: 20px;
-  top: 2px;
-  width: 2px;
-  height: 9px;
-  background: #7aa7ff;
-}
-
-.pet-sprite--bot .pet-sprite__antenna-tip {
-  left: 17px;
-  top: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: radial-gradient(circle, #fff8b3 0 35%, #67f5d3 70%, transparent 100%);
-  box-shadow: 0 0 12px rgba(103, 245, 211, 0.45);
-}
-
-.pet-sprite--bot .pet-sprite__body {
-  left: 11px;
-  top: 10px;
-  width: 20px;
-  height: 16px;
-  border-radius: 6px;
-  background: linear-gradient(180deg, #324965, #162033);
-  border: 1px solid rgba(103, 245, 211, 0.2);
-}
-
-.pet-sprite--bot .pet-sprite__screen {
-  left: 16px;
-  top: 14px;
-  width: 10px;
-  height: 8px;
-  border-radius: 2px;
-  background: linear-gradient(180deg, #67f5d3, #2aa88f);
-}
-
-.pet-sprite--bot .pet-sprite__wheel {
-  bottom: 2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #162033;
-  border: 1px solid rgba(103, 245, 211, 0.24);
-}
-
-.pet-sprite--bot .pet-sprite__wheel--left { left: 10px; }
-.pet-sprite--bot .pet-sprite__wheel--right { right: 10px; }
 
 .pet-sprite--drake .pet-sprite__body {
   left: 13px;
@@ -2772,12 +2950,15 @@ h1 {
 
 @media (max-width: 1080px) {
   .hero,
+  .landing-grid,
   .layout {
     display: flex;
     flex-direction: column;
   }
 
   .stats,
+  .whitepaper-grid,
+  .roadmap-grid,
   .world-map,
   .shop-grid {
     grid-template-columns: 1fr;
@@ -2803,6 +2984,10 @@ h1 {
   .shell {
     width: min(100vw - 12px, 1520px);
     padding-top: 12px;
+  }
+
+  .landing-card__stats-row {
+    grid-template-columns: 1fr;
   }
 
   .wallet-actions,
@@ -4193,11 +4378,14 @@ h1 {
 
 @media (max-width: 1080px) {
   .hero,
+  .landing-grid,
   .layout {
     grid-template-columns: 1fr;
   }
 
   .stats,
+  .whitepaper-grid,
+  .roadmap-grid,
   .shop-grid {
     grid-template-columns: 1fr;
   }
@@ -4217,6 +4405,10 @@ h1 {
   .shell {
     width: min(100vw - 12px, 1240px);
     padding-top: 12px;
+  }
+
+  .landing-card__stats-row {
+    grid-template-columns: 1fr;
   }
 
   .wallet-actions,
