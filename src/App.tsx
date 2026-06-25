@@ -330,11 +330,42 @@ const DRILL_ART = {
   2: "/assets/structures/drills/tier2-drill.png",
   3: "/assets/structures/drills/tier3-drill.png",
 } as const;
-const DRILL_SHEET_URL = "/assets/structures/drills/drill-sprite-sheet.png";
-const DRILL_SHEET_COLUMNS = 8;
-const DRILL_SHEET_ROWS = 4;
-const DRILL_SHEET_FRAME_COUNT = DRILL_SHEET_COLUMNS * DRILL_SHEET_ROWS;
-const DRILL_SHEET_FPS = 12;
+const DRILL_ANIMATION_FPS = 9;
+const DRILL_FRAMESETS = {
+  1: [
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-1.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-2.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-3.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-4.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-5.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-6.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-7.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-8.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-9.png",
+  ],
+  2: [
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-1.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-2.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-3.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-4.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-5.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-6.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-7.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-8.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-9.png",
+  ],
+  3: [
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-1.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-2.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-3.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-4.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-5.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-6.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-7.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-8.png",
+    "/assets/structures/Animations/Drill-animations-tier-1/Drill-9.png",
+  ],
+} as const;
 const SKIN_ART_SLOTS: Record<SkinId, CosmeticArtSlot> = {
   troll_pick: { col: 0, row: 0 },
   laser_pick: { col: 1, row: 0 },
@@ -2130,6 +2161,7 @@ function DrillSpriteSheet({
   mode?: "world" | "card";
 }) {
   const [frame, setFrame] = useState(0);
+  const frames = DRILL_FRAMESETS[tier];
 
   useEffect(() => {
     const reducedMotion =
@@ -2139,29 +2171,21 @@ function DrillSpriteSheet({
       return;
     }
 
-    const frameDelay = 1000 / DRILL_SHEET_FPS;
+    const frameDelay = 1000 / DRILL_ANIMATION_FPS;
     const timer = window.setInterval(() => {
-      setFrame((current) => (current + 1) % DRILL_SHEET_FRAME_COUNT);
+      setFrame((current) => (current + 1) % frames.length);
     }, frameDelay);
 
     return () => window.clearInterval(timer);
-  }, []);
-
-  const column = frame % DRILL_SHEET_COLUMNS;
-  const row = Math.floor(frame / DRILL_SHEET_COLUMNS);
-  const positionX = (column / (DRILL_SHEET_COLUMNS - 1)) * 100;
-  const positionY = (row / (DRILL_SHEET_ROWS - 1)) * 100;
+  }, [frames.length]);
 
   return (
     <div
       className={`sprite sprite--drill-sheet sprite--drill-sheet-${tier} sprite--drill-sheet--${mode} ${className}`.trim()}
-      style={{
-        backgroundImage: `url(${DRILL_SHEET_URL})`,
-        backgroundSize: `${DRILL_SHEET_COLUMNS * 100}% ${DRILL_SHEET_ROWS * 100}%`,
-        backgroundPosition: `${positionX}% ${positionY}%`,
-      }}
       aria-hidden="true"
-    />
+    >
+      <img className="sprite__frame" src={frames[frame]} alt="" draggable="false" />
+    </div>
   );
 }
 
