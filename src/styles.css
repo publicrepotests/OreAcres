@@ -1087,7 +1087,7 @@ h1 {
 }
 
 .sprite--shack {
-  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.2));
+  filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.24));
 }
 
 .sprite--shack-1 {
@@ -1096,10 +1096,12 @@ h1 {
 
 .sprite--shack-2 {
   --shack-scale: 1.08;
+  filter: drop-shadow(0 0 10px rgba(255, 196, 120, 0.1)) drop-shadow(0 12px 14px rgba(0, 0, 0, 0.22));
 }
 
 .sprite--shack-3 {
   --shack-scale: 1.16;
+  filter: drop-shadow(0 0 12px rgba(255, 214, 133, 0.12)) drop-shadow(0 12px 14px rgba(0, 0, 0, 0.24));
 }
 
 .sprite--shack-4 {
@@ -1112,10 +1114,11 @@ h1 {
   inset: 0;
   transform: scale(var(--shack-scale, 1));
   transform-origin: center bottom;
+  filter: saturate(1.04);
 }
 
 .sprite--drill {
-  filter: drop-shadow(0 10px 12px rgba(0, 0, 0, 0.22));
+  filter: drop-shadow(0 12px 14px rgba(0, 0, 0, 0.24));
 }
 
 .sprite--drill-1 {
@@ -1128,6 +1131,7 @@ h1 {
   --drill-scale: 1.08;
   --drill-spin: 0.28s;
   --drill-glow: 0.8s;
+  filter: drop-shadow(0 0 10px rgba(103, 245, 211, 0.1)) drop-shadow(0 12px 14px rgba(0, 0, 0, 0.24));
 }
 
 .sprite--drill-3 {
@@ -1248,8 +1252,23 @@ h1 {
   top: 10px;
   width: 54px;
   height: 18px;
-  background: linear-gradient(180deg, #c76a3a, #8d4623);
+  background: linear-gradient(180deg, #ef9b60, #b2582c 48%, #7f3a1e);
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 232, 205, 0.24),
+    0 2px 0 rgba(72, 29, 13, 0.28);
+}
+
+.shack__roof::after {
+  content: "";
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  top: 3px;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 239, 216, 0.65), rgba(255, 239, 216, 0));
+  transform: rotate(-2deg);
 }
 
 .shack__wall {
@@ -1258,8 +1277,14 @@ h1 {
   top: 24px;
   width: 38px;
   height: 28px;
-  background: linear-gradient(180deg, #f2c28a, #b57542);
-  border: 2px solid rgba(0, 0, 0, 0.18);
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg, rgba(128, 68, 36, 0.16) 0 6%, transparent 6% 22%, rgba(128, 68, 36, 0.16) 22% 28%, transparent 28% 44%, rgba(128, 68, 36, 0.16) 44% 50%, transparent 50% 66%, rgba(128, 68, 36, 0.16) 66% 72%, transparent 72% 88%, rgba(128, 68, 36, 0.16) 88% 94%, transparent 94% 100%),
+    linear-gradient(180deg, #f6d2a2, #cb8a55 62%, #9f6139);
+  border: 2px solid rgba(86, 45, 24, 0.22);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 240, 214, 0.22),
+    inset 0 -4px 0 rgba(120, 69, 38, 0.18);
 }
 
 .shack__door {
@@ -1268,15 +1293,34 @@ h1 {
   top: 32px;
   width: 10px;
   height: 20px;
-  background: linear-gradient(180deg, #3c2415, #22120a);
+  border-radius: 2px 2px 0 0;
+  background: linear-gradient(180deg, #5a341d, #27150c);
+  box-shadow: inset 0 1px 0 rgba(255, 230, 180, 0.12);
+}
+
+.shack__door::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  top: 9px;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: #ffd98b;
 }
 
 .shack__window {
   position: absolute;
   width: 8px;
   height: 8px;
-  background: #67f5d3;
-  box-shadow: 0 0 8px rgba(103, 245, 211, 0.45);
+  border-radius: 2px;
+  background:
+    linear-gradient(90deg, transparent 42%, rgba(28, 59, 58, 0.9) 42% 58%, transparent 58%),
+    linear-gradient(180deg, transparent 42%, rgba(28, 59, 58, 0.9) 42% 58%, transparent 58%),
+    linear-gradient(180deg, #b8fff3, #67f5d3 56%, #2db29d);
+  box-shadow:
+    0 0 10px rgba(103, 245, 211, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
 .shack__window--left {
@@ -1325,8 +1369,9 @@ h1 {
   top: 24px;
   width: 14px;
   height: 24px;
-  background: linear-gradient(180deg, #e4b47a, #a86239);
-  border: 2px solid rgba(0, 0, 0, 0.16);
+  background: linear-gradient(180deg, #efca98, #bd7746 62%, #93532f);
+  border: 2px solid rgba(87, 45, 23, 0.18);
+  box-shadow: inset 0 2px 0 rgba(255, 236, 210, 0.18);
 }
 
 .shack__wing--left {
@@ -1344,8 +1389,10 @@ h1 {
   top: 8px;
   width: 8px;
   height: 18px;
-  background: linear-gradient(180deg, #73605f, #43383a);
-  box-shadow: 0 -2px 0 rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, #9c8a88, #544548);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.12),
+    0 -2px 0 rgba(255, 255, 255, 0.08);
 }
 
 .shack__porch {
@@ -1354,7 +1401,8 @@ h1 {
   bottom: 8px;
   height: 10px;
   border-radius: 8px 8px 4px 4px;
-  background: linear-gradient(180deg, #d8a46c, #8f5e33);
+  background: linear-gradient(180deg, #efcb9d, #9d6738);
+  box-shadow: inset 0 2px 0 rgba(255, 237, 208, 0.2);
 }
 
 .shack__porch-post {
@@ -1376,8 +1424,13 @@ h1 {
   top: 20px;
   width: 18px;
   height: 30px;
-  background: linear-gradient(180deg, #f1c48f, #b16f43);
-  border: 2px solid rgba(0, 0, 0, 0.16);
+  background:
+    linear-gradient(90deg, rgba(148, 94, 51, 0.14) 0 16%, transparent 16% 84%, rgba(148, 94, 51, 0.14) 84% 100%),
+    linear-gradient(180deg, #f8dfbd, #c98a59 62%, #a7643d);
+  border: 2px solid rgba(89, 45, 23, 0.18);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 242, 223, 0.2),
+    0 0 12px rgba(255, 209, 102, 0.08);
 }
 
 .shack__mansion-wing--left {
@@ -1396,10 +1449,11 @@ h1 {
   width: 18px;
   height: 28px;
   background:
-    linear-gradient(180deg, #f2ce9f, #b16f43),
+    linear-gradient(180deg, #f9e4c5, #cd8d5a 58%, #9f613a),
     linear-gradient(180deg, #7b5b43, #4d3529);
   border: 2px solid rgba(0, 0, 0, 0.18);
   clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 244, 226, 0.2);
 }
 
 .shack__balcony {
@@ -1408,7 +1462,8 @@ h1 {
   top: 28px;
   height: 8px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #36251a, #1f150f);
+  background: linear-gradient(180deg, #523325, #23150f);
+  box-shadow: inset 0 1px 0 rgba(255, 232, 195, 0.08);
 }
 
 .shack__column {
@@ -1442,9 +1497,24 @@ h1 {
   bottom: 10px;
   height: 18px;
   border-radius: 6px;
-  background: linear-gradient(180deg, #324965, #17273b);
-  border: 2px solid rgba(0, 0, 0, 0.18);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(90deg, rgba(210, 228, 255, 0.08) 0 12%, transparent 12% 88%, rgba(210, 228, 255, 0.08) 88% 100%),
+    linear-gradient(180deg, #3f5e86, #1a2b40 56%, #101923);
+  border: 2px solid rgba(6, 12, 22, 0.24);
+  box-shadow:
+    inset 0 2px 0 rgba(219, 238, 255, 0.16),
+    inset 0 -3px 0 rgba(8, 13, 22, 0.22);
+}
+
+.drill__base::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 4px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.08));
 }
 
 .drill__mast {
@@ -1454,8 +1524,10 @@ h1 {
   width: 8px;
   height: 36px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #e8f5fb, #77b4d6);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(180deg, #f0fbff, #9ed8f3 42%, #5f8fb6);
+  box-shadow:
+    0 0 0 1px rgba(10, 20, 35, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .drill__head {
@@ -1465,8 +1537,14 @@ h1 {
   width: 30px;
   height: 14px;
   border-radius: 4px;
-  background: linear-gradient(180deg, #67f5d3, #319e8a);
+  clip-path: polygon(8% 0, 92% 0, 100% 50%, 92% 100%, 8% 100%, 0 50%);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.22), transparent 34%, transparent 66%, rgba(255, 255, 255, 0.12)),
+    linear-gradient(180deg, #8fffe8, #38b29a 54%, #227869);
   animation: pulse var(--drill-glow, 1s) ease-in-out infinite;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 12px rgba(103, 245, 211, 0.16);
 }
 
 .drill__bit {
@@ -1475,10 +1553,13 @@ h1 {
   top: 16px;
   width: 16px;
   height: 12px;
-  border-radius: 0 6px 6px 0;
-  background: linear-gradient(180deg, #ffd166, #dc9527);
+  clip-path: polygon(0 8%, 66% 0, 100% 50%, 66% 100%, 0 92%, 16% 50%);
+  background: linear-gradient(180deg, #ffe7ab, #f4b243 56%, #cb7d15);
   transform-origin: left center;
   animation: spin var(--drill-spin, 0.35s) linear infinite;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 245, 199, 0.34),
+    0 0 10px rgba(255, 209, 102, 0.18);
 }
 
 .drill__arm {
@@ -1487,8 +1568,9 @@ h1 {
   width: 16px;
   height: 4px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #8fa8c4, #647a96);
+  background: linear-gradient(180deg, #c5d7eb, #6d85a3);
   animation: chip 2s ease-in-out infinite;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .drill__arm--left {
@@ -1509,7 +1591,9 @@ h1 {
   height: 16px;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(103, 245, 211, 0.98), rgba(103, 245, 211, 0.08) 72%);
-  box-shadow: 0 0 14px rgba(103, 245, 211, 0.7);
+  box-shadow:
+    0 0 14px rgba(103, 245, 211, 0.7),
+    inset 0 0 0 2px rgba(213, 255, 246, 0.24);
   animation: pulse 1.4s ease-in-out infinite;
 }
 
@@ -1519,8 +1603,9 @@ h1 {
   right: 16px;
   top: 2px;
   height: 14px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(122, 167, 255, 0.08));
+  background: linear-gradient(180deg, rgba(235, 251, 255, 0.32), rgba(122, 167, 255, 0.08));
   clip-path: polygon(0 100%, 14% 0, 86% 0, 100% 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
 }
 
 .drill__pipe {
@@ -1529,7 +1614,7 @@ h1 {
   width: 18px;
   height: 8px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #c7d8ea, #7897b7);
+  background: linear-gradient(180deg, #e1edf8, #7f9ab6);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
@@ -1550,7 +1635,9 @@ h1 {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: linear-gradient(180deg, #8dfbe5, #2e8b77);
+  background:
+    radial-gradient(circle at 40% 38%, rgba(255, 255, 255, 0.38), transparent 18%),
+    linear-gradient(180deg, #9effeb, #2e8b77);
   box-shadow:
     inset 0 0 0 2px rgba(0, 0, 0, 0.14),
     0 0 10px rgba(103, 245, 211, 0.28);
@@ -1601,9 +1688,10 @@ h1 {
 .drill__chip {
   width: 6px;
   height: 6px;
-  border-radius: 1px;
-  background: #8fa8c4;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #d7e6f5, #7893af);
   animation: chip 1.8s ease-in-out infinite;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .drill__chip--1 {
