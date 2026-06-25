@@ -3788,11 +3788,13 @@ h1 {
 
 .plot-zone__grid {
   position: relative;
-  width: calc(100% + 20px);
-  margin-left: -10px;
+  width: 100%;
   height: calc(100% - 50px);
   border-radius: 12px;
   overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(7, minmax(0, 1fr));
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.1)),
     linear-gradient(180deg, var(--soil-2), var(--soil-1));
@@ -4059,12 +4061,14 @@ h1 {
 }
 
 .plot-tile {
-  position: absolute;
+  position: relative;
   border: 0;
   background: transparent;
   cursor: pointer;
   display: grid;
   place-items: center;
+  width: 100%;
+  height: 100%;
   transition: transform 120ms ease;
 }
 

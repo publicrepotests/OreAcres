@@ -4615,20 +4615,14 @@ function App() {
                       </div>
 
                       <div className="plot-zone__grid">
-                        {Array.from({ length: TILE_COUNT }).map((_, x) =>
-                          Array.from({ length: TILE_COUNT }).map((__, y) => {
+                        {Array.from({ length: TILE_COUNT }).map((_, y) =>
+                          Array.from({ length: TILE_COUNT }).map((__, x) => {
                             const tile = tileKey(x, y);
                             const structure = plot.structures[tile];
                             return (
                               <button
                                 key={tile}
                                 className={`plot-tile ${structure ? structure.type : "empty"}`}
-                                style={{
-                                  left: `${x * TILE_SIZE}px`,
-                                  top: `${y * TILE_SIZE}px`,
-                                  width: `${TILE_SIZE}px`,
-                                  height: `${TILE_SIZE}px`,
-                                }}
                                 draggable={Boolean(structure && plot.owner?.me && structure.type !== "chest")}
                                 onMouseEnter={() => {
                                   if (!plot.owner?.me || structure || !canPlaceActiveTool) return;
