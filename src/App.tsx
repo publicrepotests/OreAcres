@@ -2218,13 +2218,7 @@ function BuildingSprite({ type, level, opened }: { type: StructureType; level: n
         className={`sprite sprite--painted sprite--painted-drill sprite--painted-drill-${tier}`}
         style={{ backgroundImage: `url(${art})` }}
         aria-hidden="true"
-      >
-        <div className="drill-motion">
-          <div className="drill-motion__ring" />
-          <div className="drill-motion__core" />
-          <div className="drill-motion__tip" />
-        </div>
-      </div>
+      />
     );
   }
 
