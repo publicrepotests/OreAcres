@@ -61,6 +61,8 @@ type RoadmapItem = {
   status: "Live" | "In progress" | "Next" | "Planned";
 };
 
+type Page = "home" | "game";
+
 type Structure = {
   type: StructureType;
   level: number;
@@ -122,7 +124,9 @@ type SkinItem = {
 
 type MarketplaceListing = {
   id: string;
-  skinId: SkinId;
+  kind: "skin" | "pet";
+  itemId: SkinId | PetType;
+  category: "pickaxe" | "clothes" | "pet";
   seller: string;
   price: number;
   createdAt: number;
@@ -866,6 +870,26 @@ function skinItem(skinId?: SkinId | null) {
   return SKIN_ITEMS.find((entry) => entry.id === skinId) ?? null;
 }
 
+function petItem(petId?: PetType | null) {
+  return PET_ITEMS.find((entry) => entry.id === petId) ?? null;
+}
+
+function marketplaceListingLabel(listing: MarketplaceListing) {
+  if (listing.kind === "pet") {
+    return petItem(listing.itemId as PetType)?.label ?? "Pet";
+  }
+
+  return skinItem(listing.itemId as SkinId)?.label ?? "Cosmetic";
+}
+
+function marketplaceListingIcon(listing: MarketplaceListing) {
+  if (listing.kind === "pet") {
+    return petItem(listing.itemId as PetType)?.id ?? "mole";
+  }
+
+  return skinItem(listing.itemId as SkinId)?.category ?? "pickaxe";
+}
+
 function nftLabel(nftId: string) {
   switch (nftId) {
     case "genesis-miner-pass":
@@ -1390,6 +1414,44 @@ function normalizeBonusDrop(raw: unknown): BonusDrop | null {
   };
 }
 
+function normalizeMarketplaceListing(raw: unknown): MarketplaceListing | null {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw as Partial<MarketplaceListing> & { skinId?: unknown };
+  const createdAt = typeof candidate.createdAt === "number" ? candidate.createdAt : Date.now();
+  const seller = typeof candidate.seller === "string" ? candidate.seller : "Unknown";
+  const price = typeof candidate.price === "number" ? Math.max(0, candidate.price) : 0;
+
+  if (candidate.kind === "pet" && isPetType(candidate.itemId)) {
+    return {
+      id: typeof candidate.id === "string" ? candidate.id : `listing-${createdAt}`,
+      kind: "pet",
+      itemId: candidate.itemId,
+      category: "pet",
+      seller,
+      price,
+      createdAt,
+    };
+  }
+
+  const legacySkinId = typeof candidate.skinId === "string" && isSkinId(candidate.skinId) ? candidate.skinId : null;
+  const itemId = isSkinId(candidate.itemId)
+    ? candidate.itemId
+    : legacySkinId;
+  if (!itemId) return null;
+
+  const category = skinItem(itemId)?.category ?? "pickaxe";
+
+  return {
+    id: typeof candidate.id === "string" ? candidate.id : `listing-${createdAt}`,
+    kind: "skin",
+    itemId,
+    category,
+    seller,
+    price,
+    createdAt,
+  };
+}
+
 function loadGameState(saveKey: string): GameState {
   const raw = window.localStorage.getItem(saveKey);
   if (!raw) return createInitialState();
@@ -1434,7 +1496,9 @@ function loadGameState(saveKey: string): GameState {
       skinInventory: { ...DEFAULT_SKIN_INVENTORY, ...(parsed.skinInventory ?? {}) },
       equippedPickaxeSkin: isSkinId(parsed.equippedPickaxeSkin) ? parsed.equippedPickaxeSkin : null,
       equippedClothesSkin: isSkinId(parsed.equippedClothesSkin) ? parsed.equippedClothesSkin : null,
-      marketListings: Array.isArray(parsed.marketListings) ? parsed.marketListings.filter(Boolean) : seededMarketListings(),
+      marketListings: Array.isArray(parsed.marketListings)
+        ? parsed.marketListings.map(normalizeMarketplaceListing).filter((entry): entry is MarketplaceListing => Boolean(entry))
+        : seededMarketListings(),
       nftInventory: { ...DEFAULT_NFT_INVENTORY, ...(parsed.nftInventory ?? {}) },
       questBoxes: typeof parsed.questBoxes === "number" ? parsed.questBoxes : 0,
       inventoryOpen: typeof parsed.inventoryOpen === "boolean" ? parsed.inventoryOpen : fallback.inventoryOpen,
@@ -2132,8 +2196,11 @@ function App() {
     const fromQuery = new URLSearchParams(window.location.search).get("room");
     return sanitizeRoomId(fromQuery ?? window.localStorage.getItem("ore-acres-room") ?? "lobby");
   });
+  const [page, setPage] = useState<Page>(() => (window.location.pathname.startsWith("/game") ? "game" : "home"));
   const [earningsScenarioId, setEarningsScenarioId] = useState<EarningsScenarioId>("starter");
   const [earningsHoverIndex, setEarningsHoverIndex] = useState<number | null>(null);
+  const [marketFilter, setMarketFilter] = useState<"all" | "skins" | "pickaxes" | "clothes" | "pets">("all");
+  const [marketSort, setMarketSort] = useState<"low" | "high" | "newest">("low");
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gamePanelRef = useRef<HTMLElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -2193,6 +2260,15 @@ function App() {
   useEffect(() => {
     setGame(loadGameState(saveKey));
   }, [saveKey]);
+
+  useEffect(() => {
+    const syncPage = () => {
+      setPage(window.location.pathname.startsWith("/game") ? "game" : "home");
+    };
+
+    window.addEventListener("popstate", syncPage);
+    return () => window.removeEventListener("popstate", syncPage);
+  }, []);
 
   useEffect(() => {
     const room = sanitizeRoomId(roomCode);
@@ -2695,6 +2771,19 @@ function App() {
     gamePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function goToPage(nextPage: Page) {
+    const nextPath = nextPage === "game" ? "/game" : "/";
+    window.history.pushState({}, "", nextPath);
+    setPage(nextPage);
+    if (nextPage === "game") {
+      window.setTimeout(() => {
+        gamePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 0);
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   async function connectWallet() {
     if (!window.solana) {
       setWalletMessage("Install Phantom to connect.");
@@ -3179,7 +3268,9 @@ function App() {
         marketListings: [
           {
             id: `listing-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            skinId,
+            kind: "skin",
+            itemId: skinId,
+            category: skin.category,
             seller: "You",
             price,
             createdAt: Date.now(),
@@ -3187,6 +3278,40 @@ function App() {
           ...current.marketListings,
         ],
         message: `${skin.label} listed for ${price} SOL.`,
+      };
+    });
+  }
+
+  function listPetForSale(petId: PetType) {
+    setGame((current) => {
+      if ((current.petInventory[petId] ?? 0) <= 0) {
+        return { ...current, message: "You do not own that pet." };
+      }
+
+      const pet = petItem(petId);
+      if (!pet) return current;
+      const price = scaledCost(Math.max(10, Math.round(pet.cost * 0.85)));
+
+      return {
+        ...current,
+        petInventory: {
+          ...current.petInventory,
+          [petId]: Math.max(0, (current.petInventory[petId] ?? 0) - 1),
+        },
+        activePet: current.activePet === petId ? null : current.activePet,
+        marketListings: [
+          {
+            id: `listing-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            kind: "pet",
+            itemId: petId,
+            category: "pet",
+            seller: "You",
+            price,
+            createdAt: Date.now(),
+          },
+          ...current.marketListings,
+        ],
+        message: `${pet.label} listed for ${price} SOL.`,
       };
     });
   }
@@ -3202,12 +3327,22 @@ function App() {
       return {
         ...current,
         sol: round(current.sol - listing.price),
-        skinInventory: {
-          ...current.skinInventory,
-          [listing.skinId]: (current.skinInventory[listing.skinId] ?? 0) + 1,
-        },
+        skinInventory:
+          listing.kind === "skin"
+            ? {
+                ...current.skinInventory,
+                [listing.itemId as SkinId]: (current.skinInventory[listing.itemId as SkinId] ?? 0) + 1,
+              }
+            : current.skinInventory,
+        petInventory:
+          listing.kind === "pet"
+            ? {
+                ...current.petInventory,
+                [listing.itemId as PetType]: (current.petInventory[listing.itemId as PetType] ?? 0) + 1,
+              }
+            : current.petInventory,
         marketListings: current.marketListings.filter((entry) => entry.id !== listingId),
-        message: `${skinLabel(listing.skinId)} purchased from the marketplace.`,
+        message: `${marketplaceListingLabel(listing)} purchased from the marketplace.`,
       };
     });
   }
@@ -3526,267 +3661,305 @@ function App() {
   const chartPointValue = chartPoints[chartPointIndex] ?? chartPoints[chartPoints.length - 1] ?? 0;
   const chartPointY =
     16 + (chartHeight - 32) - ((chartPointValue - chartMin) / chartRange) * (chartHeight - 32);
+  const visibleMarketListings = [...game.marketListings]
+    .filter((listing) => {
+      if (marketFilter === "all") return true;
+      if (marketFilter === "pets") return listing.kind === "pet";
+      if (marketFilter === "skins") return listing.kind === "skin";
+      if (listing.kind !== "skin") return false;
+      if (marketFilter === "pickaxes") return listing.category === "pickaxe";
+      if (marketFilter === "clothes") return listing.category === "clothes";
+      return true;
+    })
+    .sort((a, b) => {
+      if (marketSort === "newest") return b.createdAt - a.createdAt;
+      if (marketSort === "high") return b.price - a.price;
+      return a.price - b.price;
+    });
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Idle Solana miner</p>
-          <h1>Ore Acres</h1>
-          <p className="lede">
-            Walk a big shared map, claim an open acre, and turn it into a
-            mining empire. Everyone can see how much SOL each plot has
-            collected, so the good land stands out immediately.
-          </p>
-          <div className="hero__actions">
-            <button type="button" className="primary" onClick={scrollToGame}>
-              Enter the game
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: "smooth" })}
-            >
-              View roadmap
-            </button>
-          </div>
-        </div>
-
-        <div className="wallet-card">
-          <button
-            className="primary wallet-button"
-            onClick={walletPublicKey ? disconnectWallet : connectWallet}
-          >
-            {walletPublicKey ? "Disconnect wallet" : "Connect Phantom"}
-          </button>
-
-          <dl>
+      {page === "home" ? (
+        <>
+          <section className="hero">
             <div>
-              <dt>Wallet</dt>
-              <dd>{formatAddress(walletPublicKey)}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{walletMessage || game.message}</dd>
-            </div>
-          </dl>
-
-          <div className="wallet-actions">
-            <button className="ghost" onClick={resetWorld}>
-              Reset world
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="landing-grid">
-        <article className="landing-card landing-card--feature">
-          <span className="landing-card__eyebrow">Why it feels alive</span>
-          <h2>One world. Real players. Visible value.</h2>
-          <p>
-            Ore Acres is built around a shared multiplayer map where every plot
-            can be claimed, customized, and judged at a glance. The deeper you
-            build, the more your acre stands out.
-          </p>
-          <div className="landing-card__pills">
-            <span>Idle mining</span>
-            <span>Shared plots</span>
-            <span>Marketplace</span>
-            <span>Reserve-backed payouts</span>
-          </div>
-        </article>
-
-        <article className="landing-card landing-card--stats">
-          <span className="landing-card__eyebrow">Earnings examples</span>
-          <h2>{earningsScenario.label}</h2>
-          <p>{earningsScenario.description}</p>
-          <div className="landing-card__stats-row">
-            <div>
-              <span>Day</span>
-              <strong>{earningsScenario.solPerDay.toFixed(2)} SOL</strong>
-            </div>
-            <div>
-              <span>Week</span>
-              <strong>{earningsScenario.solPerWeek.toFixed(2)} SOL</strong>
-            </div>
-            <div>
-              <span>Month</span>
-              <strong>{earningsScenario.solPerMonth.toFixed(1)} SOL</strong>
-            </div>
-          </div>
-          <div className="landing-card__legend">
-            {earningsScenario.setup.map((entry) => (
-              <span key={entry}>{entry}</span>
-            ))}
-          </div>
-        </article>
-
-        <article className="landing-card landing-card--chart">
-          <div className="landing-card__header">
-            <span className="landing-card__eyebrow">Interactive earnings graph</span>
-            <div className="scenario-tabs">
-              {EARNINGS_SCENARIOS.map((scenario) => (
+              <p className="eyebrow">Idle Solana miner</p>
+              <h1>Ore Acres</h1>
+              <p className="lede">
+                Walk a big shared map, claim an open acre, and turn it into a
+                mining empire. Everyone can see how much SOL each plot has
+                collected, so the good land stands out immediately.
+              </p>
+              <div className="hero__actions">
+                <button type="button" className="primary" onClick={() => goToPage("game")}>
+                  Enter the game
+                </button>
                 <button
-                  key={scenario.id}
                   type="button"
-                  className={`chip ${earningsScenarioId === scenario.id ? "active" : ""}`}
-                  onClick={() => {
-                    setEarningsScenarioId(scenario.id);
-                    setEarningsHoverIndex(null);
+                  className="ghost"
+                  onClick={() => document.getElementById("roadmap")?.scrollIntoView({ behavior: "smooth" })}
+                >
+                  View roadmap
+                </button>
+              </div>
+            </div>
+
+            <div className="wallet-card">
+              <button
+                className="primary wallet-button"
+                onClick={walletPublicKey ? disconnectWallet : connectWallet}
+              >
+                {walletPublicKey ? "Disconnect wallet" : "Connect Phantom"}
+              </button>
+
+              <dl>
+                <div>
+                  <dt>Wallet</dt>
+                  <dd>{formatAddress(walletPublicKey)}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>{walletMessage || game.message}</dd>
+                </div>
+              </dl>
+
+              <div className="wallet-actions">
+                <button className="ghost" onClick={resetWorld}>
+                  Reset world
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="landing-grid">
+            <article className="landing-card landing-card--feature">
+              <span className="landing-card__eyebrow">Why it feels alive</span>
+              <h2>One world. Real players. Visible value.</h2>
+              <p>
+                Ore Acres is built around a shared multiplayer map where every plot
+                can be claimed, customized, and judged at a glance. The deeper you
+                build, the more your acre stands out.
+              </p>
+              <div className="landing-card__pills">
+                <span>Idle mining</span>
+                <span>Shared plots</span>
+                <span>Marketplace</span>
+                <span>Reserve-backed payouts</span>
+              </div>
+            </article>
+
+            <article className="landing-card landing-card--stats">
+              <span className="landing-card__eyebrow">Earnings examples</span>
+              <h2>{earningsScenario.label}</h2>
+              <p>{earningsScenario.description}</p>
+              <div className="landing-card__stats-row">
+                <div>
+                  <span>Day</span>
+                  <strong>{earningsScenario.solPerDay.toFixed(2)} SOL</strong>
+                </div>
+                <div>
+                  <span>Week</span>
+                  <strong>{earningsScenario.solPerWeek.toFixed(2)} SOL</strong>
+                </div>
+                <div>
+                  <span>Month</span>
+                  <strong>{earningsScenario.solPerMonth.toFixed(1)} SOL</strong>
+                </div>
+              </div>
+              <div className="landing-card__legend">
+                {earningsScenario.setup.map((entry) => (
+                  <span key={entry}>{entry}</span>
+                ))}
+              </div>
+            </article>
+
+            <article className="landing-card landing-card--chart">
+              <div className="landing-card__header">
+                <span className="landing-card__eyebrow">Interactive earnings graph</span>
+                <div className="scenario-tabs">
+                  {EARNINGS_SCENARIOS.map((scenario) => (
+                    <button
+                      key={scenario.id}
+                      type="button"
+                      className={`chip ${earningsScenarioId === scenario.id ? "active" : ""}`}
+                      onClick={() => {
+                        setEarningsScenarioId(scenario.id);
+                        setEarningsHoverIndex(null);
+                      }}
+                    >
+                      {scenario.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="earnings-chart">
+                <svg
+                  viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                  role="img"
+                  aria-label="Interactive earnings chart"
+                  onMouseMove={(event) => {
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    const x = event.clientX - rect.left;
+                    const index = Math.max(
+                      0,
+                      Math.min(
+                        chartPoints.length - 1,
+                        Math.round(((x / rect.width) * (chartPoints.length - 1)) || 0),
+                      ),
+                    );
+                    setEarningsHoverIndex(index);
+                  }}
+                  onMouseLeave={() => setEarningsHoverIndex(null)}
+                >
+                  <defs>
+                    <linearGradient id={`earnings-fill-${earningsScenario.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor={earningsScenario.color} stopOpacity="0.36" />
+                      <stop offset="100%" stopColor={earningsScenario.color} stopOpacity="0.02" />
+                    </linearGradient>
+                  </defs>
+                  <rect x="0" y="0" width={chartWidth} height={chartHeight} rx="24" fill="rgba(255,255,255,0.03)" />
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <line
+                      key={index}
+                      x1="16"
+                      x2={chartWidth - 16}
+                      y1={16 + (index * (chartHeight - 32)) / 4}
+                      y2={16 + (index * (chartHeight - 32)) / 4}
+                      stroke="rgba(255,255,255,0.06)"
+                      strokeWidth="1"
+                    />
+                  ))}
+                  <path d={chartAreaValue} fill={`url(#earnings-fill-${earningsScenario.id})`} />
+                  <path d={chartPathValue} fill="none" stroke={earningsScenario.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                  {chartPoints.map((point, index) => {
+                    const x = 16 + (index / Math.max(1, chartPoints.length - 1)) * (chartWidth - 32);
+                    const normalized = (point - chartMin) / chartRange;
+                    const y = 16 + (chartHeight - 32) - normalized * (chartHeight - 32);
+                    const active = index === chartPointIndex;
+                    return (
+                      <g key={`${earningsScenario.id}-${index}`}>
+                        <circle cx={x} cy={y} r={active ? 9 : 6} fill={active ? "#0b1020" : earningsScenario.color} stroke={earningsScenario.color} strokeWidth="3" />
+                      </g>
+                    );
+                  })}
+                  <line
+                    x1={chartPointX}
+                    x2={chartPointX}
+                    y1="16"
+                    y2={chartHeight - 16}
+                    stroke="rgba(255,255,255,0.14)"
+                    strokeDasharray="8 8"
+                  />
+                  <circle cx={chartPointX} cy={chartPointY} r="12" fill={earningsScenario.color} opacity="0.18" />
+                </svg>
+                <div
+                  className="earnings-chart__tooltip"
+                  style={{
+                    left: `${Math.max(16, Math.min(88, (chartPointIndex / Math.max(1, chartPoints.length - 1)) * 100))}%`,
+                    top: `${Math.max(12, Math.min(84, (1 - (chartPointValue - chartMin) / chartRange) * 100))}%`,
                   }}
                 >
-                  {scenario.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="earnings-chart">
-            <svg
-              viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-              role="img"
-              aria-label="Interactive earnings chart"
-              onMouseMove={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect();
-                const x = event.clientX - rect.left;
-                const index = Math.max(
-                  0,
-                  Math.min(
-                    chartPoints.length - 1,
-                    Math.round(((x / rect.width) * (chartPoints.length - 1)) || 0),
-                  ),
-                );
-                setEarningsHoverIndex(index);
-              }}
-              onMouseLeave={() => setEarningsHoverIndex(null)}
-            >
-              <defs>
-                <linearGradient id={`earnings-fill-${earningsScenario.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor={earningsScenario.color} stopOpacity="0.36" />
-                  <stop offset="100%" stopColor={earningsScenario.color} stopOpacity="0.02" />
-                </linearGradient>
-              </defs>
-              <rect x="0" y="0" width={chartWidth} height={chartHeight} rx="24" fill="rgba(255,255,255,0.03)" />
-              {Array.from({ length: 5 }).map((_, index) => (
-                <line
-                  key={index}
-                  x1="16"
-                  x2={chartWidth - 16}
-                  y1={16 + (index * (chartHeight - 32)) / 4}
-                  y2={16 + (index * (chartHeight - 32)) / 4}
-                  stroke="rgba(255,255,255,0.06)"
-                  strokeWidth="1"
-                />
-              ))}
-              <path d={chartAreaValue} fill={`url(#earnings-fill-${earningsScenario.id})`} />
-              <path d={chartPathValue} fill="none" stroke={earningsScenario.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-              {chartPoints.map((point, index) => {
-                const x = 16 + (index / Math.max(1, chartPoints.length - 1)) * (chartWidth - 32);
-                const normalized = (point - chartMin) / chartRange;
-                const y = 16 + (chartHeight - 32) - normalized * (chartHeight - 32);
-                const active = index === chartPointIndex;
-                return (
-                  <g key={`${earningsScenario.id}-${index}`}>
-                    <circle cx={x} cy={y} r={active ? 9 : 6} fill={active ? "#0b1020" : earningsScenario.color} stroke={earningsScenario.color} strokeWidth="3" />
-                  </g>
-                );
-              })}
-              <line
-                x1={chartPointX}
-                x2={chartPointX}
-                y1="16"
-                y2={chartHeight - 16}
-                stroke="rgba(255,255,255,0.14)"
-                strokeDasharray="8 8"
-              />
-              <circle cx={chartPointX} cy={chartPointY} r="12" fill={earningsScenario.color} opacity="0.18" />
-            </svg>
-            <div
-              className="earnings-chart__tooltip"
-              style={{
-                left: `${Math.max(16, Math.min(88, (chartPointIndex / Math.max(1, chartPoints.length - 1)) * 100))}%`,
-                top: `${Math.max(12, Math.min(84, (1 - (chartPointValue - chartMin) / chartRange) * 100))}%`,
-              }}
-            >
-              <strong>Day {chartPointIndex + 1}</strong>
-              <span>{chartPointValue.toFixed(2)} SOL/day</span>
-            </div>
-          </div>
-          <div className="landing-card__meta">
-            <span>Hover the chart and swap scenarios to compare how an acre scales.</span>
-          </div>
-        </article>
-      </section>
-
-      <section className="whitepaper" id="whitepaper">
-        <div className="section-heading">
-          <span className="eyebrow">Whitepaper</span>
-          <h2>What this game is supposed to be</h2>
-          <p>
-            A social idle miner where land ownership, cosmetics, and live
-            rewards create a loop that is fun to watch even when you are not
-            actively grinding.
-          </p>
-        </div>
-
-        <div className="whitepaper-grid">
-          <article className="whitepaper-card">
-            <h3>Core loop</h3>
-            <p>
-              Claim a plot, place drills, upgrade your shack into a mansion,
-              and stack tiny SOL earnings over time.
-            </p>
-          </article>
-          <article className="whitepaper-card">
-            <h3>Economy</h3>
-            <p>
-              Item purchases are priced in the Pump.fun mint, while gameplay
-              rewards stay denominated in SOL and are constrained by reserve
-              runway.
-            </p>
-          </article>
-          <article className="whitepaper-card">
-            <h3>Social layer</h3>
-            <p>
-              Players can walk past each other, inspect each plot, show off
-              skins, and compare total collected SOL publicly.
-            </p>
-          </article>
-          <article className="whitepaper-card">
-            <h3>Marketplace</h3>
-            <p>
-              Cosmetics can be listed for SOL, creating a simple sink and a
-              secondary play-to-trade loop.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section className="roadmap" id="roadmap">
-        <div className="section-heading">
-          <span className="eyebrow">Roadmap</span>
-          <h2>Launch plan</h2>
-          <p>
-            The first version is already playable. The roadmap focuses on making
-            the economy safer, the visuals richer, and the social systems deeper.
-          </p>
-        </div>
-
-        <div className="roadmap-grid">
-          {ROADMAP.map((item, index) => (
-            <article key={item.phase} className="roadmap-card">
-              <div className="roadmap-card__head">
-                <span>{item.phase}</span>
-                <strong>{item.status}</strong>
+                  <strong>Day {chartPointIndex + 1}</strong>
+                  <span>{chartPointValue.toFixed(2)} SOL/day</span>
+                </div>
               </div>
-              <h3>{item.title}</h3>
-              <p>{item.copy}</p>
-              <div className="roadmap-card__index">0{index + 1}</div>
+              <div className="landing-card__meta">
+                <span>Hover the chart and swap scenarios to compare how an acre scales.</span>
+              </div>
             </article>
-          ))}
-        </div>
-      </section>
+          </section>
 
-      <section className="game-panel" ref={gamePanelRef}>
+          <section className="whitepaper" id="whitepaper">
+            <div className="section-heading">
+              <span className="eyebrow">Whitepaper</span>
+              <h2>What this game is supposed to be</h2>
+              <p>
+                A social idle miner where land ownership, cosmetics, and live
+                rewards create a loop that is fun to watch even when you are not
+                actively grinding.
+              </p>
+            </div>
+
+            <div className="whitepaper-grid">
+              <article className="whitepaper-card">
+                <h3>Core loop</h3>
+                <p>
+                  Claim a plot, place drills, upgrade your shack into a mansion,
+                  and stack tiny SOL earnings over time.
+                </p>
+              </article>
+              <article className="whitepaper-card">
+                <h3>Economy</h3>
+                <p>
+                  Item purchases are priced in the Pump.fun mint, while gameplay
+                  rewards stay denominated in SOL and are constrained by reserve
+                  runway.
+                </p>
+              </article>
+              <article className="whitepaper-card">
+                <h3>Social layer</h3>
+                <p>
+                  Players can walk past each other, inspect each plot, show off
+                  skins, and compare total collected SOL publicly.
+                </p>
+              </article>
+              <article className="whitepaper-card">
+                <h3>Marketplace</h3>
+                <p>
+                  Cosmetics can be listed for SOL, creating a simple sink and a
+                  secondary play-to-trade loop.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section className="roadmap" id="roadmap">
+            <div className="section-heading">
+              <span className="eyebrow">Roadmap</span>
+              <h2>Launch plan</h2>
+              <p>
+                The first version is already playable. The roadmap focuses on making
+                the economy safer, the visuals richer, and the social systems deeper.
+              </p>
+            </div>
+
+            <div className="roadmap-grid">
+              {ROADMAP.map((item, index) => (
+                <article key={item.phase} className="roadmap-card">
+                  <div className="roadmap-card__head">
+                    <span>{item.phase}</span>
+                    <strong>{item.status}</strong>
+                  </div>
+                  <h3>{item.title}</h3>
+                  <p>{item.copy}</p>
+                  <div className="roadmap-card__index">0{index + 1}</div>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      ) : (
+        <>
+          <section className="game-topbar">
+            <div>
+              <p className="eyebrow">Game page</p>
+              <h2>Ore Acres Online</h2>
+              <p>Jump straight into the shared world, claim a plot, and start mining.</p>
+            </div>
+            <div className="game-topbar__actions">
+              <button type="button" className="ghost" onClick={() => goToPage("home")}>
+                Back to homepage
+              </button>
+              <button type="button" className="primary" onClick={resetWorld}>
+                Reset world
+              </button>
+            </div>
+          </section>
+        </>
+      )}
+
+      {page === "game" ? (
+        <section className="game-panel" ref={gamePanelRef}>
         <div className="stats">
           <div>
             <span>Idle SOL</span>
@@ -4393,37 +4566,51 @@ function App() {
                           const count = game.petInventory[pet.id] ?? 0;
                           const active = game.activePet === pet.id;
                           return (
-                            <button
-                              type="button"
-                              key={pet.id}
-                              className={`inventory-item inventory-item--pet ${active ? "active" : ""}`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (count <= 0) {
+                            <div key={pet.id} className={`inventory-item inventory-item--pet ${active ? "active" : ""}`}>
+                              <button
+                                type="button"
+                                className="inventory-item__main"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (count <= 0) {
+                                    setGame((current) => ({
+                                      ...current,
+                                      message: `Buy the ${pet.label} first.`,
+                                    }));
+                                    return;
+                                  }
                                   setGame((current) => ({
                                     ...current,
-                                    message: `Buy the ${pet.label} first.`,
+                                    activePet: active ? null : pet.id,
+                                    message: active
+                                      ? `${pet.label} is resting.`
+                                      : `${pet.label} equipped.`,
                                   }));
-                                  return;
-                                }
-                                setGame((current) => ({
-                                  ...current,
-                                  activePet: active ? null : pet.id,
-                                  message: active
-                                    ? `${pet.label} is resting.`
-                                    : `${pet.label} equipped.`,
-                                }));
-                              }}
-                              disabled={count <= 0}
-                            >
-                              <div className="inventory-item__icon inventory-item__icon--pet">
-                                <PetSprite type={pet.id} />
+                                }}
+                                disabled={count <= 0}
+                              >
+                                <div className="inventory-item__icon inventory-item__icon--pet">
+                                  <PetSprite type={pet.id} />
+                                </div>
+                                <div className="inventory-item__meta">
+                                  <strong>{pet.label}</strong>
+                                  <span>{count > 0 ? petBoostLabel(pet.id) : "Locked"}</span>
+                                </div>
+                              </button>
+                              <div className="inventory-item__actions">
+                                <button
+                                  type="button"
+                                  className="ghost inventory-item__action inventory-item__action--list"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    listPetForSale(pet.id);
+                                  }}
+                                  disabled={count <= 0}
+                                >
+                                  List for sale
+                                </button>
                               </div>
-                              <div className="inventory-item__meta">
-                                <strong>{pet.label}</strong>
-                                <span>{count > 0 ? petBoostLabel(pet.id) : "Locked"}</span>
-                              </div>
-                            </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -4671,65 +4858,145 @@ function App() {
 
               {game.marketOpen ? (
                 <div className="market-overlay open">
-                  <div className="overlay-panel overlay-panel--market">
-                    <div className="overlay-panel__header">
+                  <div className="market-shell">
+                    <div className="market-shell__header">
                       <div>
                         <span className="overlay-panel__eyebrow">Marketplace</span>
-                        <strong>Trade skins for SOL</strong>
+                        <h2>Trade room</h2>
+                        <p>Sort listings by price, filter by item type, and grab gear before somebody else does.</p>
                       </div>
-                      <button
-                        type="button"
-                        className="ghost overlay-panel__toggle"
-                        onClick={() =>
-                          setGame((current) => ({
-                            ...current,
-                            marketOpen: false,
-                          }))
-                        }
-                      >
-                        Close
-                      </button>
+                      <div className="market-shell__actions">
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() =>
+                            setGame((current) => ({
+                              ...current,
+                              marketOpen: false,
+                            }))
+                          }
+                        >
+                          Back to game
+                        </button>
+                      </div>
                     </div>
 
-                    <p className="overlay-panel__copy">
-                      List owned cosmetics from your inventory, or buy what other players put on the market.
-                    </p>
+                    <div className="market-shell__toolbar">
+                      <div className="market-filters">
+                        {[
+                          ["all", "All"],
+                          ["skins", "Skins"],
+                          ["pickaxes", "Pickaxes"],
+                          ["clothes", "Clothes"],
+                          ["pets", "Pets"],
+                        ].map(([value, label]) => (
+                          <button
+                            type="button"
+                            key={value}
+                            className={`chip ${marketFilter === value ? "active" : ""}`}
+                            onClick={() => setMarketFilter(value as typeof marketFilter)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
 
-                    <div className="shop-grid shop-grid--market">
-                      {game.marketListings.length > 0 ? (
-                        game.marketListings.map((listing) => {
-                          const skin = skinItem(listing.skinId);
-                          const active =
-                            skin?.category === "pickaxe"
-                              ? game.equippedPickaxeSkin === skin?.id
-                              : game.equippedClothesSkin === skin?.id;
-                          return (
-                            <article key={listing.id} className={`shop-card shop-card--market ${active ? "owned" : ""}`}>
-                              <div className={`shop-card__icon shop-card__icon--skin shop-card__icon--${skin?.category ?? "pickaxe"}`}>
-                                <span className="shop-card__meme">{skin?.meme ?? "SKIN"}</span>
-                              </div>
-                              <div className="shop-card__body">
-                                <h4>{skin?.label ?? listing.skinId}</h4>
-                                <p>Sold by {listing.seller}</p>
-                                <div className="shop-card__meta">
-                                  <span>{listing.price.toFixed(2)} SOL</span>
-                                  <span>{skin?.category ?? "cosmetic"}</span>
-                                </div>
-                              </div>
-                            <button type="button" className="ghost cosmetic-buy" onClick={() => buyMarketListing(listing.id)}>
-                              Buy
-                            </button>
-                            </article>
-                          );
-                        })
-                      ) : (
-                        <div className="inventory-box inventory-box--empty">
-                          <div className="inventory-box__copy">
-                            <strong>No listings yet</strong>
-                            <span>List a skin from inventory to seed the market.</span>
-                          </div>
+                      <div className="market-sort">
+                        {[
+                          ["low", "Price low → high"],
+                          ["high", "Price high → low"],
+                          ["newest", "Newest"],
+                        ].map(([value, label]) => (
+                          <button
+                            type="button"
+                            key={value}
+                            className={`chip ${marketSort === value ? "active" : ""}`}
+                            onClick={() => setMarketSort(value as typeof marketSort)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="market-shell__layout">
+                      <aside className="market-shell__sidebar">
+                        <div className="market-stat">
+                          <span>Listings</span>
+                          <strong>{game.marketListings.length}</strong>
                         </div>
-                      )}
+                        <div className="market-stat">
+                          <span>Visible</span>
+                          <strong>{visibleMarketListings.length}</strong>
+                        </div>
+                        <div className="market-stat">
+                          <span>Categories</span>
+                          <strong>Skins, pets, pickaxes</strong>
+                        </div>
+                        <div className="market-note">
+                          <p>
+                            List items from your inventory in the game page, then come back here to browse and buy them with SOL.
+                          </p>
+                        </div>
+                      </aside>
+
+                      <div className="market-grid">
+                        {visibleMarketListings.length > 0 ? (
+                          visibleMarketListings.map((listing) => {
+                            const skin = listing.kind === "skin" ? skinItem(listing.itemId as SkinId) : null;
+                            const pet = listing.kind === "pet" ? petItem(listing.itemId as PetType) : null;
+                            const active =
+                              listing.kind === "skin"
+                                ? skin?.category === "pickaxe"
+                                  ? game.equippedPickaxeSkin === skin?.id
+                                  : game.equippedClothesSkin === skin?.id
+                                : game.activePet === pet?.id;
+                            return (
+                              <article
+                                key={listing.id}
+                                className={`market-card ${active ? "owned" : ""} market-card--${listing.kind}`}
+                              >
+                                <div
+                                  className={`market-card__icon market-card__icon--${listing.kind} ${
+                                    listing.kind === "skin"
+                                      ? `market-card__icon--${skin?.category ?? "pickaxe"}`
+                                      : ""
+                                  }`}
+                                >
+                                  {listing.kind === "pet" ? (
+                                    <PetSprite type={pet?.id ?? "mole"} />
+                                  ) : (
+                                    <span className="market-card__meme">{skin?.meme ?? "SKIN"}</span>
+                                  )}
+                                </div>
+                                <div className="market-card__body">
+                                  <div className="market-card__head">
+                                    <h3>{marketplaceListingLabel(listing)}</h3>
+                                    <span className={`market-card__tag market-card__tag--${listing.category}`}>
+                                      {listing.category}
+                                    </span>
+                                  </div>
+                                  <p>Sold by {listing.seller}</p>
+                                  <div className="market-card__meta">
+                                    <span>{listing.price.toFixed(2)} SOL</span>
+                                    <span>{listing.kind === "pet" ? petBoostLabel(listing.itemId as PetType) : skin?.description ?? "Marketplace cosmetic"}</span>
+                                  </div>
+                                </div>
+                                <button type="button" className="primary" onClick={() => buyMarketListing(listing.id)}>
+                                  Buy
+                                </button>
+                              </article>
+                            );
+                          })
+                        ) : (
+                          <div className="inventory-box inventory-box--empty market-empty">
+                            <div className="inventory-box__copy">
+                              <strong>No listings match these filters</strong>
+                              <span>Try a different category or sort order, or list more items from your inventory.</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4861,9 +5128,10 @@ function App() {
                 <strong>{game.proof ? `${game.proof.slice(0, 24)}...` : "No proof signed yet"}</strong>
               </div>
             </aside>
+          </div>
         </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
     </main>
   );
 }

@@ -73,6 +73,39 @@ button {
   margin-top: 22px;
 }
 
+.game-topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+  padding: 20px 22px;
+  margin-bottom: 18px;
+  border-radius: 24px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(circle at top left, rgba(122, 167, 255, 0.14), transparent 42%),
+    rgba(14, 20, 35, 0.78);
+  box-shadow: var(--shadow);
+}
+
+.game-topbar h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+}
+
+.game-topbar p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.game-topbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .eyebrow {
   margin: 0 0 12px;
   color: var(--accent);
@@ -2597,6 +2630,24 @@ h1 {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.inventory-item__main {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+
+.inventory-item--pet {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .inventory-item__icon--skin,
 .inventory-item__icon--nft {
   width: 64px;
@@ -2978,6 +3029,19 @@ h1 {
   .shop-overlay {
     width: min(360px, calc(100% - 24px));
   }
+
+  .market-shell__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .market-shell__header {
+    flex-direction: column;
+    align-items: start;
+  }
+
+  .market-card {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 720px) {
@@ -3009,6 +3073,19 @@ h1 {
 
   .inventory-overlay {
     top: 8px;
+  }
+
+  .market-overlay {
+    inset: 8px;
+  }
+
+  .market-shell {
+    padding: 12px;
+    border-radius: 20px;
+  }
+
+  .market-grid {
+    grid-template-columns: 1fr;
   }
 
   .overlay-panel--shop {
@@ -4146,12 +4223,11 @@ h1 {
 }
 
 .market-overlay {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  z-index: 11;
+  position: fixed;
+  inset: 12px;
+  z-index: 30;
   opacity: 0;
-  transform: translateY(-6px) scale(0.98);
+  transform: translateY(10px) scale(0.985);
   transition:
     opacity 180ms ease,
     transform 180ms ease;
@@ -4162,6 +4238,202 @@ h1 {
   opacity: 1;
   transform: translateY(0) scale(1);
   pointer-events: auto;
+}
+
+.market-shell {
+  height: 100%;
+  padding: 18px;
+  border-radius: 28px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(circle at top left, rgba(122, 167, 255, 0.16), transparent 40%),
+    radial-gradient(circle at top right, rgba(103, 245, 211, 0.12), transparent 30%),
+    rgba(5, 8, 16, 0.96);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+  overflow: hidden;
+}
+
+.market-shell__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: end;
+}
+
+.market-shell__header h2 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+}
+
+.market-shell__header p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.market-shell__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.market-shell__toolbar {
+  display: grid;
+  gap: 10px;
+}
+
+.market-filters,
+.market-sort {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.market-shell__layout {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.market-shell__sidebar {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  overflow: auto;
+}
+
+.market-stat,
+.market-note {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.market-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-family: "Press Start 2P", monospace;
+}
+
+.market-stat strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 1.25rem;
+}
+
+.market-note p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.market-grid {
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-content: start;
+}
+
+.market-card {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at top left, rgba(103, 245, 211, 0.08), transparent 46%),
+    rgba(255, 255, 255, 0.04);
+}
+
+.market-card__icon {
+  width: 92px;
+  min-height: 92px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.market-card__icon--pet .pet-sprite {
+  transform: scale(0.92);
+}
+
+.market-card__icon--skin .shop-card__meme,
+.market-card__meme {
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  padding: 12px;
+}
+
+.market-card__body {
+  min-width: 0;
+}
+
+.market-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: start;
+}
+
+.market-card__head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.market-card__tag {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(103, 245, 211, 0.08);
+  border: 1px solid rgba(103, 245, 211, 0.18);
+  color: var(--accent);
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.market-card__meta {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.market-card__meta span {
+  line-height: 1.45;
+}
+
+.market-card.owned {
+  border-color: rgba(103, 245, 211, 0.22);
+}
+
+.market-empty {
+  min-height: 220px;
+  align-content: center;
 }
 
 .overlay-panel {
