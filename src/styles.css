@@ -2579,10 +2579,48 @@ h1 {
   height: 72px;
   display: grid;
   place-items: center;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.12), transparent 26%),
+    linear-gradient(180deg, rgba(12, 22, 34, 0.98), rgba(6, 10, 18, 0.98));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 -16px 24px rgba(0, 0, 0, 0.24);
 }
 
 .shop-card__icon .sprite {
   transform: scale(0.9);
+}
+
+.shop-card__icon--structure {
+  padding: 4px;
+}
+
+.item-art {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  background-repeat: no-repeat;
+  background-color: #07111c;
+  background-position: center;
+  box-shadow:
+    0 16px 24px rgba(0, 0, 0, 0.24),
+    inset 0 0 0 1px rgba(103, 245, 211, 0.12);
+}
+
+.item-art--shop {
+  background-size: cover;
+}
+
+.item-art--inventory {
+  width: 56px;
+  height: 44px;
+  border-radius: 10px;
+  box-shadow:
+    0 8px 16px rgba(0, 0, 0, 0.2),
+    inset 0 0 0 1px rgba(103, 245, 211, 0.1);
 }
 
 .shop-card__icon--pet {
@@ -4310,7 +4348,7 @@ h1 {
 .world-hud {
   left: 14px;
   bottom: 14px;
-  max-width: 560px;
+  max-width: 420px;
   border-color: rgba(103, 245, 211, 0.18);
   box-shadow: 0 0 0 1px rgba(103, 245, 211, 0.06);
 }
@@ -4329,6 +4367,87 @@ h1 {
   display: block;
   margin-top: 8px;
   line-height: 1.5;
+}
+
+.world-inspector {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 4;
+  width: min(320px, calc(100% - 28px));
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(4, 8, 16, 0.82);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 0 0 1px rgba(103, 245, 211, 0.05);
+}
+
+.world-inspector__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.world-inspector__row:last-child {
+  margin-bottom: 0;
+}
+
+.world-inspector__row span,
+.world-inspector__upgrade span {
+  color: var(--muted);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-family: "Press Start 2P", monospace;
+  line-height: 1.5;
+}
+
+.world-inspector__row strong {
+  text-align: right;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.world-inspector__note {
+  margin: 8px 0 0;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 209, 102, 0.08);
+  border: 1px solid rgba(255, 209, 102, 0.16);
+  color: var(--warm);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.world-inspector__upgrade {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.quests-overlay {
+  position: absolute;
+  inset: 12px;
+  z-index: 18;
+  pointer-events: none;
+}
+
+.quests-overlay.open {
+  pointer-events: auto;
+}
+
+.overlay-panel--quests {
+  width: min(720px, calc(100% - 24px));
+  max-height: min(76vh, 760px);
+  overflow: auto;
+  margin: 0 auto;
+}
+
+.mission-board--overlay {
+  margin-bottom: 14px;
 }
 
 .inventory-overlay,
@@ -4734,6 +4853,11 @@ h1 {
   height: 44px;
   display: grid;
   place-items: center;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 28%),
+    linear-gradient(180deg, rgba(11, 18, 30, 0.98), rgba(6, 10, 18, 0.98));
 }
 
 .inventory-item__icon .sprite {

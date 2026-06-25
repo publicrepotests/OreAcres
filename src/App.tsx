@@ -63,6 +63,17 @@ type RoadmapItem = {
 
 type Page = "home" | "game";
 
+type StructureArtSlot = {
+  atlas: "core" | "special";
+  col: number;
+  row: number;
+};
+
+type CosmeticArtSlot = {
+  col: number;
+  row: number;
+};
+
 type Structure = {
   type: StructureType;
   level: number;
@@ -201,6 +212,7 @@ type GameState = {
   inventoryOpen: boolean;
   shopOpen: boolean;
   marketOpen: boolean;
+  questsOpen: boolean;
   questReveal: { label: string; detail: string } | null;
   proof: string;
   message: string;
@@ -274,6 +286,44 @@ const WORLD_HEIGHT =
   WORLD_PADDING * 2 + WORLD_ROWS * PLOT_SIZE + (WORLD_ROWS - 1) * ROAD_GAP;
 const TILE_COUNT = 7;
 const TILE_SIZE = PLOT_SIZE / TILE_COUNT;
+const STRUCTURE_ART_ATLASES = {
+  core: "/assets/shop/item-atlas.png",
+  special: "/assets/shop/item-atlas-special.png",
+} as const;
+const STRUCTURE_ART_SLOTS: Partial<Record<StructureType, StructureArtSlot>> = {
+  shack: { atlas: "core", col: 0, row: 0 },
+  drill: { atlas: "core", col: 2, row: 0 },
+  storage: { atlas: "core", col: 0, row: 1 },
+  relay: { atlas: "core", col: 1, row: 1 },
+  solar: { atlas: "core", col: 2, row: 1 },
+  battery: { atlas: "core", col: 3, row: 1 },
+  cooling: { atlas: "core", col: 0, row: 2 },
+  conveyor: { atlas: "core", col: 1, row: 2 },
+  drone: { atlas: "core", col: 2, row: 2 },
+  scanner: { atlas: "core", col: 3, row: 2 },
+  refinery: { atlas: "core", col: 0, row: 3 },
+  vault: { atlas: "core", col: 1, row: 3 },
+  neon: { atlas: "core", col: 2, row: 3 },
+  statue: { atlas: "core", col: 3, row: 3 },
+  decor: { atlas: "special", col: 0, row: 0 },
+  shop: { atlas: "special", col: 1, row: 0 },
+  sign: { atlas: "special", col: 0, row: 1 },
+  chest: { atlas: "special", col: 1, row: 1 },
+};
+const COSMETIC_ATLAS = "/assets/shop/cosmetics-atlas.png";
+const SKIN_ART_SLOTS: Record<SkinId, CosmeticArtSlot> = {
+  troll_pick: { col: 0, row: 0 },
+  laser_pick: { col: 1, row: 0 },
+  banana_pick: { col: 2, row: 0 },
+  aura_hoodie: { col: 0, row: 1 },
+  cyber_jacket: { col: 1, row: 1 },
+  astronaut_fit: { col: 2, row: 1 },
+};
+const PET_ART_SLOTS: Record<PetType, CosmeticArtSlot> = {
+  mole: { col: 0, row: 2 },
+  fox: { col: 1, row: 2 },
+  drake: { col: 2, row: 2 },
+};
 
 const SHOP_ITEMS: ShopItem[] = [
   {
@@ -1326,6 +1376,7 @@ function createInitialState(): GameState {
     inventoryOpen: true,
     shopOpen: false,
     marketOpen: false,
+    questsOpen: false,
     questReveal: null,
     proof: "",
     message: "Walk around the world and claim an empty plot.",
@@ -1513,6 +1564,7 @@ function loadGameState(saveKey: string): GameState {
       message: typeof parsed.message === "string" ? parsed.message : fallback.message,
       shopOpen: false,
       marketOpen: false,
+      questsOpen: false,
       questReveal: null,
       sol: typeof parsed.sol === "number" ? parsed.sol : fallback.sol,
       mints: typeof parsed.mints === "number" ? parsed.mints : fallback.mints,
@@ -1901,6 +1953,69 @@ function AvatarSprite({
       <div className="avatar__legs" />
       <div className="avatar__tool" />
     </div>
+  );
+}
+
+function StructureShopArt({
+  type,
+  className = "",
+}: {
+  type: StructureType;
+  className?: string;
+}) {
+  const slot = STRUCTURE_ART_SLOTS[type];
+  if (!slot) {
+    return (
+      <div className={className}>
+        <BuildingSprite type={type} level={1} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`item-art ${className}`.trim()}
+      style={{
+        backgroundImage: `url(${STRUCTURE_ART_ATLASES[slot.atlas]})`,
+        backgroundSize: slot.atlas === "core" ? "400% 400%" : "200% 200%",
+        backgroundPosition: `${slot.col * 100 / (slot.atlas === "core" ? 3 : 1)}% ${slot.row * 100 / (slot.atlas === "core" ? 3 : 1)}%`,
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function atlasPosition(col: number, row: number, columns: number, rows: number) {
+  return `${col * 100 / (columns - 1)}% ${row * 100 / (rows - 1)}%`;
+}
+
+function SkinShopArt({ skinId, className = "" }: { skinId: SkinId; className?: string }) {
+  const slot = SKIN_ART_SLOTS[skinId];
+  return (
+    <div
+      className={`item-art ${className}`.trim()}
+      style={{
+        backgroundImage: `url(${COSMETIC_ATLAS})`,
+        backgroundSize: "300% 300%",
+        backgroundPosition: atlasPosition(slot.col, slot.row, 3, 3),
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function PetShopArt({ petId, className = "" }: { petId: PetType; className?: string }) {
+  const slot = PET_ART_SLOTS[petId];
+  return (
+    <div
+      className={`item-art ${className}`.trim()}
+      style={{
+        backgroundImage: `url(${COSMETIC_ATLAS})`,
+        backgroundSize: "300% 300%",
+        backgroundPosition: atlasPosition(slot.col, slot.row, 3, 3),
+      }}
+      aria-hidden="true"
+    />
   );
 }
 
@@ -4091,20 +4206,6 @@ function App() {
           </div>
         </div>
 
-        <div className="mission-board">
-          {missionCards.map((mission) => (
-            <article key={mission.id} className={`mission-card ${mission.completed ? "completed" : ""}`}>
-              <div className="mission-card__head">
-                <strong>{mission.title}</strong>
-                <span>{mission.completed ? `+${mission.reward} SOL + box` : "Live quest"}</span>
-              </div>
-              <div className="mission-card__bar">
-                <div className="mission-card__fill" style={{ width: `${Math.round(mission.progress * 100)}%` }} />
-              </div>
-            </article>
-          ))}
-        </div>
-
         <div className="world-shell">
           <div className="world-header">
             <div>
@@ -4172,6 +4273,7 @@ function App() {
                   inventoryOpen: !current.inventoryOpen,
                   shopOpen: false,
                   marketOpen: false,
+                  questsOpen: false,
                 }))
               }
             >
@@ -4186,6 +4288,7 @@ function App() {
                   shopOpen: !current.shopOpen,
                   marketOpen: false,
                   inventoryOpen: false,
+                  questsOpen: false,
                 }))
               }
               disabled={!game.claimedPlotId}
@@ -4200,10 +4303,25 @@ function App() {
                   ...current,
                   marketOpen: !current.marketOpen,
                   shopOpen: false,
+                  questsOpen: false,
                 }))
               }
             >
               Marketplace
+            </button>
+            <button
+              type="button"
+              className={`ghost ${game.questsOpen ? "active" : ""}`}
+              onClick={() =>
+                setGame((current) => ({
+                  ...current,
+                  questsOpen: !current.questsOpen,
+                  shopOpen: false,
+                  marketOpen: false,
+                }))
+              }
+            >
+              Quests {game.questBoxes > 0 ? `(${game.questBoxes})` : ""}
             </button>
             <button
               type="button"
@@ -4559,6 +4677,54 @@ function App() {
                   </span>
                   <strong>{game.message}</strong>
                 </div>
+
+                <div className="world-inspector">
+                  <div className="world-inspector__row">
+                    <span>Plot</span>
+                    <strong>{selectedPlot.name}</strong>
+                  </div>
+                  <div className="world-inspector__row">
+                    <span>Owner</span>
+                    <strong>
+                      {selectedPlot.owner ? (selectedPlot.owner.me ? "You" : selectedPlot.owner.label) : "Unclaimed"}
+                    </strong>
+                  </div>
+                  <div className="world-inspector__row">
+                    <span>Tile</span>
+                    <strong>{game.selectedTile ?? "None"}</strong>
+                  </div>
+                  <div className="world-inspector__row">
+                    <span>Tool</span>
+                    <strong>{structureLabel({ type: game.activeTool, level: 1 })}</strong>
+                  </div>
+                  {selectedChest ? (
+                    <div className="world-inspector__note">
+                      Huge chest ready. Click it to reveal the reward.
+                    </div>
+                  ) : null}
+                  {selectedStructure ? (
+                    <div className="world-inspector__upgrade">
+                      <span>
+                        {selectedStructure.level >= (selectedStructureMax ?? 0)
+                          ? "Max level reached"
+                          : `${structureLabel(selectedStructure)} -> Lv.${selectedStructure.level + 1}`}
+                      </span>
+                      <div className="inspector-progress">
+                        <div
+                          className="inspector-progress__fill"
+                          style={{
+                            width: `${Math.round((selectedStructure.level / (selectedStructureMax ?? 1)) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <small className="inspector-note">
+                        {nextStructureCost === null
+                          ? "No more upgrades available."
+                          : `$${nextStructureCost.toFixed(2)} worth of token to upgrade.`}
+                      </small>
+                    </div>
+                  ) : null}
+                </div>
               </div>
               
               <div className="inventory-overlay">
@@ -4610,7 +4776,7 @@ function App() {
                               }}
                             >
                               <div className="inventory-item__icon">
-                                <BuildingSprite type={type} level={structure?.level ?? 1} />
+                                <StructureShopArt type={type} className="item-art--inventory" />
                               </div>
                               <div className="inventory-item__meta">
                                 <strong>{structureLabel(structure ?? { type, level: 1 })}</strong>
@@ -4651,7 +4817,7 @@ function App() {
                                 disabled={count <= 0}
                               >
                                 <div className="inventory-item__icon inventory-item__icon--pet">
-                                  <PetSprite type={pet.id} />
+                                  <PetShopArt petId={pet.id} className="item-art--inventory" />
                                 </div>
                                 <div className="inventory-item__meta">
                                   <strong>{pet.label}</strong>
@@ -4698,7 +4864,7 @@ function App() {
                           return (
                             <article key={skin.id} className={`inventory-item inventory-item--skin ${active ? "active" : ""}`}>
                               <div className={`inventory-item__icon inventory-item__icon--skin inventory-item__icon--${skin.category}`}>
-                                <span className="inventory-item__skin-meme">{skin.meme}</span>
+                                <SkinShopArt skinId={skin.id} className="item-art--inventory" />
                               </div>
                               <div className="inventory-item__meta">
                                 <strong>{skin.label}</strong>
@@ -4775,7 +4941,7 @@ function App() {
                               disabled={count <= 0}
                             >
                               <div className="inventory-item__icon">
-                                <BuildingSprite type={type} level={1} />
+                                <StructureShopArt type={type} className="item-art--inventory" />
                               </div>
                               <div className="inventory-item__meta">
                                 <strong>{item?.label ?? type}</strong>
@@ -4840,8 +5006,8 @@ function App() {
                         const owned = (game.inventory[item.id] ?? 0) > 0;
                         return (
                           <article key={item.id} className={`shop-card ${owned ? "owned" : ""}`}>
-                            <div className="shop-card__icon">
-                              <BuildingSprite type={item.id} level={1} />
+                            <div className="shop-card__icon shop-card__icon--structure">
+                              <StructureShopArt type={item.id} className="item-art--shop" />
                             </div>
                             <div className="shop-card__body">
                               <h4>{item.label}</h4>
@@ -4870,7 +5036,7 @@ function App() {
                         return (
                           <article key={skin.id} className={`shop-card shop-card--skin ${owned ? "owned" : ""}`}>
                             <div className={`shop-card__icon shop-card__icon--skin shop-card__icon--${skin.category}`}>
-                              <span className="shop-card__meme">{skin.meme}</span>
+                              <SkinShopArt skinId={skin.id} className="item-art--shop" />
                             </div>
                             <div className="shop-card__body">
                               <h4>{skin.label}</h4>
@@ -4896,7 +5062,7 @@ function App() {
                         return (
                           <article key={pet.id} className={`shop-card shop-card--pet ${owned ? "owned" : ""}`}>
                             <div className="shop-card__icon shop-card__icon--pet">
-                              <PetSprite type={pet.id} />
+                              <PetShopArt petId={pet.id} className="item-art--shop" />
                             </div>
                             <div className="shop-card__body">
                               <h4>{pet.label}</h4>
@@ -5063,6 +5229,54 @@ function App() {
                 </div>
               ) : null}
 
+              {game.questsOpen ? (
+                <div className="quests-overlay open">
+                  <div className="overlay-panel overlay-panel--quests">
+                    <div className="overlay-panel__header">
+                      <div>
+                        <span className="overlay-panel__eyebrow">Quest board</span>
+                        <strong>Live missions</strong>
+                      </div>
+                      <button
+                        type="button"
+                        className="ghost overlay-panel__toggle"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setGame((current) => ({
+                            ...current,
+                            questsOpen: false,
+                          }));
+                        }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                    <div className="mission-board mission-board--overlay">
+                      {missionCards.map((mission) => (
+                        <article key={mission.id} className={`mission-card ${mission.completed ? "completed" : ""}`}>
+                          <div className="mission-card__head">
+                            <strong>{mission.title}</strong>
+                            <span>{mission.completed ? `+${mission.reward} SOL + box` : "Live quest"}</span>
+                          </div>
+                          <div className="mission-card__bar">
+                            <div className="mission-card__fill" style={{ width: `${Math.round(mission.progress * 100)}%` }} />
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                    <div className="inventory-box">
+                      <div className="inventory-box__copy">
+                        <strong>{game.questBoxes} reward box{game.questBoxes === 1 ? "" : "es"}</strong>
+                        <span>Open these for SOL, meme skins, or placeholder NFTs.</span>
+                      </div>
+                      <button type="button" className="primary" onClick={openQuestBox} disabled={game.questBoxes <= 0}>
+                        Open box
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {game.questReveal ? (
                 <div className="quest-reveal">
                   <div className="quest-reveal__panel">
@@ -5127,68 +5341,6 @@ function App() {
               </div>
             ) : null}
 
-            <aside className="inspector">
-              <h3>Inspector</h3>
-              <div className="inspector-card">
-                <span>Selected plot</span>
-                <strong>{selectedPlot.name}</strong>
-              </div>
-              <div className="inspector-card">
-                <span>Owner</span>
-                <strong>
-                  {selectedPlot.owner
-                    ? selectedPlot.owner.me
-                      ? "You"
-                      : selectedPlot.owner.label
-                    : "Unclaimed"}
-                </strong>
-              </div>
-              <div className="inspector-card">
-                <span>Claim status</span>
-                <strong>{selectedPlot.owner ? "Taken" : "Open to claim"}</strong>
-              </div>
-              <div className="inspector-card">
-                <span>Selected tile</span>
-                <strong>{game.selectedTile ?? "None"}</strong>
-              </div>
-              {selectedChest ? (
-                <div className="inspector-card accent">
-                  <span>Gacha chest</span>
-                  <strong>Huge visual chest ready to open</strong>
-                  <small className="inspector-note">This chest floats above the plot and does not occupy a tile.</small>
-                </div>
-              ) : null}
-              {selectedStructure ? (
-                <div className="inspector-card accent">
-                  <span>Next upgrade</span>
-                  <strong>
-                    {selectedStructure.level >= (selectedStructureMax ?? 0)
-                      ? "Max level reached"
-                      : `${structureLabel(selectedStructure)} -> Lv.${selectedStructure.level + 1}`}
-                  </strong>
-                  <div className="inspector-progress">
-                    <div
-                      className="inspector-progress__fill"
-                      style={{
-                        width: `${Math.round((selectedStructure.level / (selectedStructureMax ?? 1)) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <small className="inspector-note">
-                    {nextStructureCost === null ? "No more upgrades available." : `$${nextStructureCost.toFixed(2)} worth of token to upgrade.`}
-                  </small>
-                </div>
-              ) : null}
-
-              <div className="inspector-card">
-                <span>Active tool</span>
-                <strong>{structureLabel({ type: game.activeTool, level: 1 })}</strong>
-              </div>
-              <div className="inspector-card accent">
-                <span>Mine proof</span>
-                <strong>{game.proof ? `${game.proof.slice(0, 24)}...` : "No proof signed yet"}</strong>
-              </div>
-            </aside>
           </div>
         </div>
         </section>
