@@ -188,6 +188,7 @@ type BonusDrop = {
 type GameState = {
   sol: number;
   mints: number;
+  playtestMode: boolean;
   rewardReserveSol: number;
   plots: Record<string, Plot>;
   claimedPlotId: string | null;
@@ -273,6 +274,8 @@ const TICK_MS = 1000;
 const STARTING_SOL = 35;
 const STARTING_MINTS = 18;
 const STARTING_REWARD_RESERVE_SOL = 250;
+const PLAYTEST_MINT_GRANT = 250;
+const PLAYTEST_MINT_RATE = 1;
 const SOLANA_RPC_URL = import.meta.env.VITE_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 const BASE_STORAGE = 60;
 const WORLD_COLUMNS = 3;
@@ -834,6 +837,19 @@ function round(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function defaultPlaytestMode() {
+  if (typeof window === "undefined") return false;
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("playtest") === "1") return true;
+
+  try {
+    return window.localStorage.getItem("ore-acres-playtest") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function scaledCost(cost: number) {
   return Math.max(1, Math.round(cost * COST_SCALE));
 }
@@ -858,6 +874,10 @@ function reserveHealthLabel(runwayDays: number) {
   if (runwayDays >= 7) return "Tight";
   if (runwayDays > 0) return "Critical";
   return "Depleted";
+}
+
+function playtestMintCost(usdAmount: number) {
+  return round(Math.max(0.5, usdAmount * PLAYTEST_MINT_RATE));
 }
 
 function plotCenter(position: { x: number; y: number }) {
@@ -1124,7 +1144,7 @@ function baseIncomeFor(structure: Structure) {
 function storageFor(structure: Structure) {
   switch (structure.type) {
     case "shack":
-      return 10;
+      return 10 + Math.max(0, structure.level - 1) * 12;
     case "storage":
       return 24 + structure.level * 18;
     case "battery":
@@ -1195,6 +1215,10 @@ function computeEconomy(
     const currentStructure = structures[key]!;
 
     storage += storageFor(currentStructure) ?? 0;
+    if (currentStructure.type === "shack") {
+      globalMultiplier += Math.max(0, (currentStructure.level - 1) * 0.04);
+      continue;
+    }
     if (currentStructure.type === "solar") {
       globalMultiplier += 0.03 + currentStructure.level * 0.02;
       continue;
@@ -1367,6 +1391,7 @@ function createInitialState(): GameState {
   return {
     sol: STARTING_SOL,
     mints: STARTING_MINTS,
+    playtestMode: defaultPlaytestMode(),
     rewardReserveSol: STARTING_REWARD_RESERVE_SOL,
     plots,
     claimedPlotId: null,
@@ -1602,6 +1627,7 @@ function loadGameState(saveKey: string): GameState {
       questReveal: null,
       sol: typeof parsed.sol === "number" ? parsed.sol : fallback.sol,
       mints: typeof parsed.mints === "number" ? parsed.mints : fallback.mints,
+      playtestMode: typeof parsed.playtestMode === "boolean" ? parsed.playtestMode : fallback.playtestMode,
       rewardReserveSol:
         typeof parsed.rewardReserveSol === "number"
           ? Math.max(0, parsed.rewardReserveSol)
@@ -1883,6 +1909,47 @@ function buildCost(type: StructureType) {
     chest: 48,
   };
   return costs[type];
+}
+
+function structureEffectSummary(type: StructureType, level = 1) {
+  const mockStructure: Structure = { type, level };
+
+  switch (type) {
+    case "shack":
+      return `HQ bonus: +${Math.max(0, (level - 1) * 4)}% global income, +${storageFor(mockStructure)} storage`;
+    case "drill":
+      return `Base output: ${baseIncomeFor(mockStructure).toFixed(2)} SOL/min before synergies`;
+    case "storage":
+      return `Adds ${storageFor(mockStructure)} storage cap`;
+    case "relay":
+      return `Adjacent relays add +20% drill throughput at Lv.${level}`;
+    case "solar":
+      return `Global power boost: +${Math.round((0.03 + level * 0.02) * 100)}% income`;
+    case "battery":
+      return `Adds ${storageFor(mockStructure)} storage and relay-linked passive yield`;
+    case "cooling":
+      return `Nearby drills gain +8% output per adjacent cooling unit`;
+    case "conveyor":
+      return `Nearby drills gain +5% output per adjacent conveyor`;
+    case "drone":
+      return `Auto-miner adds ${baseIncomeFor(mockStructure).toFixed(2)} SOL/min before boosts`;
+    case "scanner":
+      return `Prospecting boost: +${Math.round((0.04 + level * 0.03) * 100)}% global income`;
+    case "refinery":
+      return `Refines ore into ${(
+        baseIncomeFor(mockStructure) * (1 + level * 0.12)
+      ).toFixed(2)} SOL/min`;
+    case "vault":
+      return `Secure storage: +${storageFor(mockStructure)} cap plus relay-linked income`;
+    case "decor":
+    case "shop":
+    case "neon":
+    case "statue":
+    case "sign":
+      return `Flex bonus: ${(0.002 * level).toFixed(3)} SOL/min passive brand value`;
+    case "chest":
+      return "Spawns a giant reveal chest with rarity-based rewards";
+  }
 }
 
 function upgradeCost(structure: Structure) {
@@ -2427,6 +2494,10 @@ function App() {
   }, [game.avatar.x, game.avatar.y]);
 
   useEffect(() => {
+    window.localStorage.setItem("ore-acres-playtest", game.playtestMode ? "1" : "0");
+  }, [game.playtestMode]);
+
+  useEffect(() => {
     const saveState = { ...game, chestReveal: null, lastUpdatedAt: Date.now() };
     window.localStorage.setItem(saveKey, JSON.stringify(saveState));
   }, [game, saveKey]);
@@ -2948,6 +3019,24 @@ function App() {
     setGame((current) => ({ ...current, marketOpen: true }));
   }
 
+  function togglePlaytestMode() {
+    setGame((current) => ({
+      ...current,
+      playtestMode: !current.playtestMode,
+      message: !current.playtestMode
+        ? "Playtest mode enabled. Shop purchases now use local test mints."
+        : "Playtest mode disabled. Live Pump mint checkout restored.",
+    }));
+  }
+
+  function grantPlaytestMints(amount = PLAYTEST_MINT_GRANT) {
+    setGame((current) => ({
+      ...current,
+      mints: round(current.mints + amount),
+      message: `Granted ${amount.toFixed(0)} test mints for shop testing.`,
+    }));
+  }
+
   async function connectWallet() {
     if (!window.solana) {
       setWalletMessage("Install Phantom to connect.");
@@ -2972,6 +3061,22 @@ function App() {
   }
 
   async function chargePumpMint(usdAmount: number, label: string) {
+    if (game.playtestMode) {
+      const tokenAmountUi = playtestMintCost(usdAmount);
+      if (game.mints < tokenAmountUi) {
+        setWalletMessage(`Need ${tokenAmountUi.toFixed(2)} test mints to buy ${label}.`);
+        return null;
+      }
+
+      setWalletMessage(`Playtest purchase simulated for ${label}.`);
+      return {
+        signature: `playtest-${Date.now()}`,
+        tokenAmountUi,
+        usdAmount,
+        tokenPriceUsd: PLAYTEST_MINT_RATE,
+      };
+    }
+
     if (!walletPublicKey || !provider) {
       setWalletMessage("Connect Phantom first.");
       return null;
@@ -4168,6 +4273,10 @@ function App() {
             <strong>{game.mints.toFixed(2)}</strong>
           </div>
           <div>
+            <span>Checkout mode</span>
+            <strong>{game.playtestMode ? "Playtest" : "Live"}</strong>
+          </div>
+          <div>
             <span>Income</span>
             <strong>{claimedPlotEconomy ? `${claimedPlotEconomy.income.toFixed(2)}/min` : "0.00/min"}</strong>
           </div>
@@ -4286,6 +4395,18 @@ function App() {
           </div>
 
           <div className="world-action-bar">
+            <button
+              type="button"
+              className={`ghost ${game.playtestMode ? "active" : ""}`}
+              onClick={togglePlaytestMode}
+            >
+              {game.playtestMode ? "Playtest On" : "Playtest Off"}
+            </button>
+            {game.playtestMode ? (
+              <button type="button" className="ghost active" onClick={() => grantPlaytestMints()}>
+                +{PLAYTEST_MINT_GRANT} Test Mints
+              </button>
+            ) : null}
             <button
               type="button"
               className={`ghost ${game.inventoryOpen ? "active" : ""}`}
@@ -4731,6 +4852,9 @@ function App() {
                           ? "Max level reached"
                           : `${structureLabel(selectedStructure)} -> Lv.${selectedStructure.level + 1}`}
                       </span>
+                      <small className="inspector-note">
+                        {structureEffectSummary(selectedStructure.type, selectedStructure.level)}
+                      </small>
                       <div className="inspector-progress">
                         <div
                           className="inspector-progress__fill"
@@ -4802,7 +4926,7 @@ function App() {
                               </div>
                               <div className="inventory-item__meta">
                                 <strong>{structureLabel(structure ?? { type, level: 1 })}</strong>
-                                <span>{type === "shack" ? "Starter home" : "Mining rig"}</span>
+                                <span>{structureEffectSummary(type, structure?.level ?? 1)}</span>
                               </div>
                             </button>
                           );
@@ -4968,6 +5092,7 @@ function App() {
                               <div className="inventory-item__meta">
                                 <strong>{item?.label ?? type}</strong>
                                 <span>{count} owned</span>
+                                <span>{structureEffectSummary(type)}</span>
                               </div>
                             </button>
                           );
@@ -5035,6 +5160,7 @@ function App() {
                               <h4>{item.label}</h4>
                               <p>{item.description}</p>
                               <div className="shop-card__meta">
+                                <span>{structureEffectSummary(item.id)}</span>
                                 <span>${item.cost.toFixed(2)} USD target</span>
                                 <span>{item.id === "chest" ? "Placed instantly" : owned ? `${game.inventory[item.id]} in inventory` : "Fresh stock"}</span>
                               </div>
