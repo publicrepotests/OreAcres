@@ -1683,6 +1683,7 @@ function gameDigest(state: GameState, wallet: PublicKey | null) {
     wallet: wallet?.toBase58() ?? "guest",
     sol: round(state.sol),
     mints: round(state.mints),
+    playtestMode: state.playtestMode,
     rewardReserveSol: round(state.rewardReserveSol),
     claimedPlotId: state.claimedPlotId,
     activePet: state.activePet,
@@ -1950,6 +1951,12 @@ function structureEffectSummary(type: StructureType, level = 1) {
     case "chest":
       return "Spawns a giant reveal chest with rarity-based rewards";
   }
+}
+
+function purchaseDisplayLabel(cost: number, playtestMode: boolean) {
+  return playtestMode
+    ? `${playtestMintCost(cost).toFixed(2)} test mints`
+    : `$${cost.toFixed(2)} USD target`;
 }
 
 function upgradeCost(structure: Structure) {
@@ -5112,6 +5119,11 @@ function App() {
                       <div>
                         <span className="overlay-panel__eyebrow">Build shop</span>
                         <strong>Buy and place</strong>
+                        <p className="overlay-panel__support">
+                          {game.playtestMode
+                            ? "Playtest checkout is enabled. Purchases use local test mints only."
+                            : "Live checkout mode uses the Pump.fun mint payment flow."}
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -5161,7 +5173,7 @@ function App() {
                               <p>{item.description}</p>
                               <div className="shop-card__meta">
                                 <span>{structureEffectSummary(item.id)}</span>
-                                <span>${item.cost.toFixed(2)} USD target</span>
+                                <span>{purchaseDisplayLabel(item.cost, game.playtestMode)}</span>
                                 <span>{item.id === "chest" ? "Placed instantly" : owned ? `${game.inventory[item.id]} in inventory` : "Fresh stock"}</span>
                               </div>
                             </div>
@@ -5191,7 +5203,7 @@ function App() {
                               <p>{skin.description}</p>
                               <div className="shop-card__meta">
                                 <span>{skin.category === "pickaxe" ? `+${Math.round((skin.oreMultiplier ?? 1) * 100 - 100)}% ore value` : `+${Math.round((skin.incomeMultiplier ?? 1) * 100 - 100)}% idle income`}</span>
-                                <span>{owned ? "Owned" : `$${skin.cost.toFixed(2)} USD target`}</span>
+                                <span>{owned ? "Owned" : purchaseDisplayLabel(skin.cost, game.playtestMode)}</span>
                               </div>
                             </div>
                             <button type="button" className="ghost cosmetic-buy" onClick={() => buySkinItem(skin.id)}>
@@ -5217,7 +5229,7 @@ function App() {
                               <p>{pet.description}</p>
                               <div className="shop-card__meta">
                                 <span>{pet.boost}</span>
-                                <span>{owned ? "Owned" : `$${pet.cost.toFixed(2)} USD target`}</span>
+                                <span>{owned ? "Owned" : purchaseDisplayLabel(pet.cost, game.playtestMode)}</span>
                               </div>
                             </div>
                             <button type="button" className="primary" onClick={() => buyPetItem(pet.id)}>
