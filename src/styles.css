@@ -2294,46 +2294,30 @@ h1 {
 }
 
 .avatar--pickaxe-troll_pick .avatar__tool {
-  width: 14px;
-  height: 8px;
-  top: 7px;
-  transform: translateX(-5px) rotate(-16deg);
-  border-radius: 999px 12px 12px 999px;
-  background: linear-gradient(180deg, #ffe58a, #ff8f5a);
-  box-shadow: 0 0 14px rgba(255, 165, 70, 0.22);
-}
-
-.avatar--pickaxe-troll_pick .avatar__tool::before {
-  content: "";
-  position: absolute;
-  left: -6px;
-  top: 1px;
-  width: 8px;
-  height: 3px;
-  border-radius: 999px;
-  background: #5b3c24;
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  transform: translateX(-6px) rotate(-18deg);
+  background-image: url("/assets/cosmetics/pickaxes/troll-pick.png");
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
 }
 
 .avatar--pickaxe-laser_pick .avatar__tool {
-  width: 12px;
-  height: 5px;
-  top: 7px;
-  transform: translateX(-4px) rotate(-12deg);
-  border-radius: 999px;
-  background: linear-gradient(90deg, #67f5d3, #7aa7ff, #ffd166);
-  box-shadow:
-    0 0 10px rgba(103, 245, 211, 0.36),
-    0 0 18px rgba(122, 167, 255, 0.14);
+  width: 19px;
+  height: 19px;
+  top: 1px;
+  transform: translateX(-6px) rotate(-16deg);
+  background-image: url("/assets/cosmetics/pickaxes/laser-pick.png");
+  filter: drop-shadow(0 0 4px rgba(103, 245, 211, 0.42));
 }
 
 .avatar--pickaxe-banana_pick .avatar__tool {
-  width: 13px;
-  height: 7px;
-  top: 6px;
-  transform: translateX(-5px) rotate(-18deg);
-  border-radius: 999px 10px 10px 999px;
-  background: linear-gradient(180deg, #fff8b3, #ffd166);
-  box-shadow: 0 0 12px rgba(255, 209, 102, 0.18);
+  width: 18px;
+  height: 18px;
+  top: 2px;
+  transform: translateX(-6px) rotate(-18deg);
+  background-image: url("/assets/cosmetics/pickaxes/banana-pick.png");
+  filter: drop-shadow(0 2px 3px rgba(98, 66, 10, 0.28));
 }
 
 .neighbor {
@@ -2623,6 +2607,14 @@ h1 {
     inset 0 0 0 1px rgba(103, 245, 211, 0.1);
 }
 
+.item-art--pickaxe-image {
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: transparent;
+  filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.28));
+}
+
 .shop-card__icon--pet {
   width: 92px;
   height: 72px;
@@ -2651,15 +2643,6 @@ h1 {
   inset: 0;
   background: linear-gradient(135deg, rgba(103, 245, 211, 0.14), transparent 55%);
   pointer-events: none;
-}
-
-.shop-card__icon--pickaxe::after,
-.inventory-item__icon--pickaxe::after {
-  content: "⛏";
-  position: absolute;
-  inset: auto auto 6px 8px;
-  font-size: 1.1rem;
-  color: #ffd166;
 }
 
 .shop-card__icon--clothes::after,
@@ -4259,11 +4242,12 @@ h1 {
 .avatar__tool {
   top: 8px;
   left: 100%;
-  width: 10px;
-  height: 3px;
+  width: 12px;
+  height: 12px;
   transform: translateX(-3px) rotate(-15deg);
-  background: #ffd166;
-  box-shadow: inset 0 0 0 1px rgba(92, 61, 10, 0.34);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
 }
 
 .avatar--moving {
@@ -4977,7 +4961,7 @@ h1 {
 }
 
 .avatar--remote .avatar__tool {
-  background: #7aa7ff;
+  opacity: 0.92;
 }
 
 .remote-avatar-anchor {

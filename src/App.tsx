@@ -311,6 +311,11 @@ const STRUCTURE_ART_SLOTS: Partial<Record<StructureType, StructureArtSlot>> = {
   chest: { atlas: "special", col: 1, row: 1 },
 };
 const COSMETIC_ATLAS = "/assets/shop/cosmetics-atlas.png";
+const PICKAXE_ART: Record<"troll_pick" | "laser_pick" | "banana_pick", string> = {
+  troll_pick: "/assets/cosmetics/pickaxes/troll-pick.png",
+  laser_pick: "/assets/cosmetics/pickaxes/laser-pick.png",
+  banana_pick: "/assets/cosmetics/pickaxes/banana-pick.png",
+};
 const SKIN_ART_SLOTS: Record<SkinId, CosmeticArtSlot> = {
   troll_pick: { col: 0, row: 0 },
   laser_pick: { col: 1, row: 0 },
@@ -779,6 +784,10 @@ function isSkinId(value: unknown): value is SkinId {
     value === "cyber_jacket" ||
     value === "astronaut_fit"
   );
+}
+
+function isPickaxeSkinId(value: SkinId): value is "troll_pick" | "laser_pick" | "banana_pick" {
+  return value === "troll_pick" || value === "laser_pick" || value === "banana_pick";
 }
 
 function tileKey(x: number, y: number) {
@@ -1990,6 +1999,16 @@ function atlasPosition(col: number, row: number, columns: number, rows: number) 
 }
 
 function SkinShopArt({ skinId, className = "" }: { skinId: SkinId; className?: string }) {
+  if (isPickaxeSkinId(skinId)) {
+    return (
+      <div
+        className={`item-art item-art--pickaxe-image ${className}`.trim()}
+        style={{ backgroundImage: `url(${PICKAXE_ART[skinId]})` }}
+        aria-hidden="true"
+      />
+    );
+  }
+
   const slot = SKIN_ART_SLOTS[skinId];
   return (
     <div
