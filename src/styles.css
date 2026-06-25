@@ -1224,6 +1224,40 @@ h1 {
   animation-duration: 3.1s;
 }
 
+.sprite--drill-sheet {
+  background-repeat: no-repeat;
+  background-color: transparent;
+  background-position: center;
+  image-rendering: auto;
+  filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.24));
+}
+
+.sprite--drill-sheet--world {
+  width: 96px;
+  height: 128px;
+}
+
+.sprite--drill-sheet--world.sprite--drill-sheet-2 {
+  width: 108px;
+  height: 144px;
+  filter: drop-shadow(0 0 10px rgba(103, 245, 211, 0.12)) drop-shadow(0 14px 16px rgba(0, 0, 0, 0.24));
+}
+
+.sprite--drill-sheet--world.sprite--drill-sheet-3 {
+  width: 120px;
+  height: 160px;
+  filter: drop-shadow(0 0 18px rgba(103, 245, 211, 0.2)) drop-shadow(0 16px 18px rgba(0, 0, 0, 0.26));
+}
+
+.sprite--drill-sheet--card {
+  width: 100%;
+  height: 100%;
+}
+
+.item-art--drill-sheet {
+  background-color: transparent;
+}
+
 .sprite--shack,
 .sprite--storage,
 .sprite--relay,

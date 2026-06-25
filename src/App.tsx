@@ -330,6 +330,11 @@ const DRILL_ART = {
   2: "/assets/structures/drills/tier2-drill.png",
   3: "/assets/structures/drills/tier3-drill.png",
 } as const;
+const DRILL_SHEET_URL = "/assets/structures/drills/drill-sprite-sheet.png";
+const DRILL_SHEET_COLUMNS = 8;
+const DRILL_SHEET_ROWS = 4;
+const DRILL_SHEET_FRAME_COUNT = DRILL_SHEET_COLUMNS * DRILL_SHEET_ROWS;
+const DRILL_SHEET_FPS = 12;
 const SKIN_ART_SLOTS: Record<SkinId, CosmeticArtSlot> = {
   troll_pick: { col: 0, row: 0 },
   laser_pick: { col: 1, row: 0 },
@@ -2073,6 +2078,11 @@ function StructureShopArt({
   level?: number;
   className?: string;
 }) {
+  if (type === "drill") {
+    const tier = Math.min(3, Math.max(1, level)) as 1 | 2 | 3;
+    return <DrillSpriteSheet tier={tier} mode="card" className={`item-art item-art--structure-image item-art--drill-sheet ${className}`.trim()} />;
+  }
+
   const paintedArt = structurePaintedArt(type, level);
   if (paintedArt) {
     return (
@@ -2108,6 +2118,51 @@ function StructureShopArt({
 
 function atlasPosition(col: number, row: number, columns: number, rows: number) {
   return `${col * 100 / (columns - 1)}% ${row * 100 / (rows - 1)}%`;
+}
+
+function DrillSpriteSheet({
+  tier,
+  className = "",
+  mode = "world",
+}: {
+  tier: 1 | 2 | 3;
+  className?: string;
+  mode?: "world" | "card";
+}) {
+  const [frame, setFrame] = useState(0);
+
+  useEffect(() => {
+    const reducedMotion =
+      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reducedMotion) {
+      return;
+    }
+
+    const frameDelay = 1000 / DRILL_SHEET_FPS;
+    const timer = window.setInterval(() => {
+      setFrame((current) => (current + 1) % DRILL_SHEET_FRAME_COUNT);
+    }, frameDelay);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const column = frame % DRILL_SHEET_COLUMNS;
+  const row = Math.floor(frame / DRILL_SHEET_COLUMNS);
+  const positionX = (column / (DRILL_SHEET_COLUMNS - 1)) * 100;
+  const positionY = (row / (DRILL_SHEET_ROWS - 1)) * 100;
+
+  return (
+    <div
+      className={`sprite sprite--drill-sheet sprite--drill-sheet-${tier} sprite--drill-sheet--${mode} ${className}`.trim()}
+      style={{
+        backgroundImage: `url(${DRILL_SHEET_URL})`,
+        backgroundSize: `${DRILL_SHEET_COLUMNS * 100}% ${DRILL_SHEET_ROWS * 100}%`,
+        backgroundPosition: `${positionX}% ${positionY}%`,
+      }}
+      aria-hidden="true"
+    />
+  );
 }
 
 function SkinShopArt({ skinId, className = "" }: { skinId: SkinId; className?: string }) {
@@ -2211,15 +2266,8 @@ function BuildingSprite({ type, level, opened }: { type: StructureType; level: n
   }
 
   if (type === "drill") {
-    const tier = Math.min(3, Math.max(1, level));
-    const art = structurePaintedArt(type, tier);
-    return (
-      <div
-        className={`sprite sprite--painted sprite--painted-drill sprite--painted-drill-${tier}`}
-        style={{ backgroundImage: `url(${art})` }}
-        aria-hidden="true"
-      />
-    );
+    const tier = Math.min(3, Math.max(1, level)) as 1 | 2 | 3;
+    return <DrillSpriteSheet tier={tier} />;
   }
 
   if (type === "chest") {
