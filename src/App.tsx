@@ -316,6 +316,17 @@ const PICKAXE_ART: Record<"troll_pick" | "laser_pick" | "banana_pick", string> =
   laser_pick: "/assets/cosmetics/pickaxes/laser-pick.png",
   banana_pick: "/assets/cosmetics/pickaxes/banana-pick.png",
 };
+const HOME_ART = {
+  1: "/assets/structures/homes/tier1-shack.png",
+  2: "/assets/structures/homes/tier2-house.png",
+  3: "/assets/structures/homes/tier3-villa.png",
+  4: "/assets/structures/homes/tier4-mansion.png",
+} as const;
+const DRILL_ART = {
+  1: "/assets/structures/drills/tier1-drill.png",
+  2: "/assets/structures/drills/tier2-drill.png",
+  3: "/assets/structures/drills/tier3-drill.png",
+} as const;
 const SKIN_ART_SLOTS: Record<SkinId, CosmeticArtSlot> = {
   troll_pick: { col: 0, row: 0 },
   laser_pick: { col: 1, row: 0 },
@@ -788,6 +799,20 @@ function isSkinId(value: unknown): value is SkinId {
 
 function isPickaxeSkinId(value: SkinId): value is "troll_pick" | "laser_pick" | "banana_pick" {
   return value === "troll_pick" || value === "laser_pick" || value === "banana_pick";
+}
+
+function structurePaintedArt(type: StructureType, level: number) {
+  if (type === "shack") {
+    const tier = Math.min(4, Math.max(1, level)) as 1 | 2 | 3 | 4;
+    return HOME_ART[tier];
+  }
+
+  if (type === "drill") {
+    const tier = Math.min(3, Math.max(1, level)) as 1 | 2 | 3;
+    return DRILL_ART[tier];
+  }
+
+  return null;
 }
 
 function tileKey(x: number, y: number) {
@@ -1967,11 +1992,24 @@ function AvatarSprite({
 
 function StructureShopArt({
   type,
+  level = 1,
   className = "",
 }: {
   type: StructureType;
+  level?: number;
   className?: string;
 }) {
+  const paintedArt = structurePaintedArt(type, level);
+  if (paintedArt) {
+    return (
+      <div
+        className={`item-art item-art--structure-image ${className}`.trim()}
+        style={{ backgroundImage: `url(${paintedArt})` }}
+        aria-hidden="true"
+      />
+    );
+  }
+
   const slot = STRUCTURE_ART_SLOTS[type];
   if (!slot) {
     return (
@@ -2083,60 +2121,25 @@ function PetSprite({ type }: { type: PetType }) {
 function BuildingSprite({ type, level, opened }: { type: StructureType; level: number; opened?: boolean }) {
   if (type === "shack") {
     const tier = Math.min(4, Math.max(1, level));
+    const art = structurePaintedArt(type, tier);
     return (
-      <div className={`sprite sprite--shack sprite--shack-${tier}`}>
-        <div className="shack__frame">
-          <div className="shack__roof" />
-          <div className="shack__wall" />
-          <div className="shack__door" />
-          <div className="shack__window shack__window--left" />
-          <div className="shack__window shack__window--right" />
-          <div className="shack__smoke shack__smoke--1" />
-          <div className="shack__smoke shack__smoke--2" />
-          {tier >= 2 ? <div className="shack__wing shack__wing--left" /> : null}
-          {tier >= 2 ? <div className="shack__wing shack__wing--right" /> : null}
-          {tier >= 2 ? <div className="shack__chimney" /> : null}
-          {tier >= 3 ? <div className="shack__porch" /> : null}
-          {tier >= 3 ? <div className="shack__porch-post shack__porch-post--left" /> : null}
-          {tier >= 3 ? <div className="shack__porch-post shack__porch-post--right" /> : null}
-          {tier >= 4 ? <div className="shack__mansion-wing shack__mansion-wing--left" /> : null}
-          {tier >= 4 ? <div className="shack__mansion-wing shack__mansion-wing--right" /> : null}
-          {tier >= 4 ? <div className="shack__tower" /> : null}
-          {tier >= 4 ? <div className="shack__balcony" /> : null}
-          {tier >= 4 ? <div className="shack__column shack__column--1" /> : null}
-          {tier >= 4 ? <div className="shack__column shack__column--2" /> : null}
-          {tier >= 4 ? <div className="shack__column shack__column--3" /> : null}
-          {tier >= 4 ? <div className="shack__column shack__column--4" /> : null}
-        </div>
-      </div>
+      <div
+        className={`sprite sprite--painted sprite--painted-home sprite--painted-home-${tier}`}
+        style={{ backgroundImage: `url(${art})` }}
+        aria-hidden="true"
+      />
     );
   }
 
   if (type === "drill") {
     const tier = Math.min(3, Math.max(1, level));
+    const art = structurePaintedArt(type, tier);
     return (
-      <div className={`sprite sprite--drill sprite--drill-${tier}`}>
-        <div className="drill__frame">
-          <div className="drill__base" />
-          <div className="drill__mast" />
-          <div className="drill__head" />
-          <div className="drill__bit" />
-          <div className="drill__arm drill__arm--left" />
-          <div className="drill__arm drill__arm--right" />
-          <div className="drill__body-light" />
-          <div className="drill__spark drill__spark--1" />
-          <div className="drill__spark drill__spark--2" />
-          <div className="drill__spark drill__spark--3" />
-          {tier >= 2 ? <div className="drill__canopy" /> : null}
-          {tier >= 2 ? <div className="drill__pipe drill__pipe--left" /> : null}
-          {tier >= 2 ? <div className="drill__pipe drill__pipe--right" /> : null}
-          {tier >= 3 ? <div className="drill__turret" /> : null}
-          {tier >= 3 ? <div className="drill__turret-glow" /> : null}
-          {Array.from({ length: tier }).map((_, index) => (
-            <div key={index} className={`drill__chip drill__chip--${index + 1}`} />
-          ))}
-        </div>
-      </div>
+      <div
+        className={`sprite sprite--painted sprite--painted-drill sprite--painted-drill-${tier}`}
+        style={{ backgroundImage: `url(${art})` }}
+        aria-hidden="true"
+      />
     );
   }
 

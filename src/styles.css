@@ -1076,6 +1076,63 @@ h1 {
   image-rendering: pixelated;
 }
 
+.sprite--painted {
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: contain;
+  image-rendering: auto;
+  animation: float 3s ease-in-out infinite;
+}
+
+.sprite--painted-home {
+  width: 88px;
+  height: 72px;
+  filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.25));
+}
+
+.sprite--painted-home-1 {
+  transform: translateY(4px) scale(0.98);
+}
+
+.sprite--painted-home-2 {
+  width: 96px;
+  height: 78px;
+  transform: translateY(3px) scale(1.02);
+  filter: drop-shadow(0 0 10px rgba(255, 196, 120, 0.08)) drop-shadow(0 14px 16px rgba(0, 0, 0, 0.24));
+}
+
+.sprite--painted-home-3 {
+  width: 104px;
+  height: 84px;
+  transform: translateY(2px) scale(1.04);
+  filter: drop-shadow(0 0 12px rgba(255, 214, 133, 0.1)) drop-shadow(0 15px 17px rgba(0, 0, 0, 0.24));
+}
+
+.sprite--painted-home-4 {
+  width: 118px;
+  height: 92px;
+  transform: translateY(1px) scale(1.04);
+  filter: drop-shadow(0 0 18px rgba(255, 209, 102, 0.16)) drop-shadow(0 16px 18px rgba(0, 0, 0, 0.26));
+}
+
+.sprite--painted-drill {
+  width: 82px;
+  height: 68px;
+  filter: drop-shadow(0 13px 15px rgba(0, 0, 0, 0.24));
+}
+
+.sprite--painted-drill-2 {
+  width: 92px;
+  height: 74px;
+  filter: drop-shadow(0 0 10px rgba(103, 245, 211, 0.12)) drop-shadow(0 14px 16px rgba(0, 0, 0, 0.24));
+}
+
+.sprite--painted-drill-3 {
+  width: 104px;
+  height: 84px;
+  filter: drop-shadow(0 0 18px rgba(103, 245, 211, 0.22)) drop-shadow(0 16px 18px rgba(0, 0, 0, 0.26));
+}
+
 .sprite--shack,
 .sprite--storage,
 .sprite--relay,
@@ -2701,6 +2758,14 @@ h1 {
   background-repeat: no-repeat;
   background-color: transparent;
   filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.28));
+}
+
+.item-art--structure-image {
+  background-size: contain;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-color: transparent;
+  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.28));
 }
 
 .shop-card__icon--pet {
