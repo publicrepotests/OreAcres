@@ -4166,7 +4166,7 @@ h1 {
   width: 20px;
   height: 28px;
   z-index: 7;
-  transform: scale(1.7);
+  transform: scale(1.38);
   transform-origin: center center;
   filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.45)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.08));
 }
