@@ -1089,6 +1089,7 @@ h1 {
   content: "";
   position: absolute;
   pointer-events: none;
+  z-index: 0;
 }
 
 .sprite--painted::before {
@@ -1112,6 +1113,45 @@ h1 {
   width: 88px;
   height: 72px;
   filter: drop-shadow(0 14px 16px rgba(0, 0, 0, 0.25));
+}
+
+.home-motion,
+.drill-motion {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.home-motion__window-glow,
+.home-motion__beacon,
+.drill-motion__ring,
+.drill-motion__core,
+.drill-motion__tip {
+  position: absolute;
+}
+
+.home-motion__window-glow {
+  left: 38%;
+  top: 46%;
+  width: 22%;
+  height: 18%;
+  border-radius: 14px;
+  background: radial-gradient(circle, rgba(255, 214, 112, 0.4), rgba(103, 245, 211, 0.18) 56%, transparent 76%);
+  filter: blur(4px);
+  mix-blend-mode: screen;
+  animation: homeGlow 2.6s ease-in-out infinite;
+}
+
+.home-motion__beacon {
+  left: 44%;
+  top: 12%;
+  width: 10%;
+  height: 10%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(103, 245, 211, 0.95), rgba(103, 245, 211, 0.08) 72%);
+  box-shadow: 0 0 16px rgba(103, 245, 211, 0.36);
+  animation: beaconPulse 1.8s ease-in-out infinite;
 }
 
 .sprite--painted-home-1 {
@@ -1155,6 +1195,47 @@ h1 {
   filter: drop-shadow(0 13px 15px rgba(0, 0, 0, 0.24));
 }
 
+.drill-motion__ring {
+  left: 8%;
+  top: 33%;
+  width: 28%;
+  height: 28%;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      rgba(255, 224, 137, 0.92) 0deg 24deg,
+      rgba(115, 180, 255, 0.22) 24deg 48deg
+    );
+  box-shadow:
+    0 0 10px rgba(255, 209, 102, 0.2),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.18);
+  animation: spinFast 0.42s linear infinite;
+}
+
+.drill-motion__core {
+  left: 14%;
+  top: 39%;
+  width: 16%;
+  height: 16%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(103, 245, 211, 0.92), rgba(103, 245, 211, 0.12) 68%, transparent 78%);
+  box-shadow: 0 0 12px rgba(103, 245, 211, 0.4);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.drill-motion__tip {
+  left: 3%;
+  top: 40%;
+  width: 12%;
+  height: 12%;
+  clip-path: polygon(0 50%, 100% 0, 100% 100%);
+  background: linear-gradient(180deg, rgba(255, 245, 205, 0.92), rgba(255, 209, 102, 0.88));
+  filter: drop-shadow(0 0 6px rgba(255, 209, 102, 0.28));
+  transform-origin: 100% 50%;
+  animation: drillTipJitter 0.18s linear infinite;
+}
+
 .sprite--painted-drill::before {
   inset: 16% 12% 8%;
   border-radius: 20px;
@@ -1172,10 +1253,57 @@ h1 {
   filter: drop-shadow(0 0 10px rgba(103, 245, 211, 0.12)) drop-shadow(0 14px 16px rgba(0, 0, 0, 0.24));
 }
 
+.sprite--painted-drill-2 .drill-motion__ring {
+  left: 7%;
+  top: 36%;
+  width: 25%;
+  height: 25%;
+  animation-duration: 0.3s;
+}
+
+.sprite--painted-drill-2 .drill-motion__core {
+  left: 12%;
+  top: 41%;
+  width: 14%;
+  height: 14%;
+}
+
+.sprite--painted-drill-2 .drill-motion__tip {
+  left: 3%;
+  top: 43%;
+  width: 10%;
+  height: 10%;
+}
+
 .sprite--painted-drill-3 {
   width: 104px;
   height: 84px;
   filter: drop-shadow(0 0 18px rgba(103, 245, 211, 0.22)) drop-shadow(0 16px 18px rgba(0, 0, 0, 0.26));
+}
+
+.sprite--painted-drill-3 .drill-motion__ring {
+  left: 3%;
+  top: 37%;
+  width: 27%;
+  height: 27%;
+  animation-duration: 0.22s;
+  box-shadow:
+    0 0 14px rgba(103, 245, 211, 0.26),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+.sprite--painted-drill-3 .drill-motion__core {
+  left: 10%;
+  top: 44%;
+  width: 12%;
+  height: 12%;
+}
+
+.sprite--painted-drill-3 .drill-motion__tip {
+  left: 1%;
+  top: 46%;
+  width: 9%;
+  height: 9%;
 }
 
 .sprite--painted-drill-3::before {
@@ -3178,6 +3306,51 @@ h1 {
   }
   50% {
     opacity: 0.95;
+  }
+}
+
+@keyframes spinFast {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes drillTipJitter {
+  0%,
+  100% {
+    transform: translateX(0) scale(0.98);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateX(-1px) scale(1.04);
+    opacity: 1;
+  }
+}
+
+@keyframes homeGlow {
+  0%,
+  100% {
+    opacity: 0.24;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.62;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes beaconPulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
   }
 }
 

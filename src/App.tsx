@@ -2201,7 +2201,12 @@ function BuildingSprite({ type, level, opened }: { type: StructureType; level: n
         className={`sprite sprite--painted sprite--painted-home sprite--painted-home-${tier}`}
         style={{ backgroundImage: `url(${art})` }}
         aria-hidden="true"
-      />
+      >
+        <div className="home-motion">
+          <div className="home-motion__window-glow" />
+          {tier >= 3 ? <div className="home-motion__beacon" /> : null}
+        </div>
+      </div>
     );
   }
 
@@ -2213,7 +2218,13 @@ function BuildingSprite({ type, level, opened }: { type: StructureType; level: n
         className={`sprite sprite--painted sprite--painted-drill sprite--painted-drill-${tier}`}
         style={{ backgroundImage: `url(${art})` }}
         aria-hidden="true"
-      />
+      >
+        <div className="drill-motion">
+          <div className="drill-motion__ring" />
+          <div className="drill-motion__core" />
+          <div className="drill-motion__tip" />
+        </div>
+      </div>
     );
   }
 
