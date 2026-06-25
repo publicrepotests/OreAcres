@@ -4500,6 +4500,28 @@ function App() {
                     top: `${game.avatar.y}px`,
                   }}
                 >
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "50%",
+                      top: "50%",
+                      width: "64px",
+                      height: "64px",
+                      transform: "translate(-50%, -50%)",
+                      borderRadius: "16px",
+                      border: "4px solid #ff4d6d",
+                      background: "rgba(255, 77, 109, 0.28)",
+                      boxShadow: "0 0 28px rgba(255, 77, 109, 0.65)",
+                      display: "grid",
+                      placeItems: "center",
+                      color: "#ffffff",
+                      fontFamily: "\"Press Start 2P\", monospace",
+                      fontSize: "10px",
+                      zIndex: 999,
+                    }}
+                  >
+                    YOU
+                  </div>
                   <AvatarSprite
                     moving={moving}
                     pickaxeSkin={game.equippedPickaxeSkin}
