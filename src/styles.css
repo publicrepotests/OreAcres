@@ -89,6 +89,7 @@ h3,
 .landing-card__eyebrow,
 .section-heading .eyebrow,
 .roadmap-card__head span,
+.economy-card span,
 .market-card__tag {
   font-family: "Press Start 2P", monospace;
 }
@@ -497,7 +498,8 @@ h1 {
 }
 
 .whitepaper,
-.roadmap {
+.roadmap,
+.economy-page {
   margin: 0 0 18px;
 }
 
@@ -566,6 +568,148 @@ h1 {
   font-size: 3.4rem;
   font-family: "Press Start 2P", monospace;
   pointer-events: none;
+}
+
+.economy-page {
+  display: grid;
+  gap: 16px;
+}
+
+.economy-hero,
+.economy-panel,
+.economy-card,
+.economy-meter {
+  border-radius: 14px;
+  border: 2px solid rgba(103, 245, 211, 0.1);
+  background:
+    radial-gradient(circle at top left, rgba(103, 245, 211, 0.18), transparent 42%),
+    radial-gradient(circle at bottom right, rgba(255, 209, 102, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(12, 17, 31, 0.98), rgba(6, 10, 18, 0.96));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 0 0 4px rgba(0, 0, 0, 0.2) inset,
+    0 20px 56px rgba(0, 0, 0, 0.45);
+}
+
+.economy-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 18px;
+  padding: 22px;
+  align-items: stretch;
+}
+
+.economy-hero h1 {
+  max-width: 11ch;
+}
+
+.economy-meter {
+  padding: 18px;
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  background:
+    radial-gradient(circle at center, rgba(255, 209, 102, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(8, 13, 24, 0.99), rgba(5, 9, 16, 0.97));
+}
+
+.economy-meter strong {
+  font-size: clamp(2rem, 5vw, 4rem);
+  line-height: 0.95;
+  color: var(--warm);
+}
+
+.economy-meter p,
+.economy-meter small,
+.economy-card p,
+.economy-panel p {
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 0;
+}
+
+.economy-meter__track {
+  height: 18px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.economy-meter__track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--warm));
+  box-shadow: 0 0 18px rgba(103, 245, 211, 0.28);
+}
+
+.economy-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.economy-grid--guards {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.economy-grid--stress {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.economy-card,
+.economy-panel {
+  padding: 18px;
+}
+
+.economy-card span {
+  display: block;
+  color: var(--accent);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.economy-card strong {
+  display: block;
+  margin: 12px 0;
+  color: var(--warm);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: clamp(1.25rem, 2.4vw, 1.8rem);
+}
+
+.economy-card h3,
+.economy-panel h2 {
+  margin: 12px 0 10px;
+}
+
+.economy-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 14px;
+}
+
+.economy-panel--warning {
+  border-color: rgba(255, 209, 102, 0.18);
+  background:
+    radial-gradient(circle at top right, rgba(255, 209, 102, 0.16), transparent 42%),
+    linear-gradient(180deg, rgba(17, 14, 8, 0.98), rgba(7, 11, 20, 0.96));
+}
+
+.economy-proof-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.economy-proof-list span {
+  padding: 10px 12px;
+  border-radius: 12px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .game-panel {
@@ -3966,6 +4110,8 @@ h1 {
 @media (max-width: 1080px) {
   .hero,
   .landing-grid,
+  .economy-hero,
+  .economy-split,
   .layout {
     display: flex;
     flex-direction: column;
@@ -3974,6 +4120,8 @@ h1 {
   .stats,
   .whitepaper-grid,
   .roadmap-grid,
+  .economy-grid--guards,
+  .economy-grid--stress,
   .world-map,
   .shop-grid {
     grid-template-columns: 1fr;
@@ -6739,6 +6887,8 @@ h1 {
 @media (max-width: 1080px) {
   .hero,
   .landing-grid,
+  .economy-hero,
+  .economy-split,
   .layout {
     grid-template-columns: 1fr;
   }
@@ -6746,6 +6896,8 @@ h1 {
   .stats,
   .whitepaper-grid,
   .roadmap-grid,
+  .economy-grid--guards,
+  .economy-grid--stress,
   .shop-grid {
     grid-template-columns: 1fr;
   }
@@ -6768,6 +6920,10 @@ h1 {
   }
 
   .landing-card__stats-row {
+    grid-template-columns: 1fr;
+  }
+
+  .economy-proof-list {
     grid-template-columns: 1fr;
   }
 

@@ -98,7 +98,7 @@ type RoadmapItem = {
   status: "Live" | "In progress" | "Next" | "Planned";
 };
 
-type Page = "home" | "game";
+type Page = "home" | "game" | "economy";
 
 type StructureArtSlot = {
   atlas: "core" | "special";
@@ -316,7 +316,7 @@ declare global {
 const TICK_MS = 1000;
 const STARTING_SOL = 0.02;
 const STARTING_MINTS = 18;
-const STARTING_REWARD_RESERVE_SOL = 250;
+const STARTING_REWARD_RESERVE_SOL = 1;
 const PLAYTEST_MINT_GRANT = 250;
 const PLAYTEST_MINT_RATE = 1;
 const SOLANA_RPC_URL = import.meta.env.VITE_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
@@ -838,34 +838,34 @@ const EARNINGS_SCENARIOS: EarningsScenario[] = [
     id: "starter",
     label: "Starter plot",
     description: "A fresh acre with one drill, a shack, and a tiny trickle.",
-    solPerDay: 0.08,
-    solPerWeek: 0.56,
-    solPerMonth: 2.4,
+    solPerDay: 0.00008,
+    solPerWeek: 0.00056,
+    solPerMonth: 0.0024,
     setup: ["1 shack", "1 drill", "basic pet", "no premium skins"],
     color: "#67f5d3",
-    points: [0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08],
+    points: [0.00002, 0.00003, 0.00004, 0.00005, 0.00006, 0.00007, 0.00008],
   },
   {
     id: "builder",
     label: "Builder plot",
-    description: "A mid-game acre with drills, power, storage, and some cosmetics.",
-    solPerDay: 0.32,
-    solPerWeek: 2.24,
-    solPerMonth: 9.6,
-    setup: ["3 drills", "power relay", "solar", "one pet", "skins equipped"],
+    description: "A mid-game acre with drills, relay support, a drone, and cosmetics.",
+    solPerDay: 0.00022,
+    solPerWeek: 0.00154,
+    solPerMonth: 0.0066,
+    setup: ["3 drills", "power relay", "auto drone", "one pet", "skins equipped"],
     color: "#7aa7ff",
-    points: [0.08, 0.11, 0.16, 0.22, 0.27, 0.3, 0.32],
+    points: [0.00008, 0.00011, 0.00014, 0.00017, 0.00019, 0.00021, 0.00022],
   },
   {
     id: "late",
     label: "Late-game plot",
     description: "A dense production acre with a mansion, automation, and flex.",
-    solPerDay: 0.95,
-    solPerWeek: 6.65,
-    solPerMonth: 28.5,
+    solPerDay: 0.00035,
+    solPerWeek: 0.00245,
+    solPerMonth: 0.0105,
     setup: ["max drills", "automation", "mansion", "legendary pet", "rare skins"],
     color: "#ffd166",
-    points: [0.2, 0.28, 0.42, 0.55, 0.7, 0.82, 0.95],
+    points: [0.00012, 0.00016, 0.0002, 0.00025, 0.00029, 0.00032, 0.00035],
   },
 ];
 
@@ -942,14 +942,14 @@ const DEFAULT_NFT_INVENTORY: Record<string, number> = {
 };
 
 const MISSION_REWARDS: Record<MissionId, { title: string; reward: number }> = {
-  claim_plot: { title: "Claim a plot", reward: 0.001 },
-  second_drill: { title: "Place a second drill", reward: 0.0015 },
-  first_upgrade: { title: "Upgrade anything once", reward: 0.0015 },
-  equip_pet: { title: "Equip a pet", reward: 0.001 },
+  claim_plot: { title: "Claim a plot", reward: 0.00002 },
+  second_drill: { title: "Place a second drill", reward: 0.00003 },
+  first_upgrade: { title: "Upgrade anything once", reward: 0.00003 },
+  equip_pet: { title: "Equip a pet", reward: 0.00002 },
   open_chest: { title: "Legacy chest objective", reward: 0.002 },
-  income_1: { title: "Reach sustainable output", reward: 0.002 },
-  mansion: { title: "Reach mansion tier", reward: 0.003 },
-  balance_100: { title: "Hold 0.10 SOL", reward: 0.0025 },
+  income_1: { title: "Reach sustainable output", reward: 0.00004 },
+  mansion: { title: "Reach mansion tier", reward: 0.00005 },
+  balance_100: { title: "Hold 0.10 SOL", reward: 0.00005 },
 };
 
 const MISSION_ORDER: MissionId[] = [
@@ -962,21 +962,62 @@ const MISSION_ORDER: MissionId[] = [
   "balance_100",
 ];
 
-const ECONOMY_SCALE = 0.0045;
+const ECONOMY_SCALE = 0.0035;
 const COST_SCALE = 0.68;
-const QUEST_BOX_REWARD_SCALE = 0.006;
+const QUEST_BOX_REWARD_SCALE = 0.00004;
 const USD_TO_RESERVE_SOL = 0.0025;
 const SHOP_RESERVE_BPS = 5200;
 const COSMETIC_RESERVE_BPS = 3800;
 const CHEST_RESERVE_BPS = 6500;
 const MARKETPLACE_FEE_BPS = 700;
 const MARKETPLACE_RESERVE_FEE_BPS = 500;
-const MAX_IDLE_SOL_PER_DAY = 0.004;
-const MAX_ORE_SOL_PER_DAY = 0.0015;
-const MAX_BOX_SOL_PER_DAY = 0.001;
+const MAX_IDLE_SOL_PER_DAY = 0.00035;
+const MAX_ORE_SOL_PER_DAY = 0.00008;
+const MAX_BOX_SOL_PER_DAY = 0.00005;
 const MAX_OFFLINE_SECONDS = 60 * 60 * 6;
-const RESERVE_FLOOR_SOL = 25;
-const RESERVE_TARGET_RUNWAY_DAYS = 120;
+const RESERVE_FLOOR_SOL = 0.2;
+const RESERVE_TARGET_RUNWAY_DAYS = 180;
+
+const ECONOMY_GUARDS = [
+  {
+    title: "Reserve floor",
+    value: `${RESERVE_FLOOR_SOL.toFixed(2)} SOL`,
+    copy: "The game stops paying SOL before the reward pool reaches the protected floor.",
+  },
+  {
+    title: "Idle cap",
+    value: `${MAX_IDLE_SOL_PER_DAY.toFixed(6)} SOL/day`,
+    copy: "Idle production is capped per economy model, so whales cannot force runaway emissions.",
+  },
+  {
+    title: "Ore cap",
+    value: `${MAX_ORE_SOL_PER_DAY.toFixed(6)} SOL/day`,
+    copy: "Ore payouts stay tiny and are weighted toward small nodes with longer mining time on rare nodes.",
+  },
+  {
+    title: "Runway target",
+    value: `${RESERVE_TARGET_RUNWAY_DAYS} days`,
+    copy: "Payouts throttle down automatically when the reserve runway gets shorter.",
+  },
+];
+
+const ECONOMY_STRESS_TESTS = [
+  {
+    label: "Dry launch",
+    stress: "Low marketcap, low buys, few players",
+    response: "Small bootstrap reserve, low reward caps, and cosmetics-first progression keep emissions tiny while the community forms.",
+  },
+  {
+    label: "Hype spike",
+    stress: "High marketcap, more buyers, faster growth",
+    response: "More purchases can refill reserves, but payout caps still prevent a rich-get-richer drain spiral.",
+  },
+  {
+    label: "Slowdown",
+    stress: "Market cools off after launch",
+    response: "Runway throttling reduces rewards before reserves are damaged, preserving playability without pretending yields are fixed.",
+  },
+];
 
 function isStructureType(value: unknown): value is StructureType {
   return (
@@ -1300,8 +1341,8 @@ function rollMiningReward(
     return {
       ...reward,
       sol: amount,
-      description: `Earned ${amount.toFixed(2)} SOL.`,
-      detail: `${amount.toFixed(2)} SOL`,
+      description: `Earned ${amount.toFixed(6)} SOL.`,
+      detail: `${amount.toFixed(6)} SOL`,
     };
   }
 
@@ -1329,6 +1370,12 @@ function defaultPlaytestMode() {
   } catch {
     return false;
   }
+}
+
+function pageFromPath(pathname: string): Page {
+  if (pathname.startsWith("/game")) return "game";
+  if (pathname.startsWith("/economy")) return "economy";
+  return "home";
 }
 
 function scaledCost(cost: number) {
@@ -1829,7 +1876,7 @@ function resolveMissionRewards(state: GameState) {
     ["first_upgrade", hasUpgradedStructure],
     ["equip_pet", hasPet],
     ["open_chest", next.stats.chestsOpened > 0],
-    ["income_1", Boolean(economy && economy.rawIncome >= 0.0025)],
+    ["income_1", Boolean(economy && economy.rawIncome >= 0.000001)],
     ["mansion", hasMansion],
     ["balance_100", next.sol >= 0.1],
   ];
@@ -1864,7 +1911,7 @@ function resolveMissionRewards(state: GameState) {
   if (completed.length > 0) {
     next = {
       ...next,
-      message: `Mission complete: ${completed.join(" • ")}. +${rewardTotal.toFixed(2)} SOL, mint bonuses, and quest boxes.`,
+      message: `Mission complete: ${completed.join(" • ")}. +${rewardTotal.toFixed(6)} SOL, mint bonuses, and quest boxes.`,
     };
   }
 
@@ -3109,7 +3156,7 @@ function App() {
     const fromQuery = new URLSearchParams(window.location.search).get("room");
     return sanitizeRoomId(fromQuery ?? window.localStorage.getItem("ore-acres-room") ?? "lobby");
   });
-  const [page, setPage] = useState<Page>(() => (window.location.pathname.startsWith("/game") ? "game" : "home"));
+  const [page, setPage] = useState<Page>(() => pageFromPath(window.location.pathname));
   const [earningsScenarioId, setEarningsScenarioId] = useState<EarningsScenarioId>("starter");
   const [earningsHoverIndex, setEarningsHoverIndex] = useState<number | null>(null);
   const [marketFilter, setMarketFilter] = useState<"all" | "skins" | "pickaxes" | "clothes" | "pets">("all");
@@ -3318,7 +3365,7 @@ function App() {
 
   useEffect(() => {
     const syncPage = () => {
-      setPage(window.location.pathname.startsWith("/game") ? "game" : "home");
+      setPage(pageFromPath(window.location.pathname));
     };
 
     window.addEventListener("popstate", syncPage);
@@ -4145,7 +4192,7 @@ function App() {
   }
 
   function goToPage(nextPage: Page) {
-    const nextPath = nextPage === "game" ? "/game" : "/";
+    const nextPath = nextPage === "game" ? "/game" : nextPage === "economy" ? "/economy" : "/";
     window.history.pushState({}, "", nextPath);
     setPage(nextPage);
     if (nextPage === "game") {
@@ -4158,6 +4205,13 @@ function App() {
   }
 
   function scrollToSection(id: string) {
+    if (page !== "home") {
+      goToPage("home");
+      window.setTimeout(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 0);
+      return;
+    }
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -4776,7 +4830,7 @@ function App() {
             ...next.stats,
             totalEarned: round(next.stats.totalEarned + amount),
           },
-          questReveal: { label: reward.label, detail: `+${amount.toFixed(2)} SOL` },
+          questReveal: { label: reward.label, detail: `+${amount.toFixed(6)} SOL` },
           message: `Quest box opened: ${reward.label}.`,
         };
       }
@@ -5225,14 +5279,14 @@ function App() {
                   ? 1
                   : 0
                 : id === "income_1"
-                  ? claimedPlotEconomy && claimedPlotEconomy.income >= 1
+                  ? claimedPlotEconomy && claimedPlotEconomy.rawIncome >= 0.000001
                     ? 1
                     : 0
                   : id === "mansion"
                     ? hasMansion
                       ? 1
                       : 0
-                    : game.sol >= 100
+                    : game.sol >= 0.1
                       ? 1
                       : 0;
 
@@ -5292,6 +5346,9 @@ function App() {
           </button>
           <button type="button" className={`site-nav__link ${page === "game" ? "active" : ""}`} onClick={() => goToPage("game")}>
             Game
+          </button>
+          <button type="button" className={`site-nav__link ${page === "economy" ? "active" : ""}`} onClick={() => goToPage("economy")}>
+            Economy
           </button>
           <button type="button" className="site-nav__link" onClick={() => scrollToSection("whitepaper")}>
             Whitepaper
@@ -5387,15 +5444,15 @@ function App() {
               <div className="landing-card__stats-row">
                 <div>
                   <span>Day</span>
-                  <strong>{earningsScenario.solPerDay.toFixed(2)} SOL</strong>
+                  <strong>{earningsScenario.solPerDay.toFixed(6)} SOL</strong>
                 </div>
                 <div>
                   <span>Week</span>
-                  <strong>{earningsScenario.solPerWeek.toFixed(2)} SOL</strong>
+                  <strong>{earningsScenario.solPerWeek.toFixed(6)} SOL</strong>
                 </div>
                 <div>
                   <span>Month</span>
-                  <strong>{earningsScenario.solPerMonth.toFixed(1)} SOL</strong>
+                  <strong>{earningsScenario.solPerMonth.toFixed(6)} SOL</strong>
                 </div>
               </div>
               <div className="landing-card__legend">
@@ -5492,7 +5549,7 @@ function App() {
                   }}
                 >
                   <strong>Day {chartPointIndex + 1}</strong>
-                  <span>{chartPointValue.toFixed(2)} SOL/day</span>
+                  <span>{chartPointValue.toFixed(6)} SOL/day</span>
                 </div>
               </div>
               <div className="landing-card__meta">
@@ -5570,7 +5627,105 @@ function App() {
             </div>
           </section>
         </>
-      ) : (
+      ) : null}
+
+      {page === "economy" ? (
+        <section className="economy-page">
+          <div className="economy-hero">
+            <div>
+              <p className="eyebrow">Sustainable reward design</p>
+              <h1>Economy Guardrails</h1>
+              <p className="lede">
+                Ore Acres is designed to survive both quiet launches and hype cycles
+                by keeping SOL emissions tiny, reserve-backed, and automatically
+                throttled. The game should sell fun, cosmetics, status, and social
+                progression first. SOL rewards are a small bonus, not a fixed yield.
+              </p>
+              <div className="hero__actions">
+                <button type="button" className="primary" onClick={() => goToPage("game")}>
+                  Test the economy
+                </button>
+                <button type="button" className="ghost" onClick={() => goToPage("home")}>
+                  Back to home
+                </button>
+              </div>
+            </div>
+            <aside className="economy-meter">
+              <span className="landing-card__eyebrow">Current local model</span>
+              <strong>{rewardReserveHealth}</strong>
+              <p>
+                Reserve: {game.rewardReserveSol.toFixed(4)} SOL •{" "}
+                {Number.isFinite(rewardReserveRunwayDays)
+                  ? `${rewardReserveRunwayDays.toFixed(1)} days runway`
+                  : "no active drain"}
+              </p>
+              <div className="economy-meter__track" aria-hidden="true">
+                <span style={{ width: `${Math.max(3, Math.min(100, emissionThrottle * 100))}%` }} />
+              </div>
+              <small>
+                Throttle: {Math.round(emissionThrottle * 100)}%. When runway drops,
+                rewards shrink before the reserve is damaged.
+              </small>
+            </aside>
+          </div>
+
+          <div className="economy-grid economy-grid--guards">
+            {ECONOMY_GUARDS.map((guard) => (
+              <article key={guard.title} className="economy-card">
+                <span>{guard.title}</span>
+                <strong>{guard.value}</strong>
+                <p>{guard.copy}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className="economy-split">
+            <article className="economy-panel">
+              <span className="landing-card__eyebrow">Why it can survive</span>
+              <h2>Rewards cannot outrun reserves.</h2>
+              <p>
+                The current model uses three brakes at once: a protected reserve
+                floor, hard payout caps, and runway-based throttling. If marketcap
+                is low or purchases slow down, rewards automatically compress
+                toward near-zero instead of draining the pool. If marketcap is high,
+                new purchases can refill reserves, but caps still prevent players
+                from extracting too much too quickly.
+              </p>
+              <div className="economy-proof-list">
+                <span>Purchases fund reserves and sinks.</span>
+                <span>Idle rewards are capped per day.</span>
+                <span>Ore rewards are tiny, weighted, and time-gated.</span>
+                <span>Marketplace fees add reserve support and token sinks.</span>
+              </div>
+            </article>
+
+            <article className="economy-panel economy-panel--warning">
+              <span className="landing-card__eyebrow">Important honesty</span>
+              <h2>This is safer, not magic.</h2>
+              <p>
+                No token game should promise permanent profit. The sustainable
+                version of Ore Acres is one where players buy status, convenience,
+                cosmetics, pets, and plot expression, while SOL rewards remain
+                small and reserve-limited. Before mainnet launch, the next step
+                is moving reward accounting server-side so daily caps are enforced
+                authoritatively per player and wallet.
+              </p>
+            </article>
+          </div>
+
+          <div className="economy-grid economy-grid--stress">
+            {ECONOMY_STRESS_TESTS.map((test) => (
+              <article key={test.label} className="economy-card economy-card--stress">
+                <span>{test.label}</span>
+                <h3>{test.stress}</h3>
+                <p>{test.response}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {page === "game" ? (
         <>
           <section className="game-topbar">
             <div>
@@ -5588,7 +5743,7 @@ function App() {
             </div>
           </section>
         </>
-      )}
+      ) : null}
 
       {page === "game" ? (
         <section className="game-panel" ref={gamePanelRef}>
