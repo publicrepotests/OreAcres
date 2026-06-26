@@ -3415,7 +3415,6 @@ function App() {
             },
           },
           selectedTile: null,
-          shopOpen: false,
           message: `${item.label} spawned on your plot. Click the giant chest to reveal the prize.`,
         };
         syncedPlot = nextState.plots[current.claimedPlotId];
@@ -3430,7 +3429,6 @@ function App() {
           [type]: (current.inventory[type] ?? 0) + 1,
         },
         activeTool: type,
-        shopOpen: false,
         message: `${item.label} bought. Click inside your plot to place it.`,
       };
     });
@@ -5101,8 +5099,6 @@ function App() {
                                 setGame((current) => ({
                                   ...current,
                                   activeTool: type,
-                                  inventoryOpen: false,
-                                  shopOpen: false,
                                   message: `${structureLabel(structure ?? { type, level: 1 })} selected.`,
                                 }));
                               }}
@@ -5262,8 +5258,6 @@ function App() {
                                 setGame((current) => ({
                                   ...current,
                                   activeTool: type,
-                                  inventoryOpen: false,
-                                  shopOpen: false,
                                   message:
                                     count > 0
                                       ? `${item?.label ?? type} selected from inventory.`
