@@ -5711,7 +5711,7 @@ function App() {
                             const tileX = Number(node.tile.split(":")[0]) || 0;
                             const tileY = Number(node.tile.split(":")[1]) || 0;
                             const isMining = node.miningUntil !== null && node.miningUntil > Date.now();
-                            const scale = node.rarity === "large" ? 1.32 : node.rarity === "medium" ? 1.12 : 0.94;
+                            const scale = node.rarity === "large" ? 0.95 : node.rarity === "medium" ? 0.78 : 0.62;
                             return (
                               <button
                                 key={node.id}
