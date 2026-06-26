@@ -19,10 +19,10 @@ const PAYMENT_OPS_BPS = Number(process.env.PAYMENT_OPS_BPS || "1000");
 const PAYMENT_TOKEN_PRICE_USD_OVERRIDE = Number(process.env.PAYMENT_TOKEN_PRICE_USD_OVERRIDE || "");
 const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY || "";
 const BIRDEYE_PRICE_URL = process.env.BIRDEYE_PRICE_URL || "https://public-api.birdeye.so/defi/price";
-const WORLD_COLUMNS = 3;
-const WORLD_ROWS = 3;
-const ORE_SPAWN_CHANCE = 0.011;
-const ORE_NODE_LIMIT = 2;
+const WORLD_COLUMNS = 5;
+const WORLD_ROWS = 5;
+const ORE_SPAWN_CHANCE = 0.006;
+const ORE_NODE_LIMIT = 1;
 const ORE_UNCLAIMED_LIMIT = 1;
 const ORE_MINING_MS = {
   small: 6500,

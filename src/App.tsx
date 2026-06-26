@@ -35,6 +35,23 @@ type ChestReward = {
   weight: number;
 };
 
+type MiningRewardKind = "sol" | "mints" | "skin" | "pet" | "box" | "nft";
+
+type MiningReward = {
+  id: string;
+  label: string;
+  description: string;
+  detail?: string;
+  kind: MiningRewardKind;
+  rarity: OreNodeRarity;
+  weight: number;
+  sol?: number;
+  mints?: number;
+  skinId?: SkinId;
+  petId?: PetType;
+  nftId?: string;
+};
+
 type EarningsScenarioId = "starter" | "builder" | "late";
 
 type EarningsScenario = {
@@ -212,6 +229,7 @@ type GameState = {
   shopOpen: boolean;
   marketOpen: boolean;
   questsOpen: boolean;
+  mineReveal: { label: string; detail: string; kind: MiningRewardKind } | null;
   questReveal: { label: string; detail: string } | null;
   proof: string;
   message: string;
@@ -277,8 +295,8 @@ const PLAYTEST_MINT_GRANT = 250;
 const PLAYTEST_MINT_RATE = 1;
 const SOLANA_RPC_URL = import.meta.env.VITE_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 const BASE_STORAGE = 60;
-const WORLD_COLUMNS = 3;
-const WORLD_ROWS = 3;
+const WORLD_COLUMNS = 5;
+const WORLD_ROWS = 5;
 const PLOT_SIZE = 520;
 const ROAD_GAP = 170;
 const WORLD_PADDING = 100;
@@ -355,6 +373,7 @@ const ORE_RARITY_WEIGHTS: Array<[OreNodeRarity, number]> = [
   ["medium", 21],
   ["large", 5],
 ];
+const ORE_INTERACTION_RANGE = 180;
 const DRILL_FRAMESETS = {
   1: [
     "/assets/structures/Animations/Drill-animations-tier-1/Drill-1.png",
@@ -688,6 +707,34 @@ const CHEST_REWARDS: ChestReward[] = [
   },
 ];
 
+const MINING_REWARD_POOLS: Record<OreNodeRarity, MiningReward[]> = {
+  small: [
+    { id: "sol-scrap", label: "Scrap SOL", description: "A tiny mining payout.", kind: "sol", rarity: "small", weight: 56, sol: 0.01 },
+    { id: "sol-gold", label: "Tiny SOL Stack", description: "A slightly better payout.", kind: "sol", rarity: "small", weight: 18, sol: 0.02 },
+    { id: "mints-small", label: "Mint Dust", description: "A small pile of test mint fuel.", kind: "mints", rarity: "small", weight: 14, mints: 0.6 },
+    { id: "box-small", label: "Ore Cache", description: "A tiny reward box cache.", kind: "box", rarity: "small", weight: 7 },
+    { id: "skin-small", label: "Lucky Shard", description: "A low chance meme skin drop.", kind: "skin", rarity: "small", weight: 4, skinId: "banana_pick" },
+    { id: "nft-small", label: "Miner Pass Fragment", description: "A placeholder collectible fragment.", kind: "nft", rarity: "small", weight: 1, nftId: "genesis-miner-pass" },
+  ],
+  medium: [
+    { id: "sol-mid", label: "Medium SOL Stack", description: "A respectable payout.", kind: "sol", rarity: "medium", weight: 46, sol: 0.03 },
+    { id: "sol-mid-2", label: "Solid SOL Stack", description: "A strong payout.", kind: "sol", rarity: "medium", weight: 18, sol: 0.05 },
+    { id: "mints-mid", label: "Mint Clump", description: "A decent pile of test mints.", kind: "mints", rarity: "medium", weight: 12, mints: 1.1 },
+    { id: "box-mid", label: "Quest Box Cache", description: "A box reward hidden in the ore.", kind: "box", rarity: "medium", weight: 10 },
+    { id: "pet-mid", label: "Pet Egg", description: "A chance at a mining companion.", kind: "pet", rarity: "medium", weight: 8, petId: "mole" },
+    { id: "skin-mid", label: "Pickaxe Skin", description: "A meme-tier cosmetic drop.", kind: "skin", rarity: "medium", weight: 6, skinId: "laser_pick" },
+  ],
+  large: [
+    { id: "sol-large", label: "Large SOL Stack", description: "A juicy payout for rare ore.", kind: "sol", rarity: "large", weight: 34, sol: 0.08 },
+    { id: "sol-large-2", label: "Heavy SOL Stack", description: "A better rare ore payout.", kind: "sol", rarity: "large", weight: 16, sol: 0.13 },
+    { id: "mints-large", label: "Mint Brick", description: "A bigger pile of test mints.", kind: "mints", rarity: "large", weight: 10, mints: 2.1 },
+    { id: "box-large", label: "Premium Box Cache", description: "A rare box drop.", kind: "box", rarity: "large", weight: 14 },
+    { id: "skin-large", label: "Legendary Skin Token", description: "A strong cosmetic roll.", kind: "skin", rarity: "large", weight: 10, skinId: "troll_pick" },
+    { id: "nft-large", label: "NFT Drop", description: "A placeholder collectible NFT.", kind: "nft", rarity: "large", weight: 6, nftId: "turbo-ape-miner" },
+    { id: "pet-large", label: "Rare Pet Egg", description: "A powerful little mining buddy.", kind: "pet", rarity: "large", weight: 4, petId: "drake" },
+  ],
+};
+
 const EARNINGS_SCENARIOS: EarningsScenario[] = [
   {
     id: "starter",
@@ -909,6 +956,16 @@ function pickWeightedOreRarity() {
   return "small";
 }
 
+function pickWeightedEntry<T extends { weight: number }>(entries: T[]) {
+  const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = Math.random() * total;
+  for (const entry of entries) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry;
+  }
+  return entries[0];
+}
+
 function oreNodeReward(rarity: OreNodeRarity) {
   const [min, max] = ORE_REWARD_RANGE[rarity];
   return round(min + Math.random() * (max - min));
@@ -927,6 +984,75 @@ function oreNodeDisplayLabel(rarity: OreNodeRarity) {
     case "large":
       return "Massive Ore Node";
   }
+}
+
+function oreNodeWorldPosition(plot: Plot, node: OreNode) {
+  const [tileXRaw, tileYRaw] = node.tile.split(":");
+  const tileX = Number(tileXRaw) || 0;
+  const tileY = Number(tileYRaw) || 0;
+  return {
+    x: plot.position.x + ((tileX + 0.5) / TILE_COUNT) * PLOT_SIZE,
+    y: plot.position.y + PLOT_HEADER_HEIGHT + ((tileY + 0.5) / TILE_COUNT) * PLOT_BOARD_SIZE,
+  };
+}
+
+function isAvatarNearOre(avatar: { x: number; y: number }, plot: Plot, node: OreNode) {
+  const orePosition = oreNodeWorldPosition(plot, node);
+  return Math.hypot(avatar.x - orePosition.x, avatar.y - orePosition.y) <= ORE_INTERACTION_RANGE;
+}
+
+function miningLuckBonus(
+  pickaxeSkin?: SkinId | null,
+  clothesSkin?: SkinId | null,
+  activePet?: PetType | null,
+) {
+  const pickaxeBonus = Math.max(0, pickaxeMultiplier(pickaxeSkin) - 1);
+  const clothesBonus = Math.max(0, clothesMultiplier(clothesSkin) - 1);
+  const petBonus = activePet === "drake" ? 0.04 : activePet === "fox" ? 0.03 : activePet === "mole" ? 0.02 : 0;
+  return round(pickaxeBonus * 1.8 + clothesBonus * 1.2 + petBonus);
+}
+
+function miningRewardWeight(entry: MiningReward, luck: number) {
+  const premiumKinds: MiningRewardKind[] = ["box", "skin", "pet", "nft"];
+  const premiumBoost = premiumKinds.includes(entry.kind) ? 1 + luck * 2.5 : 1 + luck * 0.35;
+  return entry.weight * premiumBoost;
+}
+
+function rollMiningReward(
+  rarity: OreNodeRarity,
+  pickaxeSkin?: SkinId | null,
+  clothesSkin?: SkinId | null,
+  activePet?: PetType | null,
+) {
+  const pool = MINING_REWARD_POOLS[rarity];
+  const luck = miningLuckBonus(pickaxeSkin, clothesSkin, activePet);
+  const weightedPool = pool.map((entry) => ({
+    ...entry,
+    weight: miningRewardWeight(entry, luck),
+  }));
+  const reward = pickWeightedEntry(weightedPool);
+
+  if (reward.kind === "sol") {
+    const amount = round((reward.sol ?? 0) * (1 + luck * 0.65));
+    return {
+      ...reward,
+      sol: amount,
+      description: `Earned ${amount.toFixed(2)} SOL.`,
+      detail: `${amount.toFixed(2)} SOL`,
+    };
+  }
+
+  if (reward.kind === "mints") {
+    const amount = round((reward.mints ?? 0) * (1 + luck * 0.5));
+    return {
+      ...reward,
+      mints: amount,
+      description: `Earned ${amount.toFixed(2)} test mints.`,
+      detail: `${amount.toFixed(2)} mints`,
+    };
+  }
+
+  return reward;
 }
 
 function defaultPlaytestMode() {
@@ -1153,13 +1279,7 @@ function chestRarityGlow(rarity: ChestRarity) {
 }
 
 function pickChestReward() {
-  const total = CHEST_REWARDS.reduce((sum, reward) => sum + reward.weight, 0);
-  let roll = Math.random() * total;
-  for (const reward of CHEST_REWARDS) {
-    roll -= reward.weight;
-    if (roll <= 0) return reward;
-  }
-  return CHEST_REWARDS[0];
+  return pickWeightedEntry(CHEST_REWARDS);
 }
 
 function getChestReward(label?: string | null) {
@@ -1516,6 +1636,7 @@ function createInitialState(): GameState {
     petInventory: { ...DEFAULT_PET_INVENTORY },
     activePet: null,
     chestReveal: null,
+    mineReveal: null,
     missions: { ...DEFAULT_MISSIONS },
     stats: { ...DEFAULT_STATS },
     skinInventory: { ...DEFAULT_SKIN_INVENTORY },
@@ -1670,6 +1791,12 @@ function loadGameState(saveKey: string): GameState {
       if (normalized) plots[key] = normalized;
     }
 
+    for (const [key, value] of Object.entries(fallback.plots)) {
+      if (!plots[key]) {
+        plots[key] = value;
+      }
+    }
+
     const loaded: GameState = {
       ...fallback,
       ...parsed,
@@ -1711,6 +1838,7 @@ function loadGameState(saveKey: string): GameState {
       shopOpen: false,
       marketOpen: false,
       questsOpen: false,
+      mineReveal: null,
       questReveal: null,
       sol: typeof parsed.sol === "number" ? parsed.sol : fallback.sol,
       mints: typeof parsed.mints === "number" ? parsed.mints : fallback.mints,
@@ -2544,6 +2672,7 @@ function App() {
   const [earningsHoverIndex, setEarningsHoverIndex] = useState<number | null>(null);
   const [marketFilter, setMarketFilter] = useState<"all" | "skins" | "pickaxes" | "clothes" | "pets">("all");
   const [marketSort, setMarketSort] = useState<"low" | "high" | "newest">("low");
+  const [cameraZoom, setCameraZoom] = useState(1);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gamePanelRef = useRef<HTMLElement | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
@@ -2552,6 +2681,7 @@ function App() {
   const ignoreTileClickRef = useRef(false);
   const chestRevealTimerRef = useRef<number | null>(null);
   const oreMiningTimersRef = useRef<Record<string, number>>({});
+  const miningLockUntilRef = useRef(0);
   const socketRef = useRef<WebSocket | null>(null);
   const myPlayerIdRef = useRef<string | null>(null);
   const avatarRef = useRef(game.avatar);
@@ -2627,11 +2757,26 @@ function App() {
   }, [game.avatar.x, game.avatar.y]);
 
   useEffect(() => {
+    const minerTag = walletPublicKey?.toBase58() ?? playerName;
+    let lockUntil = 0;
+
+    for (const plot of Object.values(game.plots)) {
+      for (const node of plot.oreNodes) {
+        if (node.miningBy === minerTag && node.miningUntil && node.miningUntil > lockUntil) {
+          lockUntil = node.miningUntil;
+        }
+      }
+    }
+
+    miningLockUntilRef.current = lockUntil;
+  }, [game.plots, playerName, walletPublicKey]);
+
+  useEffect(() => {
     window.localStorage.setItem("ore-acres-playtest", game.playtestMode ? "1" : "0");
   }, [game.playtestMode]);
 
   useEffect(() => {
-    const saveState = { ...game, chestReveal: null, lastUpdatedAt: Date.now() };
+    const saveState = { ...game, chestReveal: null, mineReveal: null, lastUpdatedAt: Date.now() };
     const timeout = window.setTimeout(() => {
       window.localStorage.setItem(saveKey, JSON.stringify(saveState));
     }, 250);
@@ -3005,6 +3150,12 @@ function App() {
       const dx = (right ? 1 : 0) - (left ? 1 : 0);
       const dy = (down ? 1 : 0) - (up ? 1 : 0);
 
+      if (miningLockUntilRef.current > now) {
+        setMoving(false);
+        raf = window.requestAnimationFrame(tick);
+        return;
+      }
+
       if (dx !== 0 || dy !== 0) {
         const speed = 180;
         setPetSide(petSideForMovement(dx, dy));
@@ -3112,10 +3263,20 @@ function App() {
     const center = avatarCenter(game.avatar);
     const viewportWidth = viewportSize.width || 1280;
     const viewportHeight = viewportSize.height || 720;
-    const x = clamp(viewportWidth / 2 - center.x, viewportWidth - WORLD_WIDTH, 0);
-    const y = clamp(viewportHeight / 2 - center.y, viewportHeight - WORLD_HEIGHT, 0);
+    const scaledWorldWidth = WORLD_WIDTH * cameraZoom;
+    const scaledWorldHeight = WORLD_HEIGHT * cameraZoom;
+    const x = clamp(viewportWidth / 2 - center.x * cameraZoom, viewportWidth - scaledWorldWidth, 0);
+    const y = clamp(viewportHeight / 2 - center.y * cameraZoom, viewportHeight - scaledWorldHeight, 0);
     return { x, y };
-  }, [game.avatar, viewportSize.height, viewportSize.width]);
+  }, [cameraZoom, game.avatar, viewportSize.height, viewportSize.width]);
+
+  function changeZoom(delta: number) {
+    setCameraZoom((current) => clamp(Math.round((current + delta) * 100) / 100, 0.8, 1.35));
+  }
+
+  function resetZoom() {
+    setCameraZoom(1);
+  }
 
   function setMessage(message: string) {
     setGame((current) => ({ ...current, message }));
@@ -3566,25 +3727,83 @@ function App() {
         return current;
       }
 
-      const reward = round(node.reward * pickaxeMultiplier(current.equippedPickaxeSkin));
+      const baseSol = round(node.reward * pickaxeMultiplier(current.equippedPickaxeSkin));
+      const reward = rollMiningReward(
+        node.rarity,
+        current.equippedPickaxeSkin,
+        current.equippedClothesSkin,
+        current.activePet,
+      );
       const nextPlot = {
         ...plot,
         oreNodes: plot.oreNodes.filter((entry) => entry.id !== oreId),
-        totalCollectedSol: round((plot.totalCollectedSol ?? 0) + reward),
+        totalCollectedSol: round((plot.totalCollectedSol ?? 0) + baseSol),
       };
-      const nextState = {
+      const bonusSol = reward.kind === "sol" ? reward.sol ?? 0 : 0;
+      const totalSolEarned = round(baseSol + bonusSol);
+      const nextState: GameState = {
         ...current,
-        sol: round(current.sol + reward),
-        rewardReserveSol: round(Math.max(0, current.rewardReserveSol - reward)),
+        sol: round(current.sol + totalSolEarned),
+        rewardReserveSol: round(Math.max(0, current.rewardReserveSol - totalSolEarned)),
+        mints:
+          reward.kind === "mints"
+            ? round(current.mints + reward.mints!)
+            : current.mints,
+        questBoxes: reward.kind === "box" ? current.questBoxes + 1 : current.questBoxes,
+        skinInventory:
+          reward.kind === "skin" && reward.skinId
+            ? {
+                ...current.skinInventory,
+                [reward.skinId]: (current.skinInventory[reward.skinId] ?? 0) + 1,
+              }
+            : current.skinInventory,
+        petInventory:
+          reward.kind === "pet" && reward.petId
+            ? {
+                ...current.petInventory,
+                [reward.petId]: (current.petInventory[reward.petId] ?? 0) + 1,
+              }
+            : current.petInventory,
+        activePet: reward.kind === "pet" && reward.petId ? reward.petId : current.activePet,
+        nftInventory:
+          reward.kind === "nft" && reward.nftId
+            ? {
+                ...current.nftInventory,
+                [reward.nftId]: (current.nftInventory[reward.nftId] ?? 0) + 1,
+              }
+            : current.nftInventory,
         plots: {
           ...current.plots,
           [plotId]: nextPlot,
         },
         stats: {
           ...current.stats,
-          totalEarned: round(current.stats.totalEarned + reward),
+          totalEarned: round(current.stats.totalEarned + totalSolEarned),
         },
-        message: `Mined ${oreNodeDisplayLabel(node.rarity)} for ${reward.toFixed(2)} SOL.`,
+        mineReveal: {
+          label: reward.label,
+          detail:
+            reward.kind === "sol"
+              ? `${baseSol.toFixed(2)} SOL + ${reward.sol!.toFixed(2)} bonus SOL`
+              : reward.kind === "mints"
+                ? `${reward.mints!.toFixed(2)} test mints`
+                : reward.kind === "skin" && reward.skinId
+                  ? `${skinItem(reward.skinId)?.label ?? reward.skinId} added`
+                  : reward.kind === "pet" && reward.petId
+                    ? `${petItem(reward.petId)?.label ?? reward.petId} added`
+                    : reward.kind === "box"
+                      ? "Quest box added"
+                      : reward.kind === "nft" && reward.nftId
+                        ? `${nftLabel(reward.nftId)} added`
+                        : "Reward added",
+          kind: reward.kind,
+        },
+        message:
+          reward.kind === "sol"
+            ? `Mined ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(2)} SOL.`
+            : reward.kind === "mints"
+              ? `Mined ${oreNodeDisplayLabel(node.rarity)} for ${baseSol.toFixed(2)} SOL and ${reward.mints!.toFixed(2)} test mints.`
+              : `Mined ${oreNodeDisplayLabel(node.rarity)} for ${baseSol.toFixed(2)} SOL and found ${reward.label}.`,
       };
       syncedPlot = nextPlot;
       return nextState;
@@ -3607,6 +3826,13 @@ function App() {
       if (node.miningUntil && node.miningUntil > now) {
         return { ...current, message: "That ore is already being mined." };
       }
+      if (!isAvatarNearOre(current.avatar, plot, node)) {
+        return {
+          ...current,
+          selectedPlotId: plotId,
+          message: "Walk closer to the ore before mining it.",
+        };
+      }
 
       miningDuration = oreNodeMiningMs(node.rarity);
       const nextNode = {
@@ -3626,6 +3852,7 @@ function App() {
           ...current.plots,
           [plotId]: nextPlot,
         },
+        mineReveal: null,
         message: `Mining ${oreNodeDisplayLabel(node.rarity)}...`,
       };
 
@@ -4672,16 +4899,38 @@ function App() {
             >
               Upgrade
             </button>
+            <div className="world-action-bar__zoom">
+              <button type="button" className="ghost" onClick={() => changeZoom(-0.1)}>
+                -
+              </button>
+              <button type="button" className="ghost" onClick={resetZoom}>
+                {Math.round(cameraZoom * 100)}%
+              </button>
+              <button type="button" className="ghost" onClick={() => changeZoom(0.1)}>
+                +
+              </button>
+            </div>
           </div>
 
           <div className="layout">
-              <div className="world-viewport" ref={viewportRef}>
+              <div
+                className="world-viewport"
+                ref={viewportRef}
+                onWheel={(event) => {
+                  event.preventDefault();
+                  if (event.deltaY > 0) {
+                    changeZoom(-0.06);
+                  } else {
+                    changeZoom(0.06);
+                  }
+                }}
+              >
                 <div
                   className="world-stage"
                   style={{
                     width: `${WORLD_WIDTH}px`,
                   height: `${WORLD_HEIGHT}px`,
-                    transform: `translate(${camera.x}px, ${camera.y}px)`,
+                    transform: `translate(${camera.x}px, ${camera.y}px) scale(${cameraZoom})`,
                   }}
                 >
                 <div className="world-background__sky" />
@@ -5674,11 +5923,33 @@ function App() {
                   <button type="button" className="primary" onClick={() => setJackpotReveal(null)}>
                     Close Reveal
                   </button>
+                  </div>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
 
-          </div>
+              {game.mineReveal ? (
+                <div className="mine-reveal">
+                  <div className={`mine-reveal__panel mine-reveal__panel--${game.mineReveal.kind}`}>
+                    <span className="overlay-panel__eyebrow">Mining reward</span>
+                    <strong>{game.mineReveal.label}</strong>
+                    <p>{game.mineReveal.detail}</p>
+                    <button
+                      type="button"
+                      className="primary"
+                      onClick={() =>
+                        setGame((current) => ({
+                          ...current,
+                          mineReveal: null,
+                        }))
+                      }
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+            </div>
         </div>
         </section>
       ) : null}

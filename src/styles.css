@@ -577,9 +577,9 @@ h1 {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .stats div,
@@ -592,7 +592,8 @@ h1 {
 }
 
 .stats div {
-  padding: 14px;
+  min-height: 74px;
+  padding: 10px 12px;
 }
 
 .stats span,
@@ -600,7 +601,7 @@ h1 {
 .plot-card__header span {
   display: block;
   color: var(--muted);
-  font-size: 0.66rem;
+  font-size: 0.56rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-family: "Press Start 2P", monospace;
@@ -609,13 +610,14 @@ h1 {
 
 .stats strong {
   display: block;
-  margin-top: 10px;
-  font-size: 1.55rem;
+  margin-top: 7px;
+  font-size: 1.08rem;
+  line-height: 1.1;
 }
 
 .stats__meter {
   display: grid;
-  gap: 10px;
+  gap: 4px;
 }
 
 .stats__meter strong {
@@ -623,7 +625,8 @@ h1 {
 }
 
 .stats__meter-bar {
-  height: 10px;
+  display: none;
+  height: 8px;
   border-radius: 999px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.08);
@@ -638,7 +641,9 @@ h1 {
 }
 
 .stats__meter small {
+  display: none;
   color: var(--muted);
+  font-size: 0.68rem;
   line-height: 1.5;
 }
 
@@ -799,6 +804,19 @@ h1 {
   min-width: 132px;
 }
 
+.world-action-bar__zoom {
+  display: flex;
+  gap: 8px;
+  padding-left: 8px;
+  margin-left: auto;
+  align-items: center;
+}
+
+.world-action-bar__zoom .ghost {
+  min-width: 52px;
+  padding-inline: 12px;
+}
+
 .world-action-bar .ghost.active {
   border-color: var(--border-strong);
   box-shadow: 0 0 0 1px rgba(103, 245, 211, 0.12);
@@ -832,7 +850,7 @@ h1 {
 
 .world-map {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -5485,6 +5503,66 @@ h1 {
 
 .quest-reveal__panel p {
   margin: 10px 0 18px;
+  color: var(--muted);
+}
+
+.mine-reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 119;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(1, 4, 9, 0.28);
+  backdrop-filter: blur(8px);
+}
+
+.mine-reveal__panel {
+  width: min(360px, calc(100vw - 28px));
+  padding: 20px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at top left, rgba(103, 245, 211, 0.16), transparent 36%),
+    rgba(3, 7, 14, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 24px 80px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.mine-reveal__panel--sol {
+  border-color: rgba(255, 209, 102, 0.18);
+}
+
+.mine-reveal__panel--mints {
+  border-color: rgba(103, 245, 211, 0.18);
+}
+
+.mine-reveal__panel--skin {
+  border-color: rgba(122, 167, 255, 0.18);
+}
+
+.mine-reveal__panel--pet {
+  border-color: rgba(198, 126, 255, 0.18);
+}
+
+.mine-reveal__panel--box {
+  border-color: rgba(255, 209, 102, 0.24);
+}
+
+.mine-reveal__panel--nft {
+  border-color: rgba(255, 112, 154, 0.18);
+}
+
+.mine-reveal__panel strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 1.1rem;
+}
+
+.mine-reveal__panel p {
+  margin: 10px 0 16px;
   color: var(--muted);
 }
 
