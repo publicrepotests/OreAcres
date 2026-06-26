@@ -66,6 +66,19 @@ type EarningsScenario = {
   points: number[];
 };
 
+type TutorialPanel = "world" | "shop" | "inventory" | "quests" | "market";
+
+type TutorialStep = {
+  id: string;
+  title: string;
+  eyebrow: string;
+  body: string;
+  objective: string;
+  voiceLine: string;
+  panel: TutorialPanel;
+  voiceStart: number;
+};
+
 type RoadmapItem = {
   phase: string;
   title: string;
@@ -339,9 +352,9 @@ const ORE_ART: Record<OreNodeRarity, string> = {
   large: "/assets/Ore/large-node.svg",
 };
 const PICKAXE_ART: Record<"troll_pick" | "laser_pick" | "banana_pick", string> = {
-  troll_pick: "/assets/cosmetics/pickaxes/troll-pick.png",
-  laser_pick: "/assets/cosmetics/pickaxes/laser-pick.png",
-  banana_pick: "/assets/cosmetics/pickaxes/banana-pick.png",
+  troll_pick: "/assets/cosmetics/pickaxes-v2/troll-pick.svg",
+  laser_pick: "/assets/cosmetics/pickaxes-v2/laser-pick.svg",
+  banana_pick: "/assets/cosmetics/pickaxes-v2/banana-pick.svg",
 };
 const HOME_ART = {
   1: "/assets/structures/homes/tier1-shack.png",
@@ -354,6 +367,24 @@ const DRILL_ART = {
   2: "/assets/structures/drills/tier2-drill.png",
   3: "/assets/structures/drills/tier3-drill.png",
 } as const;
+const BUILDABLE_ART: Partial<Record<StructureType, string>> = {
+  storage: "/assets/structures/buildables/storage.svg",
+  relay: "/assets/structures/buildables/relay.svg",
+  solar: "/assets/structures/buildables/solar.svg",
+  battery: "/assets/structures/buildables/battery.svg",
+  cooling: "/assets/structures/buildables/cooling.svg",
+  conveyor: "/assets/structures/buildables/conveyor.svg",
+  drone: "/assets/structures/buildables/drone.svg",
+  scanner: "/assets/structures/buildables/scanner.svg",
+  refinery: "/assets/structures/buildables/refinery.svg",
+  vault: "/assets/structures/buildables/vault.svg",
+  neon: "/assets/structures/buildables/neon.svg",
+  statue: "/assets/structures/buildables/statue.svg",
+  sign: "/assets/structures/buildables/sign.svg",
+  shop: "/assets/structures/buildables/shop.svg",
+  decor: "/assets/structures/buildables/decor.svg",
+  chest: "/assets/structures/buildables/chest.svg",
+};
 const DRILL_ANIMATION_FPS = 9;
 const ORE_SPAWN_CHANCE = 0.011;
 const ORE_NODE_LIMIT = 2;
@@ -374,6 +405,111 @@ const ORE_RARITY_WEIGHTS: Array<[OreNodeRarity, number]> = [
   ["large", 5],
 ];
 const ORE_INTERACTION_RANGE = 180;
+const TUTORIAL_VOICEOVER_SRC = "/audio/tutorial-voiceover.mp3";
+const TUTORIAL_STEPS: TutorialStep[] = [
+  {
+    id: "welcome",
+    eyebrow: "Step 1",
+    title: "Welcome to Ore Acres",
+    body: "This is an idle mining MMO-lite: walk the shared map, claim one plot, build miners, and grow your SOL income over time.",
+    objective: "Move with WASD or arrow keys and look for an open plot.",
+    voiceLine:
+      "Welcome to Ore Acres. You start as a miner in a shared world where every plot can become a tiny SOL-producing empire.",
+    panel: "world",
+    voiceStart: 0,
+  },
+  {
+    id: "claim",
+    eyebrow: "Step 2",
+    title: "Claim Your Plot",
+    body: "Walk onto an unclaimed plot and press Claim Plot. Your starter shack and basic drill appear for free.",
+    objective: "Claim a plot when the prompt appears.",
+    voiceLine:
+      "Your first move is simple: find an open plot, claim it, and your starter shack and drill are placed automatically.",
+    panel: "world",
+    voiceStart: 8,
+  },
+  {
+    id: "shop",
+    eyebrow: "Step 3",
+    title: "Buy Buildables",
+    body: "Open the Shop to buy storage, boosters, automation, decor, and chests. Playtest mode gives test mints so you can try everything before the token is live.",
+    objective: "Open Shop, buy an item, then place it from Inventory.",
+    voiceLine:
+      "The shop is where the tycoon layer starts. Buy storage, boosters, automation, cosmetics, and special chests with the game token.",
+    panel: "shop",
+    voiceStart: 18,
+  },
+  {
+    id: "inventory",
+    eyebrow: "Step 4",
+    title: "Place And Move Items",
+    body: "Inventory holds purchased items and cosmetics. Select an owned item, click an empty tile to place it, or select a placed item and use Move.",
+    objective: "Use Inventory to switch tools and place owned items.",
+    voiceLine:
+      "Your inventory is your build kit. Select an item, click an empty square, and reshape the plot whenever your layout changes.",
+    panel: "inventory",
+    voiceStart: 30,
+  },
+  {
+    id: "mine",
+    eyebrow: "Step 5",
+    title: "Mine Ore Nodes",
+    body: "Ore nodes spawn on free plot tiles. Walk near one and click Mine. Bigger nodes take longer but can roll better rewards.",
+    objective: "Find an ore node, walk close, and mine it.",
+    voiceLine:
+      "Rare ore nodes appear over time. Walk up, start mining, and let your pickaxe work until the reward roll pops.",
+    panel: "world",
+    voiceStart: 42,
+  },
+  {
+    id: "upgrade",
+    eyebrow: "Step 6",
+    title: "Upgrade Drills And Shack",
+    body: "Click a drill or shack and press Upgrade. Drills improve mining output, while the shack grows from a starter base toward a mansion.",
+    objective: "Select your starter drill or shack, then press Upgrade.",
+    voiceLine:
+      "Upgrades are the long-term hook. Drills get stronger, your shack grows, and the plot starts feeling like your own mining base.",
+    panel: "world",
+    voiceStart: 54,
+  },
+  {
+    id: "quests",
+    eyebrow: "Step 7",
+    title: "Claim Quest Boxes",
+    body: "Quests reward boxes, SOL, cosmetics, and collectible placeholders. They teach the loop while giving players a reason to keep coming back.",
+    objective: "Open Quests and claim/open any reward boxes you earn.",
+    voiceLine:
+      "Quests give direction and rewards. Complete simple milestones, open reward boxes, and chase skins, pets, and collectibles.",
+    panel: "quests",
+    voiceStart: 66,
+  },
+  {
+    id: "market",
+    eyebrow: "Step 8",
+    title: "Trade Cosmetics",
+    body: "The Marketplace is for skins, pets, and pickaxes. Players can list cosmetics for SOL while mining stays idle-focused and non-combat.",
+    objective: "Open the Marketplace to browse filters and listings.",
+    voiceLine:
+      "The marketplace lets players trade cosmetics for SOL, turning rare drops and flex items into a social economy.",
+    panel: "market",
+    voiceStart: 78,
+  },
+];
+const WORLD_DECORATIONS = [
+  { kind: "crystal", x: 170, y: 250, size: 1.05 },
+  { kind: "pine", x: 780, y: 120, size: 1.1 },
+  { kind: "rocks", x: 1370, y: 300, size: 0.95 },
+  { kind: "crystal", x: 2220, y: 190, size: 1.2 },
+  { kind: "camp", x: 3090, y: 360, size: 1.05 },
+  { kind: "pine", x: 3820, y: 180, size: 1.18 },
+  { kind: "rocks", x: 500, y: 1420, size: 1.1 },
+  { kind: "camp", x: 1650, y: 1230, size: 1 },
+  { kind: "crystal", x: 2830, y: 1460, size: 0.9 },
+  { kind: "pine", x: 3950, y: 1320, size: 1.08 },
+  { kind: "rocks", x: 930, y: 2600, size: 1.15 },
+  { kind: "crystal", x: 3410, y: 2600, size: 1.05 },
+] as const;
 const DRILL_FRAMESETS = {
   1: [
     "/assets/structures/Animations/Drill-animations-tier-1/Drill-1.png",
@@ -920,6 +1056,10 @@ function structurePaintedArt(type: StructureType, level: number) {
   if (type === "drill") {
     const tier = Math.min(3, Math.max(1, level)) as 1 | 2 | 3;
     return DRILL_ART[tier];
+  }
+
+  if (BUILDABLE_ART[type]) {
+    return BUILDABLE_ART[type] ?? null;
   }
 
   return null;
@@ -2470,6 +2610,17 @@ function BuildingSprite({ type, level, opened }: { type: StructureType; level: n
     return <DrillSpriteSheet tier={tier} />;
   }
 
+  const generatedArt = structurePaintedArt(type, level);
+  if (generatedArt) {
+    return (
+      <div
+        className={`sprite sprite--generated sprite--generated-${type}${opened ? " sprite--generated--open" : ""}`}
+        style={{ backgroundImage: `url(${generatedArt})` }}
+        aria-hidden="true"
+      />
+    );
+  }
+
   if (type === "chest") {
     return (
       <div className={`sprite sprite--chest${opened ? " sprite--chest--open" : ""}`}>
@@ -2673,8 +2824,23 @@ function App() {
   const [marketFilter, setMarketFilter] = useState<"all" | "skins" | "pickaxes" | "clothes" | "pets">("all");
   const [marketSort, setMarketSort] = useState<"low" | "high" | "newest">("low");
   const [cameraZoom, setCameraZoom] = useState(1);
+  const [tutorialOpen, setTutorialOpen] = useState(() => {
+    return page === "game" && window.localStorage.getItem("ore-acres-tutorial-complete") !== "1";
+  });
+  const [tutorialStepIndex, setTutorialStepIndex] = useState(0);
+  const [tutorialAudioStatus, setTutorialAudioStatus] = useState<"idle" | "ready" | "missing" | "playing">("idle");
+  const [musicEnabled, setMusicEnabled] = useState(() => {
+    return window.localStorage.getItem("ore-acres-music-enabled") === "1";
+  });
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gamePanelRef = useRef<HTMLElement | null>(null);
+  const tutorialAudioRef = useRef<HTMLAudioElement | null>(null);
+  const musicEngineRef = useRef<{
+    context: AudioContext;
+    gain: GainNode;
+    timer: number | null;
+    step: number;
+  } | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [placementPreview, setPlacementPreview] = useState<{ plotId: string; tile: string } | null>(null);
   const keysRef = useRef<Record<string, boolean>>({});
@@ -2783,6 +2949,24 @@ function App() {
 
     return () => window.clearTimeout(timeout);
   }, [game, saveKey]);
+
+  useEffect(() => {
+    if (page !== "game") return;
+
+    const closeMenus = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setGame((current) => ({
+        ...current,
+        inventoryOpen: false,
+        shopOpen: false,
+        marketOpen: false,
+        questsOpen: false,
+      }));
+    };
+
+    window.addEventListener("keydown", closeMenus);
+    return () => window.removeEventListener("keydown", closeMenus);
+  }, [page]);
 
   useEffect(() => {
     setGame((current) => resolveMissionRewards(current));
@@ -4664,14 +4848,14 @@ function App() {
             <div>
               <p className="eyebrow">Game page</p>
               <h2>Ore Acres Online</h2>
-              <p>Jump straight into the shared world, claim a plot, and start mining.</p>
+              <p>{multiplayerStatus === "online" ? "Live shared world" : "Local preview mode"}</p>
             </div>
             <div className="game-topbar__actions">
               <button type="button" className="ghost" onClick={() => goToPage("home")}>
-                Back to homepage
+                Home
               </button>
               <button type="button" className="primary" onClick={resetWorld}>
-                Reset world
+                Reset
               </button>
             </div>
           </section>
@@ -4759,9 +4943,7 @@ function App() {
             <div>
               <h2>Shared map</h2>
               <p>
-                Move with WASD or the arrow keys. Walk around the world, visit
-                other plots, and claim the open one under your feet when you're
-                ready.
+                WASD / arrows to move. Click ore, buildings, and chests inside the world.
               </p>
             </div>
             <div className="world-header__actions">
@@ -4805,25 +4987,15 @@ function App() {
                   </button>
                 </div>
               </form>
-              <button type="button" className="ghost" onClick={signProof} disabled={!walletPublicKey}>
-                Sign mine proof
-              </button>
+              {walletPublicKey ? (
+                <button type="button" className="ghost world-header__proof" onClick={signProof}>
+                  Sign proof
+                </button>
+              ) : null}
             </div>
           </div>
 
           <div className="world-action-bar">
-            <button
-              type="button"
-              className={`ghost ${game.playtestMode ? "active" : ""}`}
-              onClick={togglePlaytestMode}
-            >
-              {game.playtestMode ? "Playtest On" : "Playtest Off"}
-            </button>
-            {game.playtestMode ? (
-              <button type="button" className="ghost active" onClick={() => grantPlaytestMints()}>
-                +{PLAYTEST_MINT_GRANT} Test Mints
-              </button>
-            ) : null}
             <button
               type="button"
               className={`ghost ${game.inventoryOpen ? "active" : ""}`}
@@ -4899,6 +5071,22 @@ function App() {
             >
               Upgrade
             </button>
+            <div className="world-action-bar__spacer" />
+            <button
+              type="button"
+              className={`ghost world-action-bar__utility ${game.playtestMode ? "active" : ""}`}
+              onClick={togglePlaytestMode}
+            >
+              {game.playtestMode ? "Test On" : "Test Off"}
+            </button>
+            {game.playtestMode ? (
+              <button type="button" className="ghost active world-action-bar__utility" onClick={() => grantPlaytestMints()}>
+                +Mints
+              </button>
+            ) : null}
+            <button type="button" className="ghost world-action-bar__utility" onClick={resetWorld}>
+              Reset
+            </button>
             <div className="world-action-bar__zoom">
               <button type="button" className="ghost" onClick={() => changeZoom(-0.1)}>
                 -
@@ -4938,6 +5126,23 @@ function App() {
                 <div className="world-fx world-fx--aurora" />
                 <div className="world-fx world-fx--dust" />
                 <div className="world-fx world-fx--sparkle" />
+                <div className="world-paths" aria-hidden="true" />
+                {WORLD_DECORATIONS.map((decoration, index) => (
+                  <div
+                    key={`${decoration.kind}-${index}`}
+                    className={`world-landmark world-landmark--${decoration.kind}`}
+                    style={{
+                      left: `${decoration.x}px`,
+                      top: `${decoration.y}px`,
+                      transform: `translate(-50%, -50%) scale(${decoration.size})`,
+                    }}
+                    aria-hidden="true"
+                  >
+                    <span />
+                    <i />
+                    <b />
+                  </div>
+                ))}
 
                 {Object.values(game.plots).map((plot) => {
                   const selected = plot.id === game.selectedPlotId;
@@ -5232,7 +5437,7 @@ function App() {
                     className="plot-prompt"
                     style={{
                       left: `${plotUnderAvatar.position.x + PLOT_SIZE / 2}px`,
-                      top: `${plotUnderAvatar.position.y - 10}px`,
+                      top: `${plotUnderAvatar.position.y + PLOT_HEADER_HEIGHT + 28}px`,
                     }}
                   >
                     <span>{plotUnderAvatar.owner ? `${plotUnderAvatar.owner.label}'s plot` : "Unclaimed plot"}</span>
@@ -5244,73 +5449,74 @@ function App() {
                   </div>
                 ) : null}
 
-                <div className="world-hud">
-                  <div className="world-hud__topline">
-                    <span className={`world-hud__status world-hud__status--${multiplayerStatus}`}>
-                      {multiplayerStatus === "online"
-                        ? `${Object.keys(remotePlayers).length} others online`
-                        : multiplayerStatus === "connecting"
-                          ? "Connecting to multiplayer"
-                          : "Offline preview"}
-                    </span>
-                    <span className="world-hud__objective">{worldObjective}</span>
-                  </div>
-                  <strong>{game.message}</strong>
-                </div>
+              </div>
 
-                <div className="world-inspector">
-                  <div className="world-inspector__row">
-                    <span>Plot</span>
-                    <strong>{selectedPlot.name}</strong>
-                  </div>
-                  <div className="world-inspector__row">
-                    <span>Owner</span>
-                    <strong>
-                      {selectedPlot.owner ? (selectedPlot.owner.me ? "You" : selectedPlot.owner.label) : "Unclaimed"}
-                    </strong>
-                  </div>
-                  <div className="world-inspector__row">
-                    <span>Tile</span>
-                    <strong>{game.selectedTile ?? "None"}</strong>
-                  </div>
-                  <div className="world-inspector__row">
-                    <span>Tool</span>
-                    <strong>{structureLabel({ type: game.activeTool, level: 1 })}</strong>
-                  </div>
-                  {selectedChest ? (
-                    <div className="world-inspector__note">
-                      Huge chest ready. Click it to reveal the reward.
-                    </div>
-                  ) : null}
-                  {selectedStructure ? (
-                    <div className="world-inspector__upgrade">
-                      <span>
-                        {selectedStructure.level >= (selectedStructureMax ?? 0)
-                          ? "Max level reached"
-                          : `${structureLabel(selectedStructure)} -> Lv.${selectedStructure.level + 1}`}
-                      </span>
-                      <small className="inspector-note">
-                        {structureEffectSummary(selectedStructure.type, selectedStructure.level)}
-                      </small>
-                      <div className="inspector-progress">
-                        <div
-                          className="inspector-progress__fill"
-                          style={{
-                            width: `${Math.round((selectedStructure.level / (selectedStructureMax ?? 1)) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                      <small className="inspector-note">
-                        {nextStructureCost === null
-                          ? "No more upgrades available."
-                          : `$${nextStructureCost.toFixed(2)} worth of token to upgrade.`}
-                      </small>
-                    </div>
-                  ) : null}
+              <div className="world-hud">
+                <div className="world-hud__topline">
+                  <span className={`world-hud__status world-hud__status--${multiplayerStatus}`}>
+                    {multiplayerStatus === "online"
+                      ? `${Object.keys(remotePlayers).length} others online`
+                      : multiplayerStatus === "connecting"
+                        ? "Connecting to multiplayer"
+                        : "Offline preview"}
+                  </span>
+                  <span className="world-hud__objective">{worldObjective}</span>
                 </div>
+                <strong>{game.message}</strong>
+              </div>
+
+              <div className="world-inspector">
+                <div className="world-inspector__row">
+                  <span>Plot</span>
+                  <strong>{selectedPlot.name}</strong>
+                </div>
+                <div className="world-inspector__row">
+                  <span>Owner</span>
+                  <strong>
+                    {selectedPlot.owner ? (selectedPlot.owner.me ? "You" : selectedPlot.owner.label) : "Unclaimed"}
+                  </strong>
+                </div>
+                <div className="world-inspector__row">
+                  <span>Tile</span>
+                  <strong>{game.selectedTile ?? "None"}</strong>
+                </div>
+                <div className="world-inspector__row">
+                  <span>Tool</span>
+                  <strong>{structureLabel({ type: game.activeTool, level: 1 })}</strong>
+                </div>
+                {selectedChest ? (
+                  <div className="world-inspector__note">
+                    Huge chest ready. Click it to reveal the reward.
+                  </div>
+                ) : null}
+                {selectedStructure ? (
+                  <div className="world-inspector__upgrade">
+                    <span>
+                      {selectedStructure.level >= (selectedStructureMax ?? 0)
+                        ? "Max level reached"
+                        : `${structureLabel(selectedStructure)} -> Lv.${selectedStructure.level + 1}`}
+                    </span>
+                    <small className="inspector-note">
+                      {structureEffectSummary(selectedStructure.type, selectedStructure.level)}
+                    </small>
+                    <div className="inspector-progress">
+                      <div
+                        className="inspector-progress__fill"
+                        style={{
+                          width: `${Math.round((selectedStructure.level / (selectedStructureMax ?? 1)) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <small className="inspector-note">
+                      {nextStructureCost === null
+                        ? "No more upgrades available."
+                        : `$${nextStructureCost.toFixed(2)} worth of token to upgrade.`}
+                    </small>
+                  </div>
+                ) : null}
               </div>
               
-              <div className="inventory-overlay">
+              <div className={`inventory-overlay ${game.inventoryOpen ? "inventory-overlay--open" : "inventory-overlay--collapsed"}`}>
                 <div className={`overlay-panel ${game.inventoryOpen ? "" : "overlay-panel--collapsed"}`}>
                   <div className="overlay-panel__header">
                     <div>
@@ -5670,8 +5876,16 @@ function App() {
               ) : null}
 
               {game.marketOpen ? (
-                <div className="market-overlay open">
-                  <div className="market-shell">
+                <div
+                  className="market-overlay open"
+                  onClick={() =>
+                    setGame((current) => ({
+                      ...current,
+                      marketOpen: false,
+                    }))
+                  }
+                >
+                  <div className="market-shell" onClick={(event) => event.stopPropagation()}>
                     <div className="market-shell__header">
                       <div>
                         <span className="overlay-panel__eyebrow">Marketplace</span>
