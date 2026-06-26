@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { WheelEvent } from "react";
 import type { PublicKey, Transaction } from "@solana/web3.js";
 
 type StructureType =
@@ -329,6 +330,8 @@ const WORLD_WIDTH =
   WORLD_PADDING * 2 + WORLD_COLUMNS * PLOT_SIZE + (WORLD_COLUMNS - 1) * ROAD_GAP;
 const WORLD_HEIGHT =
   WORLD_PADDING * 2 + WORLD_ROWS * PLOT_SIZE + (WORLD_ROWS - 1) * ROAD_GAP;
+const MIN_CAMERA_ZOOM = 0.7;
+const MAX_CAMERA_ZOOM = 1.55;
 const PLOT_HEADER_HEIGHT = 50;
 const PLOT_BOARD_SIZE = PLOT_SIZE - PLOT_HEADER_HEIGHT;
 const TILE_COUNT = 7;
@@ -4143,11 +4146,19 @@ function App() {
   }, [cameraZoom, game.avatar, viewportSize.height, viewportSize.width]);
 
   function changeZoom(delta: number) {
-    setCameraZoom((current) => clamp(Math.round((current + delta) * 100) / 100, 0.8, 1.35));
+    setCameraZoom((current) => clamp(Math.round((current + delta) * 100) / 100, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM));
   }
 
   function resetZoom() {
     setCameraZoom(1);
+  }
+
+  function handleWorldWheel(event: WheelEvent<HTMLDivElement>) {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target?.closest(".world-stage")) return;
+
+    event.preventDefault();
+    changeZoom(event.deltaY > 0 ? -0.06 : 0.06);
   }
 
   function setMessage(message: string) {
@@ -5854,14 +5865,7 @@ function App() {
               <div
                 className="world-viewport"
                 ref={viewportRef}
-                onWheel={(event) => {
-                  event.preventDefault();
-                  if (event.deltaY > 0) {
-                    changeZoom(-0.06);
-                  } else {
-                    changeZoom(0.06);
-                  }
-                }}
+                onWheel={handleWorldWheel}
               >
                 <div
                   className="world-stage"
