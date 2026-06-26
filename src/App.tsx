@@ -3730,8 +3730,10 @@ function App() {
       const rect = element.getBoundingClientRect();
       const localX = clientX - rect.left;
       const localY = clientY - rect.top;
-      const tileX = Math.max(0, Math.min(TILE_COUNT - 1, Math.floor(localX / TILE_SIZE)));
-      const tileY = Math.max(0, Math.min(TILE_COUNT - 1, Math.floor(localY / TILE_SIZE)));
+      const tileWidth = rect.width / TILE_COUNT;
+      const tileHeight = rect.height / TILE_COUNT;
+      const tileX = Math.max(0, Math.min(TILE_COUNT - 1, Math.floor(localX / tileWidth)));
+      const tileY = Math.max(0, Math.min(TILE_COUNT - 1, Math.floor(localY / tileHeight)));
       const key = tileKey(tileX, tileY);
 
       if (plot.structures[key]) {
@@ -5637,8 +5639,8 @@ function getTileUnderPoint(point: { x: number; y: number }, plot: Plot) {
 
   const localX = point.x - plot.position.x;
   const localY = point.y - plot.position.y;
-  const tileX = Math.max(0, Math.min(TILE_COUNT - 1, Math.floor(localX / TILE_SIZE)));
-  const tileY = Math.max(0, Math.min(TILE_COUNT - 1, Math.floor(localY / TILE_SIZE)));
+  const tileX = Math.max(0, Math.min(TILE_COUNT - 1, Math.floor(localX / (PLOT_SIZE / TILE_COUNT))));
+  const tileY = Math.max(0, Math.min(TILE_COUNT - 1, Math.floor(localY / (PLOT_SIZE / TILE_COUNT))));
   return tileKey(tileX, tileY);
 }
 

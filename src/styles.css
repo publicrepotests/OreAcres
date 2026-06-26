@@ -3793,7 +3793,7 @@ h1 {
   height: calc(100% - 50px);
   margin: 0 auto;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   grid-template-rows: repeat(7, minmax(0, 1fr));
@@ -4084,6 +4084,11 @@ h1 {
 
 .plot-tile:hover {
   transform: scale(1.02);
+  z-index: 5;
+}
+
+.plot-tile:focus-visible {
+  z-index: 5;
 }
 
 .plot-tile.chest {
@@ -4091,7 +4096,7 @@ h1 {
 }
 
 .plot-tile.chest:hover {
-  z-index: 4;
+  z-index: 6;
 }
 
 .plot-tile__soil {
@@ -4143,28 +4148,49 @@ h1 {
 }
 
 .plot-tile__sprite {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
+  pointer-events: none;
 }
 
 .plot-tile__sprite .sprite {
-  transform: translateY(2px) scale(0.68);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.68);
   transform-origin: center center;
 }
 
+.plot-tile__sprite .sprite--painted-home,
+.plot-tile__sprite .sprite--painted-home-1,
+.plot-tile__sprite .sprite--painted-home-2,
 .plot-tile__sprite .sprite--painted-home-3,
-.plot-tile__sprite .sprite--painted-home-4,
+.plot-tile__sprite .sprite--painted-home-4 {
+  left: calc(50% - 32px);
+  top: calc(50% - 32px);
+  transform: none;
+  transform-origin: center bottom;
+}
+
+.plot-tile__sprite .sprite--drill-sheet {
+  transform: translate(-50%, -80%) scale(0.68);
+  transform-origin: center bottom;
+}
+
+.plot-tile__sprite .sprite--painted-home-3,
+.plot-tile__sprite .sprite--painted-home-4 {
+  left: calc(50% - 48px);
+  top: calc(50% - 42px);
+}
+
 .plot-tile__sprite .sprite--painted-drill-2,
 .plot-tile__sprite .sprite--painted-drill-3 {
-  transform: translateY(2px) scale(0.62);
+  transform: translate(-50%, -82%) scale(0.62);
 }
 
 .plot-tile__sprite .sprite--chest {
-  transform: translateY(-2px) scale(1.04);
+  transform: translate(-50%, -50%) scale(1.04);
   transform-origin: center bottom;
 }
 
