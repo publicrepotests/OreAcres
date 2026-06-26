@@ -2899,6 +2899,7 @@ function App() {
   const [musicEnabled, setMusicEnabled] = useState(() => {
     return window.localStorage.getItem("ore-acres-music-enabled") === "1";
   });
+  const devMode = new URLSearchParams(window.location.search).get("dev") === "1";
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gamePanelRef = useRef<HTMLElement | null>(null);
   const tutorialAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -5209,7 +5210,7 @@ function App() {
                   </button>
                 </div>
               </form>
-              {walletPublicKey ? (
+              {devMode && walletPublicKey ? (
                 <button type="button" className="ghost world-header__proof" onClick={signProof}>
                   Sign proof
                 </button>
