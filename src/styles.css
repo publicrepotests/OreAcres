@@ -2691,7 +2691,7 @@ h1 {
   height: 18px;
   top: 2px;
   transform: translateX(-6px) rotate(-18deg);
-  background-image: url("/assets/cosmetics/pickaxes-v2/troll-pick.svg");
+  background-image: url("/assets/cosmetics/pickaxes/troll-pick.png");
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
 }
 
@@ -2700,7 +2700,7 @@ h1 {
   height: 19px;
   top: 1px;
   transform: translateX(-6px) rotate(-16deg);
-  background-image: url("/assets/cosmetics/pickaxes-v2/laser-pick.svg");
+  background-image: url("/assets/cosmetics/pickaxes/laser-pick.png");
   filter: drop-shadow(0 0 4px rgba(103, 245, 211, 0.42));
 }
 
@@ -2709,7 +2709,7 @@ h1 {
   height: 18px;
   top: 2px;
   transform: translateX(-6px) rotate(-18deg);
-  background-image: url("/assets/cosmetics/pickaxes-v2/banana-pick.svg");
+  background-image: url("/assets/cosmetics/pickaxes/banana-pick.png");
   filter: drop-shadow(0 2px 3px rgba(98, 66, 10, 0.28));
 }
 

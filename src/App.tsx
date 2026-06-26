@@ -347,14 +347,14 @@ const STRUCTURE_ART_SLOTS: Partial<Record<StructureType, StructureArtSlot>> = {
 };
 const COSMETIC_ATLAS = "/assets/shop/cosmetics-atlas.png";
 const ORE_ART: Record<OreNodeRarity, string> = {
-  small: "/assets/Ore/small-node.svg",
-  medium: "/assets/Ore/medium-node.svg",
-  large: "/assets/Ore/large-node.svg",
+  small: "/assets/Ore/Small-ore-node.png",
+  medium: "/assets/Ore/Medium-ore-node.png",
+  large: "/assets/Ore/Large-ore-node.png",
 };
 const PICKAXE_ART: Record<"troll_pick" | "laser_pick" | "banana_pick", string> = {
-  troll_pick: "/assets/cosmetics/pickaxes-v2/troll-pick.svg",
-  laser_pick: "/assets/cosmetics/pickaxes-v2/laser-pick.svg",
-  banana_pick: "/assets/cosmetics/pickaxes-v2/banana-pick.svg",
+  troll_pick: "/assets/cosmetics/pickaxes/troll-pick.png",
+  laser_pick: "/assets/cosmetics/pickaxes/laser-pick.png",
+  banana_pick: "/assets/cosmetics/pickaxes/banana-pick.png",
 };
 const HOME_ART = {
   1: "/assets/structures/homes/tier1-shack.png",
@@ -386,18 +386,20 @@ const BUILDABLE_ART: Partial<Record<StructureType, string>> = {
   chest: "/assets/structures/buildables/chest.svg",
 };
 const DRILL_ANIMATION_FPS = 9;
-const ORE_SPAWN_CHANCE = 0.011;
+const ORE_SPAWN_INTERVAL_MS = 20_000;
+const ORE_FIRST_SPAWN_DELAY_MS = 4_000;
+const ORE_SPAWN_CHANCE = 0.38;
 const ORE_NODE_LIMIT = 2;
-const ORE_UNCLAIMED_LIMIT = 1;
+const ORE_DESPAWN_MS = 2 * 60 * 60 * 1000;
 const ORE_MINING_MS: Record<OreNodeRarity, number> = {
-  small: 6500,
-  medium: 11000,
-  large: 16500,
+  small: 30_000,
+  medium: 90_000,
+  large: 180_000,
 };
 const ORE_REWARD_RANGE: Record<OreNodeRarity, [number, number]> = {
-  small: [0.01, 0.015],
-  medium: [0.015, 0.024],
-  large: [0.03, 0.045],
+  small: [0.000001, 0.000004],
+  medium: [0.000005, 0.000012],
+  large: [0.000018, 0.000035],
 };
 const ORE_RARITY_WEIGHTS: Array<[OreNodeRarity, number]> = [
   ["small", 74],
@@ -1151,6 +1153,29 @@ function oreNodeWorldPosition(plot: Plot, node: OreNode) {
 function isAvatarNearOre(avatar: { x: number; y: number }, plot: Plot, node: OreNode) {
   const orePosition = oreNodeWorldPosition(plot, node);
   return Math.hypot(avatar.x - orePosition.x, avatar.y - orePosition.y) <= ORE_INTERACTION_RANGE;
+}
+
+function findOreSpawnTile(plot: Plot) {
+  const occupiedTiles = new Set([
+    ...Object.keys(plot.structures),
+    ...plot.oreNodes.map((node) => node.tile),
+  ]);
+  const freeTiles: string[] = [];
+
+  for (let y = 0; y < TILE_COUNT; y += 1) {
+    for (let x = 0; x < TILE_COUNT; x += 1) {
+      const tile = tileKey(x, y);
+      if (!occupiedTiles.has(tile)) {
+        freeTiles.push(tile);
+      }
+    }
+  }
+
+  if (freeTiles.length === 0) {
+    return null;
+  }
+
+  return freeTiles[Math.floor(Math.random() * freeTiles.length)];
 }
 
 function miningLuckBonus(
@@ -3496,6 +3521,101 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (page !== "game") return;
+
+    const spawnOre = (force = false) => {
+      let syncedPlot: Plot | null = null;
+      const now = Date.now();
+
+      setGame((current) => {
+        if (!current.claimedPlotId) return current;
+
+        const plot = current.plots[current.claimedPlotId];
+        if (!plot?.owner?.me) return current;
+
+        const activeOreNodes = plot.oreNodes.filter((node) => node.despawnAt > now);
+        const cleanedPlot = activeOreNodes.length === plot.oreNodes.length
+          ? plot
+          : { ...plot, oreNodes: activeOreNodes };
+
+        if (activeOreNodes.length >= ORE_NODE_LIMIT) {
+          if (cleanedPlot === plot) return current;
+          syncedPlot = cleanedPlot;
+          return {
+            ...current,
+            plots: {
+              ...current.plots,
+              [plot.id]: cleanedPlot,
+            },
+          };
+        }
+
+        if (!force && Math.random() > ORE_SPAWN_CHANCE) {
+          if (cleanedPlot === plot) return current;
+          syncedPlot = cleanedPlot;
+          return {
+            ...current,
+            plots: {
+              ...current.plots,
+              [plot.id]: cleanedPlot,
+            },
+          };
+        }
+
+        const spawnTile = findOreSpawnTile(cleanedPlot);
+        if (!spawnTile) {
+          if (cleanedPlot === plot) return current;
+          syncedPlot = cleanedPlot;
+          return {
+            ...current,
+            plots: {
+              ...current.plots,
+              [plot.id]: cleanedPlot,
+            },
+          };
+        }
+
+        const rarity = pickWeightedOreRarity();
+        const nextNode: OreNode = {
+          id: `ore-${now}-${Math.random().toString(36).slice(2, 8)}`,
+          plotId: plot.id,
+          tile: spawnTile,
+          rarity,
+          reward: oreNodeReward(rarity),
+          createdAt: now,
+          despawnAt: now + ORE_DESPAWN_MS,
+          miningUntil: null,
+          miningBy: null,
+        };
+        const nextPlot = {
+          ...cleanedPlot,
+          oreNodes: [...activeOreNodes, nextNode],
+        };
+
+        syncedPlot = nextPlot;
+        return {
+          ...current,
+          plots: {
+            ...current.plots,
+            [plot.id]: nextPlot,
+          },
+          message: `${oreNodeDisplayLabel(rarity)} surfaced on your plot.`,
+        };
+      });
+
+      sendSharedPlot(syncedPlot);
+    };
+
+    const firstSpawn = window.setTimeout(() => spawnOre(true), ORE_FIRST_SPAWN_DELAY_MS);
+    const interval = window.setInterval(() => spawnOre(false), ORE_SPAWN_INTERVAL_MS);
+
+    return () => {
+      window.clearTimeout(firstSpawn);
+      window.clearInterval(interval);
+    };
+  }, [page, playerName]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       keysRef.current[event.key.toLowerCase()] = true;
       if (event.key.toLowerCase() === "e") {
@@ -5584,7 +5704,7 @@ function App() {
                                   draggable={false}
                                 />
                                 <strong>{oreNodeDisplayLabel(node.rarity)}</strong>
-                                <small>{isMining ? "Mining..." : `Tap to mine +${node.reward.toFixed(2)} SOL`}</small>
+                                <small>{isMining ? "Mining..." : `Tap to mine +${node.reward.toFixed(6)} SOL`}</small>
                               </button>
                             );
                           })}
