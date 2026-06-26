@@ -19,6 +19,27 @@ const PAYMENT_OPS_BPS = Number(process.env.PAYMENT_OPS_BPS || "1000");
 const PAYMENT_TOKEN_PRICE_USD_OVERRIDE = Number(process.env.PAYMENT_TOKEN_PRICE_USD_OVERRIDE || "");
 const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY || "";
 const BIRDEYE_PRICE_URL = process.env.BIRDEYE_PRICE_URL || "https://public-api.birdeye.so/defi/price";
+const WORLD_COLUMNS = 3;
+const WORLD_ROWS = 3;
+const ORE_SPAWN_CHANCE = 0.011;
+const ORE_NODE_LIMIT = 2;
+const ORE_UNCLAIMED_LIMIT = 1;
+const ORE_MINING_MS = {
+  small: 6500,
+  medium: 11000,
+  large: 16500,
+};
+const ORE_REWARD_RANGE = {
+  small: [0.01, 0.015],
+  medium: [0.015, 0.024],
+  large: [0.03, 0.045],
+};
+const ORE_RARITY_WEIGHTS = [
+  ["small", 74],
+  ["medium", 21],
+  ["large", 5],
+];
+const ORE_MINING_GRACE_MS = 5 * 60 * 1000;
 
 const rooms = new Map();
 let saveTimer = null;
@@ -32,12 +53,14 @@ function getRoom(roomId) {
   if (!rooms.has(key)) {
     rooms.set(key, {
       players: new Map(),
-      plots: {},
+      plots: createWorldPlots(),
       lastUpdatedAt: Date.now(),
     });
   }
 
-  return rooms.get(key);
+  const room = rooms.get(key);
+  ensureWorldPlots(room);
+  return room;
 }
 
 function serializeRoom(roomId) {
@@ -47,6 +70,50 @@ function serializeRoom(roomId) {
     players: [...room.players.values()].map(({ socket, ...player }) => player),
     plots: room.plots,
   };
+}
+
+function plotKey(x, y) {
+  return `plot-${x}-${y}`;
+}
+
+function makePlot(x, y) {
+  return {
+    id: plotKey(x, y),
+    name: `Plot ${x + 1}-${y + 1}`,
+    ownerLabel: null,
+    structures: {},
+    chest: null,
+    oreNodes: [],
+    totalCollectedSol: 0,
+  };
+}
+
+function createWorldPlots() {
+  const plots = {};
+  for (let x = 0; x < WORLD_COLUMNS; x += 1) {
+    for (let y = 0; y < WORLD_ROWS; y += 1) {
+      const plot = makePlot(x, y);
+      plots[plot.id] = plot;
+    }
+  }
+  return plots;
+}
+
+function ensureWorldPlots(room) {
+  if (!room || typeof room !== "object") return;
+  if (!room.plots || typeof room.plots !== "object") {
+    room.plots = createWorldPlots();
+    return;
+  }
+
+  for (let x = 0; x < WORLD_COLUMNS; x += 1) {
+    for (let y = 0; y < WORLD_ROWS; y += 1) {
+      const id = plotKey(x, y);
+      if (!room.plots[id]) {
+        room.plots[id] = makePlot(x, y);
+      }
+    }
+  }
 }
 
 function send(ws, type, payload = {}) {
@@ -187,11 +254,208 @@ function normalizePlotState(raw) {
       candidate.chest && typeof candidate.chest === "object" && typeof candidate.chest.id === "string"
         ? { id: candidate.chest.id }
         : null,
+    oreNodes: Array.isArray(candidate.oreNodes)
+      ? candidate.oreNodes.map(normalizeOreNode).filter(Boolean)
+      : [],
     totalCollectedSol: Number.isFinite(candidate.totalCollectedSol)
       ? Math.max(0, Number(candidate.totalCollectedSol))
       : 0,
   };
 }
+
+function normalizeOreNode(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const candidate = raw;
+  if (
+    typeof candidate.id !== "string" ||
+    typeof candidate.plotId !== "string" ||
+    typeof candidate.tile !== "string" ||
+    !["small", "medium", "large"].includes(candidate.rarity)
+  ) {
+    return null;
+  }
+
+  return {
+    id: candidate.id,
+    plotId: candidate.plotId,
+    tile: candidate.tile,
+    rarity: candidate.rarity,
+    reward: Number.isFinite(Number(candidate.reward)) ? Math.max(0, Number(candidate.reward)) : 0,
+    createdAt: Number.isFinite(Number(candidate.createdAt)) ? Number(candidate.createdAt) : Date.now(),
+    despawnAt: Number.isFinite(Number(candidate.despawnAt))
+      ? Number(candidate.despawnAt)
+      : Date.now() + 2 * 60 * 60 * 1000,
+    miningUntil: Number.isFinite(Number(candidate.miningUntil)) ? Number(candidate.miningUntil) : null,
+    miningBy: typeof candidate.miningBy === "string" ? candidate.miningBy : null,
+  };
+}
+
+function pickWeightedOreRarity() {
+  const total = ORE_RARITY_WEIGHTS.reduce((sum, [, weight]) => sum + weight, 0);
+  let roll = Math.random() * total;
+  for (const [rarity, weight] of ORE_RARITY_WEIGHTS) {
+    roll -= weight;
+    if (roll <= 0) {
+      return rarity;
+    }
+  }
+  return "small";
+}
+
+function oreNodeReward(rarity) {
+  const [min, max] = ORE_REWARD_RANGE[rarity];
+  return Math.round((min + Math.random() * (max - min)) * 100) / 100;
+}
+
+function oreNodeMiningMs(rarity) {
+  return ORE_MINING_MS[rarity];
+}
+
+function oreNodeLimitForPlot(plot) {
+  return plot?.ownerLabel ? ORE_NODE_LIMIT : ORE_UNCLAIMED_LIMIT;
+}
+
+function oreNodeTileKey(tileX, tileY) {
+  return `${tileX}:${tileY}`;
+}
+
+function chooseRandomFreeTile(plot) {
+  const occupied = new Set();
+
+  for (const key of Object.keys(plot.structures || {})) {
+    occupied.add(key);
+  }
+  for (const ore of plot.oreNodes || []) {
+    occupied.add(ore.tile);
+  }
+
+  const freeTiles = [];
+  for (let x = 0; x < 7; x += 1) {
+    for (let y = 0; y < 7; y += 1) {
+      const key = oreNodeTileKey(x, y);
+      if (!occupied.has(key)) {
+        freeTiles.push(key);
+      }
+    }
+  }
+
+  if (freeTiles.length === 0) {
+    return null;
+  }
+
+  return freeTiles[Math.floor(Math.random() * freeTiles.length)];
+}
+
+function chooseOreSpawnPlot(room) {
+  const candidates = Object.values(room.plots || {}).filter(
+    (plot) => (plot.oreNodes?.length ?? 0) < oreNodeLimitForPlot(plot),
+  );
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const weighted = [];
+  for (const plot of candidates) {
+    const weight = plot.ownerLabel ? 1 : 3;
+    for (let i = 0; i < weight; i += 1) {
+      weighted.push(plot);
+    }
+  }
+
+  return weighted[Math.floor(Math.random() * weighted.length)];
+}
+
+function spawnOreNode(room, now = Date.now()) {
+  const plot = chooseOreSpawnPlot(room);
+  if (!plot) {
+    return null;
+  }
+
+  const tile = chooseRandomFreeTile(plot);
+  if (!tile) {
+    return null;
+  }
+
+  const rarity = pickWeightedOreRarity();
+  const oreNode = {
+    id: `ore-${now}-${randomUUID().slice(0, 8)}`,
+    plotId: plot.id,
+    tile,
+    rarity,
+    reward: oreNodeReward(rarity),
+    createdAt: now,
+    despawnAt: now + 2 * 60 * 60 * 1000,
+    miningUntil: null,
+    miningBy: null,
+  };
+
+  plot.oreNodes = [...(plot.oreNodes || []), oreNode];
+  room.lastUpdatedAt = now;
+  return { plot, oreNode };
+}
+
+function normalizeRoomPlots(room) {
+  for (const plot of Object.values(room.plots || {})) {
+    plot.oreNodes = Array.isArray(plot.oreNodes)
+      ? plot.oreNodes.map(normalizeOreNode).filter(Boolean)
+      : [];
+  }
+}
+
+setInterval(() => {
+  const now = Date.now();
+  let mutated = false;
+
+  for (const [roomId, room] of rooms.entries()) {
+    ensureWorldPlots(room);
+    normalizeRoomPlots(room);
+    const changedPlots = new Set();
+
+    for (const plot of Object.values(room.plots)) {
+      const nextOreNodes = plot.oreNodes.filter(
+        (node) =>
+          (node.miningUntil !== null && now - node.miningUntil < ORE_MINING_GRACE_MS) ||
+          node.despawnAt > now,
+      );
+      if (nextOreNodes.length !== plot.oreNodes.length) {
+        plot.oreNodes = nextOreNodes;
+        room.lastUpdatedAt = now;
+        mutated = true;
+        changedPlots.add(plot.id);
+      }
+    }
+
+    const activeOreCount = Object.values(room.plots).reduce(
+      (sum, plot) => sum + (plot.oreNodes?.length || 0),
+      0,
+    );
+    if (activeOreCount < 6 && Math.random() < ORE_SPAWN_CHANCE) {
+      const spawned = spawnOreNode(room, now);
+      if (spawned) {
+        mutated = true;
+        changedPlots.add(spawned.plot.id);
+      }
+    }
+
+    for (const plotId of changedPlots) {
+      const plot = room.plots[plotId];
+      if (!plot) continue;
+      broadcast(
+        roomId,
+        {
+          type: "plot_state",
+          plot,
+          sourcePlayerId: null,
+        },
+      );
+    }
+  }
+
+  if (mutated) {
+    schedulePersist();
+  }
+}, 1000);
 
 async function persistRooms() {
   const data = {
@@ -246,6 +510,9 @@ try {
           ? value.lastUpdatedAt
           : Date.now(),
       });
+      const room = rooms.get(sanitizeRoomId(roomId));
+      ensureWorldPlots(room);
+      normalizeRoomPlots(room);
     }
   }
 } catch {

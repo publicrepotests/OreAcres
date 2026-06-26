@@ -4042,6 +4042,111 @@ h1 {
   background: radial-gradient(circle, rgba(255, 209, 102, 0.34), transparent 58%);
 }
 
+.plot-zone__ore {
+  position: absolute;
+  z-index: 11;
+  width: 132px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translate(-50%, -52%) scale(var(--ore-scale, 1));
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.plot-zone__ore:hover .plot-zone__ore-image {
+  transform: translateY(-2px) scale(1.05);
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.3)) saturate(1.04);
+}
+
+.plot-zone__ore strong,
+.plot-zone__ore small {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+.plot-zone__ore strong {
+  font-size: 0.56rem;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #f5f7ff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.72);
+}
+
+.plot-zone__ore small {
+  color: #aecdff;
+  font-size: 0.48rem;
+  line-height: 1.25;
+  font-family: "Press Start 2P", monospace;
+}
+
+.plot-zone__ore-image {
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter:
+    drop-shadow(0 12px 18px rgba(0, 0, 0, 0.36))
+    drop-shadow(0 0 14px rgba(122, 167, 255, 0.16));
+  transform: translateY(0);
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
+}
+
+.plot-zone__ore-glow {
+  position: absolute;
+  inset: 18px 12px 34px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(122, 167, 255, 0.2), transparent 65%);
+  filter: blur(8px);
+  opacity: 0.95;
+  pointer-events: none;
+  animation: oreFloat 3.6s ease-in-out infinite;
+}
+
+.plot-zone__ore--small .plot-zone__ore-image {
+  width: 84px;
+  height: 84px;
+}
+
+.plot-zone__ore--medium .plot-zone__ore-image {
+  width: 94px;
+  height: 94px;
+}
+
+.plot-zone__ore--large .plot-zone__ore-image {
+  width: 108px;
+  height: 108px;
+}
+
+.plot-zone__ore--small .plot-zone__ore-glow {
+  background: radial-gradient(circle, rgba(255, 209, 102, 0.16), transparent 64%);
+}
+
+.plot-zone__ore--medium .plot-zone__ore-glow {
+  background: radial-gradient(circle, rgba(103, 245, 211, 0.18), transparent 64%);
+}
+
+.plot-zone__ore--large .plot-zone__ore-glow {
+  background: radial-gradient(circle, rgba(198, 126, 255, 0.22), transparent 64%);
+}
+
+.plot-zone__ore.mining .plot-zone__ore-image {
+  animation: oreMinePulse 900ms ease-in-out infinite;
+}
+
+.plot-zone__ore.mining .plot-zone__ore-glow {
+  opacity: 1;
+  animation-duration: 1.2s;
+}
+
 .plot-zone__badge,
 .plot-prompt,
 .world-hud {
@@ -4524,6 +4629,34 @@ h1 {
   }
 }
 
+@keyframes oreFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes oreMinePulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    filter:
+      drop-shadow(0 12px 18px rgba(0, 0, 0, 0.36))
+      drop-shadow(0 0 14px rgba(122, 167, 255, 0.16))
+      saturate(1.02);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.05);
+    filter:
+      drop-shadow(0 14px 22px rgba(0, 0, 0, 0.42))
+      drop-shadow(0 0 22px rgba(103, 245, 211, 0.22))
+      saturate(1.14);
+  }
+}
+
 .plot-tile__earnings {
   position: absolute;
   left: 50%;
@@ -4733,21 +4866,61 @@ h1 {
   max-width: 420px;
   border-color: rgba(103, 245, 211, 0.18);
   box-shadow: 0 0 0 1px rgba(103, 245, 211, 0.06);
+  display: grid;
+  gap: 8px;
 }
 
-.world-hud span {
-  display: block;
-  color: var(--accent);
-  font-size: 0.64rem;
-  text-transform: uppercase;
+.world-hud__topline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.world-hud__status,
+.world-hud__objective {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.62rem;
   letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1;
   font-family: "Press Start 2P", monospace;
-  line-height: 1.6;
+}
+
+.world-hud__status {
+  color: var(--accent);
+  background: rgba(103, 245, 211, 0.08);
+  border: 1px solid rgba(103, 245, 211, 0.16);
+}
+
+.world-hud__status--offline {
+  color: #ffcf88;
+  background: rgba(255, 209, 102, 0.08);
+  border-color: rgba(255, 209, 102, 0.16);
+}
+
+.world-hud__status--connecting {
+  color: #a9c0ff;
+  background: rgba(122, 167, 255, 0.08);
+  border-color: rgba(122, 167, 255, 0.16);
+}
+
+.world-hud__objective {
+  color: #dce6ff;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  letter-spacing: 0.08em;
+  font-size: 0.58rem;
+  text-transform: none;
 }
 
 .world-hud strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 0;
   line-height: 1.5;
 }
 

@@ -93,6 +93,7 @@ type Plot = {
   owner: PlotOwner | null;
   structures: Record<string, Structure>;
   chest: { id: string } | null;
+  oreNodes: OreNode[];
   totalCollectedSol: number;
 };
 
@@ -174,15 +175,18 @@ type GameStats = {
   questBoxesOpened: number;
 };
 
-type BonusDrop = {
+type OreNodeRarity = "small" | "medium" | "large";
+
+type OreNode = {
   id: string;
   plotId: string;
-  label: string;
+  tile: string;
+  rarity: OreNodeRarity;
   reward: number;
-  rarity: ChestRarity;
-  expiresAt: number;
-  readyAt: number;
-  nftId?: string;
+  createdAt: number;
+  despawnAt: number;
+  miningUntil: number | null;
+  miningBy: string | null;
 };
 
 type GameState = {
@@ -203,7 +207,6 @@ type GameState = {
   chestReveal: { plotId: string; reward: string } | null;
   missions: MissionState;
   stats: GameStats;
-  bonusDrops: BonusDrop[];
   skinInventory: Record<SkinId, number>;
   equippedPickaxeSkin: SkinId | null;
   equippedClothesSkin: SkinId | null;
@@ -241,6 +244,7 @@ type SharedPlotSnapshot = {
     }
   >;
   chest: { id: string } | null;
+  oreNodes: OreNode[];
   totalCollectedSol: number;
 };
 
@@ -316,6 +320,11 @@ const STRUCTURE_ART_SLOTS: Partial<Record<StructureType, StructureArtSlot>> = {
   chest: { atlas: "special", col: 1, row: 1 },
 };
 const COSMETIC_ATLAS = "/assets/shop/cosmetics-atlas.png";
+const ORE_ART: Record<OreNodeRarity, string> = {
+  small: "/assets/Ore/small-node.svg",
+  medium: "/assets/Ore/medium-node.svg",
+  large: "/assets/Ore/large-node.svg",
+};
 const PICKAXE_ART: Record<"troll_pick" | "laser_pick" | "banana_pick", string> = {
   troll_pick: "/assets/cosmetics/pickaxes/troll-pick.png",
   laser_pick: "/assets/cosmetics/pickaxes/laser-pick.png",
@@ -333,6 +342,24 @@ const DRILL_ART = {
   3: "/assets/structures/drills/tier3-drill.png",
 } as const;
 const DRILL_ANIMATION_FPS = 9;
+const ORE_SPAWN_CHANCE = 0.011;
+const ORE_NODE_LIMIT = 2;
+const ORE_UNCLAIMED_LIMIT = 1;
+const ORE_MINING_MS: Record<OreNodeRarity, number> = {
+  small: 6500,
+  medium: 11000,
+  large: 16500,
+};
+const ORE_REWARD_RANGE: Record<OreNodeRarity, [number, number]> = {
+  small: [0.01, 0.015],
+  medium: [0.015, 0.024],
+  large: [0.03, 0.045],
+};
+const ORE_RARITY_WEIGHTS: Array<[OreNodeRarity, number]> = [
+  ["small", 74],
+  ["medium", 21],
+  ["large", 5],
+];
 const DRILL_FRAMESETS = {
   1: [
     "/assets/structures/Animations/Drill-animations-tier-1/Drill-1.png",
@@ -875,6 +902,38 @@ function round(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+function pickWeightedOreRarity() {
+  const total = ORE_RARITY_WEIGHTS.reduce((sum, [, weight]) => sum + weight, 0);
+  let roll = Math.random() * total;
+  for (const [rarity, weight] of ORE_RARITY_WEIGHTS) {
+    roll -= weight;
+    if (roll <= 0) {
+      return rarity;
+    }
+  }
+  return "small";
+}
+
+function oreNodeReward(rarity: OreNodeRarity) {
+  const [min, max] = ORE_REWARD_RANGE[rarity];
+  return round(min + Math.random() * (max - min));
+}
+
+function oreNodeMiningMs(rarity: OreNodeRarity) {
+  return ORE_MINING_MS[rarity];
+}
+
+function oreNodeDisplayLabel(rarity: OreNodeRarity) {
+  switch (rarity) {
+    case "small":
+      return "Small Ore Node";
+    case "medium":
+      return "Dense Ore Node";
+    case "large":
+      return "Massive Ore Node";
+  }
+}
+
 function defaultPlaytestMode() {
   if (typeof window === "undefined") return false;
 
@@ -1413,6 +1472,7 @@ function makePlot(x: number, y: number, owner: PlotOwner | null): Plot {
     owner,
     structures: owner?.me ? starterStructures() : {},
     chest: null,
+    oreNodes: [],
     totalCollectedSol: 0,
   };
 }
@@ -1463,7 +1523,6 @@ function createInitialState(): GameState {
     chestReveal: null,
     missions: { ...DEFAULT_MISSIONS },
     stats: { ...DEFAULT_STATS },
-    bonusDrops: [],
     skinInventory: { ...DEFAULT_SKIN_INVENTORY },
     equippedPickaxeSkin: null,
     equippedClothesSkin: null,
@@ -1526,6 +1585,9 @@ function normalizePlot(raw: unknown): Plot | null {
         : null,
     structures,
     chest,
+    oreNodes: Array.isArray((candidate as { oreNodes?: unknown }).oreNodes)
+      ? (candidate as { oreNodes: unknown[] }).oreNodes.map(normalizeOreNode).filter((node): node is OreNode => Boolean(node))
+      : [],
     totalCollectedSol:
       typeof (candidate as { totalCollectedSol?: unknown }).totalCollectedSol === "number"
         ? Math.max(0, (candidate as { totalCollectedSol: number }).totalCollectedSol)
@@ -1533,36 +1595,31 @@ function normalizePlot(raw: unknown): Plot | null {
   };
 }
 
-function normalizeBonusDrop(raw: unknown): BonusDrop | null {
+function normalizeOreNode(raw: unknown): OreNode | null {
   if (!raw || typeof raw !== "object") return null;
-  const candidate = raw as Partial<BonusDrop>;
+  const candidate = raw as Partial<OreNode>;
   if (
     typeof candidate.id !== "string" ||
     typeof candidate.plotId !== "string" ||
-    typeof candidate.label !== "string" ||
-    typeof candidate.reward !== "number" ||
-    typeof candidate.expiresAt !== "number" ||
-    typeof candidate.readyAt !== "number"
+    typeof candidate.tile !== "string" ||
+    (candidate.rarity !== "small" && candidate.rarity !== "medium" && candidate.rarity !== "large")
   ) {
     return null;
   }
 
+  const createdAt = typeof candidate.createdAt === "number" ? candidate.createdAt : Date.now();
+  const despawnAt = typeof candidate.despawnAt === "number" ? candidate.despawnAt : createdAt + 2 * 60 * 60 * 1000;
+
   return {
     id: candidate.id,
     plotId: candidate.plotId,
-    label: candidate.label,
-    reward: candidate.reward,
-    rarity:
-      candidate.rarity === "common" ||
-      candidate.rarity === "uncommon" ||
-      candidate.rarity === "rare" ||
-      candidate.rarity === "epic" ||
-      candidate.rarity === "legendary"
-        ? candidate.rarity
-        : "common",
-    expiresAt: candidate.expiresAt,
-    readyAt: candidate.readyAt,
-    nftId: typeof candidate.nftId === "string" ? candidate.nftId : undefined,
+    tile: candidate.tile,
+    rarity: candidate.rarity,
+    reward: typeof candidate.reward === "number" ? Math.max(0, candidate.reward) : 0,
+    createdAt,
+    despawnAt,
+    miningUntil: typeof candidate.miningUntil === "number" ? candidate.miningUntil : null,
+    miningBy: typeof candidate.miningBy === "string" ? candidate.miningBy : null,
   };
 }
 
@@ -1645,9 +1702,6 @@ function loadGameState(saveKey: string): GameState {
           : null,
       missions: { ...DEFAULT_MISSIONS, ...(parsed.missions ?? {}) },
       stats: { ...DEFAULT_STATS, ...(parsed.stats ?? {}) },
-      bonusDrops: Array.isArray(parsed.bonusDrops)
-        ? parsed.bonusDrops.map(normalizeBonusDrop).filter((drop): drop is BonusDrop => Boolean(drop))
-        : [],
       skinInventory: { ...DEFAULT_SKIN_INVENTORY, ...(parsed.skinInventory ?? {}) },
       equippedPickaxeSkin: isSkinId(parsed.equippedPickaxeSkin) ? parsed.equippedPickaxeSkin : null,
       equippedClothesSkin: isSkinId(parsed.equippedClothesSkin) ? parsed.equippedClothesSkin : null,
@@ -1740,6 +1794,17 @@ function gameDigest(state: GameState, wallet: PublicKey | null) {
       id,
       owner: plot.owner?.label ?? null,
       totalCollectedSol: round(plot.totalCollectedSol),
+      oreNodes: plot.oreNodes.map((node) => ({
+        id: node.id,
+        plotId: node.plotId,
+        tile: node.tile,
+        rarity: node.rarity,
+        reward: round(node.reward),
+        createdAt: node.createdAt,
+        despawnAt: node.despawnAt,
+        miningUntil: node.miningUntil,
+        miningBy: node.miningBy,
+      })),
       structures: Object.entries(plot.structures).map(([tile, structure]) => ({
         tile,
         type: structure.type,
@@ -1748,19 +1813,10 @@ function gameDigest(state: GameState, wallet: PublicKey | null) {
         reward: structure.reward ?? null,
       })),
     })),
-    bonusDrops: state.bonusDrops.map((drop) => ({
-      id: drop.id,
-      plotId: drop.plotId,
-      label: drop.label,
-      reward: round(drop.reward),
-      rarity: drop.rarity,
-      readyAt: drop.readyAt,
-      nftId: drop.nftId ?? null,
-    })),
   });
 }
 
-function resolveMultiplayerUrl() {
+async function resolveMultiplayerUrl() {
   const explicit = import.meta.env.VITE_MULTIPLAYER_WS_URL as string | undefined;
   const raw = explicit?.trim();
   if (raw) {
@@ -1778,8 +1834,7 @@ function resolveMultiplayerUrl() {
     }
   }
 
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//127.0.0.1:8080/ws`;
+  return "";
 }
 
 function resolvePaymentApiBase() {
@@ -1796,15 +1851,7 @@ function resolvePaymentApiBase() {
     }
   }
 
-  const wsUrl = resolveMultiplayerUrl();
-  try {
-    const parsed = new URL(wsUrl);
-    parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
-    parsed.pathname = parsed.pathname.replace(/\/ws\/?$/, "");
-    return parsed.toString().replace(/\/$/, "");
-  } catch {
-    return window.location.origin;
-  }
+  return window.location.origin;
 }
 
 type PaymentQuote = {
@@ -1890,6 +1937,7 @@ function toSharedPlotSnapshot(plot: Plot, ownerLabel: string | null): SharedPlot
       ]),
     ),
     chest: plot.chest ? { ...plot.chest } : null,
+    oreNodes: plot.oreNodes.map((node) => ({ ...node })),
     totalCollectedSol: round(plot.totalCollectedSol),
   };
 }
@@ -1920,6 +1968,9 @@ function mergeSharedPlotSnapshot(
       ]),
     ),
     chest: sharedPlot.chest ? { ...sharedPlot.chest } : null,
+    oreNodes: Array.isArray(sharedPlot.oreNodes)
+      ? sharedPlot.oreNodes.map(normalizeOreNode).filter((node): node is OreNode => Boolean(node))
+      : localPlot.oreNodes,
     totalCollectedSol: Number.isFinite(sharedPlot.totalCollectedSol)
       ? Math.max(0, sharedPlot.totalCollectedSol)
       : localPlot.totalCollectedSol,
@@ -2505,6 +2556,7 @@ function App() {
   const keysRef = useRef<Record<string, boolean>>({});
   const ignoreTileClickRef = useRef(false);
   const chestRevealTimerRef = useRef<number | null>(null);
+  const oreMiningTimersRef = useRef<Record<string, number>>({});
   const socketRef = useRef<WebSocket | null>(null);
   const myPlayerIdRef = useRef<string | null>(null);
   const avatarRef = useRef(game.avatar);
@@ -2608,8 +2660,25 @@ function App() {
         window.clearTimeout(chestRevealTimerRef.current);
         chestRevealTimerRef.current = null;
       }
+      for (const timer of Object.values(oreMiningTimersRef.current)) {
+        window.clearTimeout(timer);
+      }
+      oreMiningTimersRef.current = {};
     };
   }, []);
+
+  useEffect(() => {
+    const activeOreIds = new Set(
+      Object.values(game.plots).flatMap((plot) => plot.oreNodes.map((node) => node.id)),
+    );
+
+    for (const [oreId, timer] of Object.entries(oreMiningTimersRef.current)) {
+      if (!activeOreIds.has(oreId)) {
+        window.clearTimeout(timer);
+        delete oreMiningTimersRef.current[oreId];
+      }
+    }
+  }, [game.plots]);
 
   useEffect(() => {
     if (page !== "game") return;
@@ -2632,202 +2701,217 @@ function App() {
   }, [page]);
 
   useEffect(() => {
-    const wsUrl = resolveMultiplayerUrl();
-    if (!wsUrl) {
-      setMultiplayerStatus("offline");
-      setRemotePlayers({});
-      return;
-    }
-
-    const room = sanitizeRoomId(roomCode);
+    let cancelled = false;
     let socket: WebSocket | null = null;
+    let timeout = 0;
 
-    try {
-      socket = new WebSocket(
-        `${wsUrl}${wsUrl.includes("?") ? "&" : "?"}room=${encodeURIComponent(room)}&name=${encodeURIComponent(playerName)}`,
-      );
-    } catch {
-      setMultiplayerStatus("offline");
-      return;
-    }
-
-    socketRef.current = socket;
-    myPlayerIdRef.current = null;
-    setMultiplayerStatus("connecting");
-
-    const upsertRemotePlayer = (player: RemotePlayer) => {
-      if (player.id === myPlayerIdRef.current) return;
-      setRemotePlayers((current) => ({
-        ...current,
-        [player.id]: player,
-      }));
-    };
-
-    const removeRemotePlayer = (playerId: string) => {
-      if (playerId === myPlayerIdRef.current) return;
-      setRemotePlayers((current) => {
-        if (!(playerId in current)) return current;
-        const next = { ...current };
-        delete next[playerId];
-        return next;
-      });
-    };
-
-    socket.onopen = () => {
-      setMultiplayerStatus("online");
-      socket.send(JSON.stringify({ type: "rename", name: playerName }));
-      socket.send(
-        JSON.stringify({
-          type: "move",
-          x: Math.round(avatarRef.current.x),
-          y: Math.round(avatarRef.current.y),
-        }),
-      );
-    };
-
-    socket.onmessage = (event) => {
-      let message: any;
-      try {
-        message = JSON.parse(event.data);
-      } catch {
+    (async () => {
+      const wsUrl = await resolveMultiplayerUrl();
+      if (cancelled) {
         return;
       }
 
-      if (message.type === "welcome") {
-        myPlayerIdRef.current = typeof message.playerId === "string" ? message.playerId : null;
-        const players = Array.isArray(message.snapshot?.players) ? message.snapshot.players : [];
-        const nextRemotePlayers: Record<string, RemotePlayer> = {};
+      if (!wsUrl) {
+        setMultiplayerStatus("offline");
+        setRemotePlayers({});
+        return;
+      }
 
-        const snapshotPlots = message.snapshot?.plots && typeof message.snapshot.plots === "object"
-          ? message.snapshot.plots
-          : {};
+      const room = sanitizeRoomId(roomCode);
 
-        if (snapshotPlots && Object.keys(snapshotPlots).length > 0) {
+      try {
+        socket = new WebSocket(
+          `${wsUrl}${wsUrl.includes("?") ? "&" : "?"}room=${encodeURIComponent(room)}&name=${encodeURIComponent(playerName)}`,
+        );
+      } catch {
+        setMultiplayerStatus("offline");
+        return;
+      }
+
+      socketRef.current = socket;
+      myPlayerIdRef.current = null;
+      setMultiplayerStatus("connecting");
+
+      const upsertRemotePlayer = (player: RemotePlayer) => {
+        if (player.id === myPlayerIdRef.current) return;
+        setRemotePlayers((current) => ({
+          ...current,
+          [player.id]: player,
+        }));
+      };
+
+      const removeRemotePlayer = (playerId: string) => {
+        if (playerId === myPlayerIdRef.current) return;
+        setRemotePlayers((current) => {
+          if (!(playerId in current)) return current;
+          const next = { ...current };
+          delete next[playerId];
+          return next;
+        });
+      };
+
+      socket.onopen = () => {
+        if (cancelled || !socket) {
+          return;
+        }
+        setMultiplayerStatus("online");
+        socket.send(JSON.stringify({ type: "rename", name: playerName }));
+        socket.send(
+          JSON.stringify({
+            type: "move",
+            x: Math.round(avatarRef.current.x),
+            y: Math.round(avatarRef.current.y),
+          }),
+        );
+      };
+
+      socket.onmessage = (event) => {
+        let message: any;
+        try {
+          message = JSON.parse(event.data);
+        } catch {
+          return;
+        }
+
+        if (message.type === "welcome") {
+          myPlayerIdRef.current = typeof message.playerId === "string" ? message.playerId : null;
+          const players = Array.isArray(message.snapshot?.players) ? message.snapshot.players : [];
+          const nextRemotePlayers: Record<string, RemotePlayer> = {};
+
+          const snapshotPlots = message.snapshot?.plots && typeof message.snapshot.plots === "object"
+            ? message.snapshot.plots
+            : {};
+
+          if (snapshotPlots && Object.keys(snapshotPlots).length > 0) {
+            setGame((current) => {
+              let next = current;
+
+              for (const [plotId, plot] of Object.entries(snapshotPlots)) {
+                if (!plot || typeof plot !== "object") continue;
+                const localPlot = next.plots[plotId];
+                if (!localPlot) continue;
+                const normalizedPlot = mergeSharedPlotSnapshot(
+                  localPlot,
+                  plot as SharedPlotSnapshot,
+                  current.claimedPlotId === plotId,
+                  playerName,
+                );
+                next = {
+                  ...next,
+                  plots: {
+                    ...next.plots,
+                    [plotId]: normalizedPlot,
+                  },
+                };
+              }
+
+              return next;
+            });
+          }
+
+          for (const entry of players) {
+            if (!entry || typeof entry.id !== "string") continue;
+            if (entry.id === myPlayerIdRef.current) continue;
+            nextRemotePlayers[entry.id] = {
+              id: entry.id,
+              name: typeof entry.name === "string" ? entry.name : "Miner",
+              x: Number(entry.x ?? 0),
+              y: Number(entry.y ?? 0),
+            };
+          }
+
+          setRemotePlayers(nextRemotePlayers);
+          return;
+        }
+
+        if (message.type === "player_joined" && message.player) {
+          upsertRemotePlayer({
+            id: String(message.player.id),
+            name: typeof message.player.name === "string" ? message.player.name : "Miner",
+            x: Number(message.player.x ?? 0),
+            y: Number(message.player.y ?? 0),
+          });
+          return;
+        }
+
+        if (message.type === "player_moved" && message.player) {
+          setRemotePlayers((current) => {
+            const existing = current[String(message.player.id)];
+            if (!existing) return current;
+            return {
+              ...current,
+              [existing.id]: {
+                ...existing,
+                x: Number(message.player.x ?? existing.x),
+                y: Number(message.player.y ?? existing.y),
+              },
+            };
+          });
+          return;
+        }
+
+        if (message.type === "player_renamed" && message.player) {
+          setRemotePlayers((current) => {
+            const existing = current[String(message.player.id)];
+            if (!existing) return current;
+            return {
+              ...current,
+              [existing.id]: {
+                ...existing,
+                name: typeof message.player.name === "string" ? message.player.name : existing.name,
+              },
+            };
+          });
+          return;
+        }
+
+        if (message.type === "player_left" && typeof message.playerId === "string") {
+          removeRemotePlayer(message.playerId);
+          return;
+        }
+
+        if (message.type === "plot_state" && message.plot && typeof message.plot.id === "string") {
+          const plot = message.plot as SharedPlotSnapshot;
           setGame((current) => {
-            let next = current;
-
-            for (const [plotId, plot] of Object.entries(snapshotPlots)) {
-              if (!plot || typeof plot !== "object") continue;
-              const localPlot = next.plots[plotId];
-              if (!localPlot) continue;
-              const normalizedPlot = mergeSharedPlotSnapshot(
-                localPlot,
-                plot as SharedPlotSnapshot,
-                current.claimedPlotId === plotId,
-                playerName,
-              );
-              next = {
-                ...next,
-                plots: {
-                  ...next.plots,
-                  [plotId]: normalizedPlot,
-                },
-              };
-            }
-
-            return next;
+            const localPlot = current.plots[plot.id];
+            if (!localPlot) return current;
+            const mergedPlot = mergeSharedPlotSnapshot(
+              localPlot,
+              plot,
+              current.claimedPlotId === plot.id,
+              playerName,
+            );
+            return {
+              ...current,
+              plots: {
+                ...current.plots,
+                [plot.id]: mergedPlot,
+              },
+            };
           });
         }
+      };
 
-        for (const entry of players) {
-          if (!entry || typeof entry.id !== "string") continue;
-          if (entry.id === myPlayerIdRef.current) continue;
-          nextRemotePlayers[entry.id] = {
-            id: entry.id,
-            name: typeof entry.name === "string" ? entry.name : "Miner",
-            x: Number(entry.x ?? 0),
-            y: Number(entry.y ?? 0),
-          };
+      socket.onclose = () => {
+        if (socketRef.current === socket) {
+          socketRef.current = null;
         }
+        setMultiplayerStatus("offline");
+      };
 
-        setRemotePlayers(nextRemotePlayers);
-        return;
-      }
-
-      if (message.type === "player_joined" && message.player) {
-        upsertRemotePlayer({
-          id: String(message.player.id),
-          name: typeof message.player.name === "string" ? message.player.name : "Miner",
-          x: Number(message.player.x ?? 0),
-          y: Number(message.player.y ?? 0),
-        });
-        return;
-      }
-
-      if (message.type === "player_moved" && message.player) {
-        setRemotePlayers((current) => {
-          const existing = current[String(message.player.id)];
-          if (!existing) return current;
-          return {
-            ...current,
-            [existing.id]: {
-              ...existing,
-              x: Number(message.player.x ?? existing.x),
-              y: Number(message.player.y ?? existing.y),
-            },
-          };
-        });
-        return;
-      }
-
-      if (message.type === "player_renamed" && message.player) {
-        setRemotePlayers((current) => {
-          const existing = current[String(message.player.id)];
-          if (!existing) return current;
-          return {
-            ...current,
-            [existing.id]: {
-              ...existing,
-              name: typeof message.player.name === "string" ? message.player.name : existing.name,
-            },
-          };
-        });
-        return;
-      }
-
-      if (message.type === "player_left" && typeof message.playerId === "string") {
-        removeRemotePlayer(message.playerId);
-        return;
-      }
-
-      if (message.type === "plot_state" && message.plot && typeof message.plot.id === "string") {
-        const plot = message.plot as SharedPlotSnapshot;
-        setGame((current) => {
-          const localPlot = current.plots[plot.id];
-          if (!localPlot) return current;
-          const mergedPlot = mergeSharedPlotSnapshot(
-            localPlot,
-            plot,
-            current.claimedPlotId === plot.id,
-            playerName,
-          );
-          return {
-            ...current,
-            plots: {
-              ...current.plots,
-              [plot.id]: mergedPlot,
-            },
-          };
-        });
-      }
-    };
-
-    socket.onclose = () => {
-      if (socketRef.current === socket) {
-        socketRef.current = null;
-      }
-      setMultiplayerStatus("offline");
-    };
-
-    socket.onerror = () => {
-      setMultiplayerStatus("offline");
-    };
+      socket.onerror = () => {
+        setMultiplayerStatus("offline");
+      };
+    })();
 
     return () => {
+      cancelled = true;
       if (socketRef.current === socket) {
         socketRef.current = null;
       }
-      socket.close();
+      if (socket) {
+        socket.close();
+      }
     };
   }, [playerName, roomCode]);
 
@@ -2835,9 +2919,7 @@ function App() {
     const interval = window.setInterval(() => {
       setGame((current) => {
         const plot = current.claimedPlotId ? current.plots[current.claimedPlotId] : null;
-        const now = Date.now();
-        const activeDrops = current.bonusDrops.filter((drop) => drop.expiresAt > now);
-        let next: GameState = activeDrops.length !== current.bonusDrops.length ? { ...current, bonusDrops: activeDrops } : current;
+        let next: GameState = current;
 
         if (!plot?.owner?.me) return next;
 
@@ -2874,53 +2956,6 @@ function App() {
           next = {
             ...next,
             mints: nextMints,
-          };
-        }
-
-        if (
-          next.claimedPlotId &&
-          Math.random() < 0.04 &&
-          !next.bonusDrops.some((drop) => drop.plotId === next.claimedPlotId)
-        ) {
-          const rarities: ChestRarity[] = ["common", "common", "uncommon", "rare", "epic"];
-          const rarity = rarities[Math.floor(Math.random() * rarities.length)];
-          const reward = round(
-            rarity === "common"
-              ? 0.02 + Math.random() * 0.02
-              : rarity === "uncommon"
-                ? 0.03 + Math.random() * 0.03
-                : rarity === "rare"
-                  ? 0.05 + Math.random() * 0.04
-                  : 0.08 + Math.random() * 0.05,
-          );
-          const readyAt = now + 180_000 + Math.floor(Math.random() * 120_000);
-          next = {
-            ...next,
-            bonusDrops: [
-              ...next.bonusDrops,
-              {
-                id: `drop-${now}-${Math.random().toString(36).slice(2, 8)}`,
-                plotId: next.claimedPlotId,
-                label:
-                  rarity === "epic"
-                    ? "Glowing ore core"
-                    : rarity === "rare"
-                      ? "Dense ore seam"
-                      : rarity === "uncommon"
-                        ? "Heavy ore vein"
-                        : "Raw ore chunk",
-                reward,
-                rarity,
-                expiresAt: now + 540_000,
-                readyAt,
-                nftId:
-                  rarity === "epic" && Math.random() < 0.35
-                    ? "turbo-ape-miner"
-                    : rarity === "rare" && Math.random() < 0.16
-                      ? "genesis-miner-pass"
-                      : undefined,
-              },
-            ],
           };
         }
 
@@ -3058,6 +3093,21 @@ function App() {
   const canPlaceActiveTool = canPlace(game.activeTool) && activeToolOwned > 0;
   const activeToolIsPurchased =
     game.claimedPlotId && canPlace(game.activeTool) && activeToolOwned > 0;
+  const hasPlacedDrill = Boolean(
+    claimedPlot && Object.values(claimedPlot.structures).some((structure) => structure.type === "drill"),
+  );
+  const worldObjective = !game.claimedPlotId
+    ? "Claim an open plot to begin your mine."
+    : !hasPlacedDrill && (game.inventory.drill ?? 0) > 0
+      ? "Place your starter drill on an empty tile."
+      : selectedStructure && nextStructureCost
+        ? `Upgrade ${selectedStructureName ?? "this structure"} for ${purchaseDisplayLabel(
+            nextStructureCost,
+            game.playtestMode,
+          )}.`
+        : game.questBoxes > 0
+          ? "Open a quest box for a bonus reward."
+          : "Expand your plot and optimize production.";
 
   const camera = useMemo(() => {
     const center = avatarCenter(game.avatar);
@@ -3495,55 +3545,105 @@ function App() {
     }, 2600);
   }
 
-  function collectBonusDrop(dropId: string) {
+  function finishMiningOre(plotId: string, oreId: string) {
+    const timer = oreMiningTimersRef.current[oreId];
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      delete oreMiningTimersRef.current[oreId];
+    }
+
     let syncedPlot: Plot | null = null;
     setGame((current) => {
-      const drop = current.bonusDrops.find((entry) => entry.id === dropId);
-      if (!drop) return current;
-      if (Date.now() < drop.readyAt) {
-        return { ...current, message: "That ore is still locking in. Give it a bit longer." };
+      const plot = current.plots[plotId];
+      const node = plot?.oreNodes.find((entry) => entry.id === oreId);
+      if (!plot || !node) return current;
+      if (node.miningUntil === null || Date.now() < node.miningUntil) {
+        return current;
+      }
+      if (node.miningBy && node.miningBy !== (walletPublicKey?.toBase58() ?? playerName)) {
+        return current;
       }
 
-      const pickaxeSkin = current.equippedPickaxeSkin;
-      const bonusMultiplier = pickaxeMultiplier(pickaxeSkin);
+      const reward = round(node.reward * pickaxeMultiplier(current.equippedPickaxeSkin));
+      const nextPlot = {
+        ...plot,
+        oreNodes: plot.oreNodes.filter((entry) => entry.id !== oreId),
+        totalCollectedSol: round((plot.totalCollectedSol ?? 0) + reward),
+      };
+      const nextState = {
+        ...current,
+        sol: round(current.sol + reward),
+        rewardReserveSol: round(Math.max(0, current.rewardReserveSol - reward)),
+        plots: {
+          ...current.plots,
+          [plotId]: nextPlot,
+        },
+        stats: {
+          ...current.stats,
+          totalEarned: round(current.stats.totalEarned + reward),
+        },
+        message: `Mined ${oreNodeDisplayLabel(node.rarity)} for ${reward.toFixed(2)} SOL.`,
+      };
+      syncedPlot = nextPlot;
+      return nextState;
+    });
+
+    sendSharedPlot(syncedPlot);
+  }
+
+  function startMiningOre(plotId: string, oreId: string) {
+    const minerTag = walletPublicKey?.toBase58() ?? playerName;
+    const now = Date.now();
+    let syncedPlot: Plot | null = null;
+    let miningDuration = 0;
+    let started = false;
+
+    setGame((current) => {
+      const plot = current.plots[plotId];
+      const node = plot?.oreNodes.find((entry) => entry.id === oreId);
+      if (!plot || !node) return current;
+      if (node.miningUntil && node.miningUntil > now) {
+        return { ...current, message: "That ore is already being mined." };
+      }
+
+      miningDuration = oreNodeMiningMs(node.rarity);
+      const nextNode = {
+        ...node,
+        miningUntil: now + miningDuration,
+        miningBy: minerTag,
+      };
+
+      const nextPlot = {
+        ...plot,
+        oreNodes: plot.oreNodes.map((entry) => (entry.id === oreId ? nextNode : entry)),
+      };
 
       const nextState = {
         ...current,
-        sol: round(current.sol + drop.reward * bonusMultiplier),
-        rewardReserveSol: round(
-          Math.max(0, current.rewardReserveSol - drop.reward * bonusMultiplier),
-        ),
-        plots: current.claimedPlotId
-          ? {
-              ...current.plots,
-              [current.claimedPlotId]: {
-                ...current.plots[current.claimedPlotId],
-                totalCollectedSol: round(
-                  (current.plots[current.claimedPlotId].totalCollectedSol ?? 0) + drop.reward * bonusMultiplier,
-                ),
-              },
-            }
-          : current.plots,
-        stats: {
-          ...current.stats,
-          totalEarned: round(current.stats.totalEarned + drop.reward * bonusMultiplier),
+        plots: {
+          ...current.plots,
+          [plotId]: nextPlot,
         },
-        bonusDrops: current.bonusDrops.filter((entry) => entry.id !== dropId),
-        nftInventory:
-          drop.nftId !== undefined
-            ? {
-                ...current.nftInventory,
-                [drop.nftId]: (current.nftInventory[drop.nftId] ?? 0) + 1,
-              }
-            : current.nftInventory,
-        message:
-          drop.nftId !== undefined
-            ? `Collected ${drop.label}. ${nftLabel(drop.nftId)} secured.`
-            : `Collected ${drop.label} for ${(drop.reward * bonusMultiplier).toFixed(2)} SOL.`,
+        message: `Mining ${oreNodeDisplayLabel(node.rarity)}...`,
       };
-      syncedPlot = current.claimedPlotId ? nextState.plots[current.claimedPlotId] : null;
+
+      syncedPlot = nextPlot;
+      started = true;
       return nextState;
     });
+
+    if (!started || miningDuration <= 0) {
+      return;
+    }
+
+    const existingTimer = oreMiningTimersRef.current[oreId];
+    if (existingTimer !== undefined) {
+      window.clearTimeout(existingTimer);
+    }
+
+    oreMiningTimersRef.current[oreId] = window.setTimeout(() => {
+      finishMiningOre(plotId, oreId);
+    }, miningDuration);
 
     sendSharedPlot(syncedPlot);
   }
@@ -4764,6 +4864,41 @@ function App() {
                             );
                           }),
                         )}
+                        {plot.oreNodes
+                          .filter((node) => node.despawnAt > Date.now())
+                          .map((node) => {
+                            const tileX = Number(node.tile.split(":")[0]) || 0;
+                            const tileY = Number(node.tile.split(":")[1]) || 0;
+                            const isMining = node.miningUntil !== null && node.miningUntil > Date.now();
+                            const scale = node.rarity === "large" ? 1.32 : node.rarity === "medium" ? 1.12 : 0.94;
+                            return (
+                              <button
+                                key={node.id}
+                                type="button"
+                                className={`plot-zone__ore plot-zone__ore--${node.rarity} ${isMining ? "mining" : ""}`}
+                                style={{
+                                  left: `${((tileX + 0.5) / TILE_COUNT) * 100}%`,
+                                  top: `${((tileY + 0.5) / TILE_COUNT) * 100}%`,
+                                  ["--ore-scale" as string]: scale.toString(),
+                                }}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  startMiningOre(plot.id, node.id);
+                                }}
+                                aria-label={`${isMining ? "Mining" : "Mine"} ${oreNodeDisplayLabel(node.rarity)}`}
+                              >
+                                <span className="plot-zone__ore-glow" />
+                                <img
+                                  src={ORE_ART[node.rarity]}
+                                  alt=""
+                                  className="plot-zone__ore-image"
+                                  draggable={false}
+                                />
+                                <strong>{oreNodeDisplayLabel(node.rarity)}</strong>
+                                <small>{isMining ? "Mining..." : `Tap to mine +${node.reward.toFixed(2)} SOL`}</small>
+                              </button>
+                            );
+                          })}
                       </div>
 
                       {plot.chest ? (
@@ -4780,39 +4915,6 @@ function App() {
                           <BuildingSprite type="chest" level={1} />
                         </button>
                       ) : null}
-
-                      {game.bonusDrops
-                        .filter((drop) => drop.plotId === plot.id)
-                        .map((drop) => {
-                          const locked = Date.now() < drop.readyAt;
-                          const secondsLeft = Math.max(0, Math.ceil((drop.readyAt - Date.now()) / 1000));
-                          return (
-                            <button
-                              key={drop.id}
-                              type="button"
-                              className={`plot-zone__drop plot-zone__drop--${drop.rarity} ${locked ? "locked" : "ready"}`}
-                              style={{
-                                left: `${PLOT_SIZE * 0.5}px`,
-                                top: `${PLOT_SIZE * 0.24}px`,
-                              }}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                collectBonusDrop(drop.id);
-                              }}
-                              aria-label={`${locked ? "Claim later" : "Collect"} ${drop.label}`}
-                            >
-                              <span className="plot-zone__drop-glow" />
-                              <span className="plot-zone__drop-ore">
-                                <span className="plot-zone__drop-ore-core" />
-                                <span className="plot-zone__drop-ore-chip plot-zone__drop-ore-chip--1" />
-                                <span className="plot-zone__drop-ore-chip plot-zone__drop-ore-chip--2" />
-                                <span className="plot-zone__drop-ore-chip plot-zone__drop-ore-chip--3" />
-                              </span>
-                              <strong>{drop.label}</strong>
-                              <small>{locked ? `Claim in ${secondsLeft}s` : `+${drop.reward.toFixed(2)} SOL`}</small>
-                            </button>
-                          );
-                        })}
 
                       {game.chestReveal?.plotId === plot.id ? (
                         (() => {
@@ -4892,14 +4994,16 @@ function App() {
                 ) : null}
 
                 <div className="world-hud">
-                  <span>
-                    {game.claimedPlotId ? "Your plot is active" : "Find an open plot"} •{" "}
-                    {multiplayerStatus === "online"
-                      ? `${Object.keys(remotePlayers).length} others online`
-                      : multiplayerStatus === "connecting"
-                        ? "Connecting to multiplayer"
-                        : "Multiplayer offline"}
-                  </span>
+                  <div className="world-hud__topline">
+                    <span className={`world-hud__status world-hud__status--${multiplayerStatus}`}>
+                      {multiplayerStatus === "online"
+                        ? `${Object.keys(remotePlayers).length} others online`
+                        : multiplayerStatus === "connecting"
+                          ? "Connecting to multiplayer"
+                          : "Offline preview"}
+                    </span>
+                    <span className="world-hud__objective">{worldObjective}</span>
+                  </div>
                   <strong>{game.message}</strong>
                 </div>
 

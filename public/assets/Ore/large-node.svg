@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <defs>
+    <linearGradient id="rock" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#54515f" />
+      <stop offset="100%" stop-color="#1c1f28" />
+    </linearGradient>
+    <linearGradient id="ore" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#fff6ff" />
+      <stop offset="48%" stop-color="#c57eff" />
+      <stop offset="100%" stop-color="#5f3a9e" />
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="46" rx="26" ry="12" fill="#000" opacity=".22"/>
+  <path d="M9 14h40l13 14-5 18-18 15H14L3 40l6-18z" fill="url(#rock)"/>
+  <path d="M14 20h31l8 8-3 13-13 8H16l-8-8 4-12z" fill="#6b6978"/>
+  <path d="M18 24h23l7 5-2 10-9 6H19l-7-6 3-9z" fill="url(#ore)"/>
+  <rect x="24" y="28" width="7" height="5" fill="#ffffff"/>
+  <rect x="34" y="29" width="5" height="4" fill="#f0e7ff"/>
+  <rect x="28" y="36" width="10" height="4" fill="#8f56d8"/>
+  <rect x="22" y="33" width="4" height="4" fill="#4b2b83"/>
+  <rect x="41" y="27" width="4" height="4" fill="#4b2b83"/>
+  <rect x="18" y="30" width="4" height="4" fill="#4b2b83"/>
+  <rect x="37" y="42" width="5" height="3" fill="#6e44af"/>
+  <rect x="30" y="23" width="3" height="2" fill="#ffffff"/>
+</svg>
