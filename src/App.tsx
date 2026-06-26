@@ -386,9 +386,9 @@ const BUILDABLE_ART: Partial<Record<StructureType, string>> = {
   chest: "/assets/structures/buildables/chest.svg",
 };
 const DRILL_ANIMATION_FPS = 9;
-const ORE_SPAWN_INTERVAL_MS = 20_000;
-const ORE_FIRST_SPAWN_DELAY_MS = 4_000;
-const ORE_SPAWN_CHANCE = 0.38;
+const ORE_SPAWN_INTERVAL_MS = 60_000;
+const ORE_FIRST_SPAWN_DELAY_MS = 15_000;
+const ORE_SPAWN_CHANCE = 0.25;
 const ORE_NODE_LIMIT = 2;
 const ORE_DESPAWN_MS = 2 * 60 * 60 * 1000;
 const ORE_MINING_MS: Record<OreNodeRarity, number> = {
@@ -1138,6 +1138,13 @@ function oreNodeDisplayLabel(rarity: OreNodeRarity) {
     case "large":
       return "Massive Ore Node";
   }
+}
+
+function formatMiningTime(ms: number) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}:${seconds.toString().padStart(2, "0")}` : `${seconds}s`;
 }
 
 function oreNodeWorldPosition(plot: Plot, node: OreNode) {
@@ -2936,6 +2943,7 @@ function App() {
   } | null>(null);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [placementPreview, setPlacementPreview] = useState<{ plotId: string; tile: string } | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const keysRef = useRef<Record<string, boolean>>({});
   const ignoreTileClickRef = useRef(false);
   const chestRevealTimerRef = useRef<number | null>(null);
@@ -3229,6 +3237,17 @@ function App() {
       }
     }
   }, [game.plots]);
+
+  useEffect(() => {
+    if (page !== "game") return;
+
+    setNowMs(Date.now());
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [page]);
 
   useEffect(() => {
     if (page !== "game") return;
@@ -3749,6 +3768,19 @@ function App() {
   const canPlaceActiveTool = canPlace(game.activeTool) && activeToolOwned > 0;
   const activeToolIsPurchased =
     game.claimedPlotId && canPlace(game.activeTool) && activeToolOwned > 0;
+  const minerTag = walletPublicKey?.toBase58() ?? playerName;
+  const activeMiningOre = Object.values(game.plots)
+    .flatMap((plot) => plot.oreNodes.map((node) => ({ plot, node })))
+    .find(({ node }) => node.miningBy === minerTag && node.miningUntil !== null && node.miningUntil > nowMs);
+  const activeMiningRemainingMs = activeMiningOre?.node.miningUntil
+    ? Math.max(0, activeMiningOre.node.miningUntil - nowMs)
+    : 0;
+  const activeMiningDurationMs = activeMiningOre
+    ? oreNodeMiningMs(activeMiningOre.node.rarity)
+    : 0;
+  const activeMiningProgress = activeMiningOre && activeMiningDurationMs > 0
+    ? clamp(1 - activeMiningRemainingMs / activeMiningDurationMs, 0, 1)
+    : 0;
   const hasPlacedDrill = Boolean(
     claimedPlot && Object.values(claimedPlot.structures).some((structure) => structure.type === "drill"),
   );
@@ -5815,6 +5847,20 @@ function App() {
                   </span>
                   <span className="world-hud__objective">{worldObjective}</span>
                 </div>
+                {activeMiningOre ? (
+                  <div
+                    className={`world-hud__mining world-hud__mining--${activeMiningOre.node.rarity}`}
+                    style={{ ["--mining-progress" as string]: activeMiningProgress.toString() }}
+                  >
+                    <div className="world-hud__mining-meta">
+                      <span>Mining {oreNodeDisplayLabel(activeMiningOre.node.rarity)}</span>
+                      <strong>{formatMiningTime(activeMiningRemainingMs)} left</strong>
+                    </div>
+                    <div className="world-hud__mining-track" aria-hidden="true">
+                      <span />
+                    </div>
+                  </div>
+                ) : null}
                 <strong>{game.message}</strong>
               </div>
 

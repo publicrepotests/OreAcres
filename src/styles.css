@@ -5198,6 +5198,70 @@ h1 {
   text-transform: none;
 }
 
+.world-hud__mining {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(103, 245, 211, 0.12), rgba(122, 167, 255, 0.08)),
+    rgba(4, 8, 16, 0.72);
+  border: 1px solid rgba(103, 245, 211, 0.22);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 18px rgba(103, 245, 211, 0.1);
+}
+
+.world-hud__mining-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.52rem;
+  line-height: 1.3;
+  color: #dce6ff;
+  text-transform: uppercase;
+}
+
+.world-hud__mining-meta strong {
+  margin: 0;
+  color: #ffd166;
+  white-space: nowrap;
+}
+
+.world-hud__mining-track {
+  height: 12px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(2, 6, 14, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.world-hud__mining-track span {
+  display: block;
+  width: calc(var(--mining-progress, 0) * 100%);
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, #67f5d3, #7aa7ff 54%, #ffd166),
+    #67f5d3;
+  box-shadow: 0 0 14px rgba(103, 245, 211, 0.38);
+  transition: width 240ms ease;
+}
+
+.world-hud__mining--medium {
+  border-color: rgba(103, 245, 211, 0.3);
+}
+
+.world-hud__mining--large {
+  border-color: rgba(198, 126, 255, 0.34);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 22px rgba(198, 126, 255, 0.16);
+}
+
 .world-hud strong {
   display: block;
   margin-top: 0;
