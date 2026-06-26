@@ -25,6 +25,7 @@ type PetType = "mole" | "fox" | "drake";
 
 type PetSide = "left" | "right" | "top" | "bottom";
 type AvatarFacing = "down" | "up" | "left" | "right";
+type DroneDirection = "up" | "down" | "left" | "right";
 type AvatarSkinTone = "sunlit" | "terra" | "umbra";
 type AvatarHairColor = "cocoa" | "midnight" | "neon";
 type AvatarBaseOutfit = "mint" | "ember" | "denim";
@@ -903,6 +904,17 @@ const MINING_REWARD_POOLS: Record<OreNodeRarity, MiningReward[]> = {
     { id: "pet-large", label: "Rare Pet Egg", description: "A powerful little mining buddy.", kind: "pet", rarity: "large", weight: 4, petId: "drake" },
   ],
 };
+const MINER_DRONE_DIRECTION_ART: Record<DroneDirection, string> = {
+  up: "/assets/miner-drone/Drone-back.png",
+  down: "/assets/miner-drone/Drone-front.png",
+  left: "/assets/miner-drone/Drone-left.png",
+  right: "/assets/miner-drone/Drone-right-2.png",
+};
+const MINER_DRONE_MINING_FRAMES = Array.from(
+  { length: 17 },
+  (_, index) => `/assets/miner-drone/Drone-Animation/${index + 1}.png`,
+);
+const MINER_DRONE_TRAVEL_MS = 1200;
 
 const EARNINGS_SCENARIOS: EarningsScenario[] = [
   {
@@ -1207,6 +1219,43 @@ function oreNodeWorldPosition(plot: Plot, node: OreNode) {
     x: plot.position.x + ((tileX + 0.5) / TILE_COUNT) * PLOT_SIZE,
     y: plot.position.y + PLOT_HEADER_HEIGHT + ((tileY + 0.5) / TILE_COUNT) * PLOT_BOARD_SIZE,
   };
+}
+
+function tileWorldPosition(plot: Plot, tile: string) {
+  const [tileXRaw, tileYRaw] = tile.split(":");
+  const tileX = Number(tileXRaw) || 0;
+  const tileY = Number(tileYRaw) || 0;
+  return {
+    x: plot.position.x + ((tileX + 0.5) / TILE_COUNT) * PLOT_SIZE,
+    y: plot.position.y + PLOT_HEADER_HEIGHT + ((tileY + 0.5) / TILE_COUNT) * PLOT_BOARD_SIZE,
+  };
+}
+
+function tilePercentPosition(tile: string) {
+  const [tileXRaw, tileYRaw] = tile.split(":");
+  const tileX = Number(tileXRaw) || 0;
+  const tileY = Number(tileYRaw) || 0;
+  return {
+    left: `${((tileX + 0.5) / TILE_COUNT) * 100}%`,
+    top: `${((tileY + 0.5) / TILE_COUNT) * 100}%`,
+  };
+}
+
+function droneMinerTag(ownerTag: string, tile: string) {
+  return `${ownerTag}:drone:${tile}`;
+}
+
+function droneTileFromMinerTag(miningBy: string | null) {
+  return miningBy?.includes(":drone:") ? miningBy.split(":drone:")[1] ?? null : null;
+}
+
+function droneDirection(from: { x: number; y: number }, to: { x: number; y: number }): DroneDirection {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx >= 0 ? "right" : "left";
+  }
+  return dy >= 0 ? "down" : "up";
 }
 
 function isAvatarNearOre(avatar: { x: number; y: number }, plot: Plot, node: OreNode) {
@@ -2619,6 +2668,10 @@ function StructureShopArt({
     return <DrillSpriteSheet tier={tier} mode="card" className={`item-art item-art--structure-image item-art--drill-sheet ${className}`.trim()} />;
   }
 
+  if (type === "drone") {
+    return <MinerDroneSprite direction="down" mode="card" />;
+  }
+
   const paintedArt = structurePaintedArt(type, level);
   if (paintedArt) {
     return (
@@ -2691,6 +2744,79 @@ function DrillSpriteSheet({
     >
       <img className="sprite__frame" src={frames[frame]} alt="" draggable="false" />
     </div>
+  );
+}
+
+function MinerDroneSprite({
+  direction = "down",
+  mining = false,
+  targetKey = "home",
+  mode = "world",
+}: {
+  direction?: DroneDirection;
+  mining?: boolean;
+  targetKey?: string;
+  mode?: "world" | "tile" | "card";
+}) {
+  const [frame, setFrame] = useState(0);
+  const [phase, setPhase] = useState<"idle" | "travel" | "mining" | "reverse">("idle");
+
+  useEffect(() => {
+    let timeout: number | null = null;
+    if (mining) {
+      setFrame(0);
+      setPhase("travel");
+      timeout = window.setTimeout(() => {
+        setPhase("mining");
+      }, MINER_DRONE_TRAVEL_MS);
+    } else {
+      setPhase((current) => (current === "mining" || current === "travel" ? "reverse" : "idle"));
+    }
+
+    return () => {
+      if (timeout !== null) {
+        window.clearTimeout(timeout);
+      }
+    };
+  }, [mining, targetKey]);
+
+  useEffect(() => {
+    if (phase === "idle" || phase === "travel") {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setFrame((current) => {
+        if (phase === "mining") {
+          if (current < MINER_DRONE_MINING_FRAMES.length - 2) return current + 1;
+          return current === MINER_DRONE_MINING_FRAMES.length - 2
+            ? MINER_DRONE_MINING_FRAMES.length - 1
+            : MINER_DRONE_MINING_FRAMES.length - 2;
+        }
+
+        if (current <= 0) {
+          setPhase("idle");
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 92);
+
+    return () => window.clearInterval(timer);
+  }, [phase]);
+
+  const imageSrc = phase === "mining" || phase === "reverse"
+    ? MINER_DRONE_MINING_FRAMES[frame]
+    : MINER_DRONE_DIRECTION_ART[direction];
+
+  return (
+    <img
+      className={`miner-drone miner-drone--${mode} miner-drone--${phase}`}
+      src={imageSrc}
+      alt=""
+      draggable={false}
+      aria-hidden="true"
+    />
   );
 }
 
@@ -2799,6 +2925,14 @@ function BuildingSprite({ type, level, opened }: { type: StructureType; level: n
     return <DrillSpriteSheet tier={tier} />;
   }
 
+  if (type === "drone") {
+    return (
+      <div className="sprite sprite--drone-dock">
+        <span />
+      </div>
+    );
+  }
+
   const generatedArt = structurePaintedArt(type, level);
   if (generatedArt) {
     return (
@@ -2889,17 +3023,6 @@ function BuildingSprite({ type, level, opened }: { type: StructureType; level: n
         <div className="conveyor__belt" />
         <div className="conveyor__arrow conveyor__arrow--left" />
         <div className="conveyor__arrow conveyor__arrow--right" />
-      </div>
-    );
-  }
-
-  if (type === "drone") {
-    return (
-      <div className="sprite sprite--drone">
-        <div className="drone__body" />
-        <div className="drone__eye" />
-        <div className="drone__prop drone__prop--left" />
-        <div className="drone__prop drone__prop--right" />
       </div>
     );
   }
@@ -3021,6 +3144,9 @@ function App() {
   const [tutorialAudioStatus, setTutorialAudioStatus] = useState<"idle" | "ready" | "missing" | "playing">("idle");
   const [musicEnabled, setMusicEnabled] = useState(() => {
     return window.localStorage.getItem("ore-acres-music-enabled") === "1";
+  });
+  const [hideCharacter, setHideCharacter] = useState(() => {
+    return window.localStorage.getItem("ore-acres-hide-character") === "1";
   });
   const devMode = new URLSearchParams(window.location.search).get("dev") === "1";
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -3181,6 +3307,14 @@ function App() {
     });
   }
 
+  function toggleHideCharacter() {
+    setHideCharacter((hidden) => {
+      const next = !hidden;
+      window.localStorage.setItem("ore-acres-hide-character", next ? "1" : "0");
+      return next;
+    });
+  }
+
   useEffect(() => {
     const syncWallet = () => {
       setWalletPublicKey(window.solana?.publicKey ?? null);
@@ -3328,6 +3462,29 @@ function App() {
       }
     }
   }, [game.plots]);
+
+  useEffect(() => {
+    if (page !== "game") return;
+
+    const now = Date.now();
+    for (const plot of Object.values(game.plots)) {
+      for (const node of plot.oreNodes) {
+        if (node.miningUntil === null) continue;
+
+        const remainingMs = node.miningUntil - now;
+        if (remainingMs <= 0) {
+          finishMiningOre(plot.id, node.id);
+          continue;
+        }
+
+        if (oreMiningTimersRef.current[node.id] === undefined) {
+          oreMiningTimersRef.current[node.id] = window.setTimeout(() => {
+            finishMiningOre(plot.id, node.id);
+          }, remainingMs);
+        }
+      }
+    }
+  }, [game.plots, page]);
 
   useEffect(() => {
     if (page !== "game") return;
@@ -3724,6 +3881,83 @@ function App() {
       window.clearInterval(interval);
     };
   }, [page, playerName]);
+
+  useEffect(() => {
+    if (page !== "game") return;
+
+    const ownerTag = walletPublicKey?.toBase58() ?? playerName;
+    const now = Date.now();
+    const assignments: Array<{ plotId: string; oreId: string; duration: number }> = [];
+    let syncedPlot: Plot | null = null;
+
+    setGame((current) => {
+      if (!current.claimedPlotId) return current;
+      const plot = current.plots[current.claimedPlotId];
+      if (!plot?.owner?.me) return current;
+
+      const droneTiles = Object.entries(plot.structures)
+        .filter(([, structure]) => structure.type === "drone")
+        .map(([tile]) => tile);
+      if (droneTiles.length === 0) return current;
+
+      const busyDroneTiles = new Set(
+        plot.oreNodes
+          .filter((node) => node.miningUntil !== null && node.miningUntil > now)
+          .map((node) => droneTileFromMinerTag(node.miningBy))
+          .filter((tile): tile is string => Boolean(tile)),
+      );
+      const availableDroneTiles = droneTiles.filter((tile) => !busyDroneTiles.has(tile));
+      if (availableDroneTiles.length === 0) return current;
+
+      const availableOreNodes = plot.oreNodes.filter(
+        (node) => node.despawnAt > now && node.miningUntil === null,
+      );
+      if (availableOreNodes.length === 0) return current;
+
+      const assignedByOreId = new Map<string, OreNode>();
+      availableDroneTiles.forEach((tile, index) => {
+        const node = availableOreNodes[index];
+        if (!node) return;
+
+        const duration = MINER_DRONE_TRAVEL_MS + oreNodeMiningMs(node.rarity);
+        const nextNode = {
+          ...node,
+          miningUntil: now + duration,
+          miningBy: droneMinerTag(ownerTag, tile),
+        };
+        assignedByOreId.set(node.id, nextNode);
+        assignments.push({ plotId: plot.id, oreId: node.id, duration });
+      });
+
+      if (assignedByOreId.size === 0) return current;
+
+      const nextPlot = {
+        ...plot,
+        oreNodes: plot.oreNodes.map((node) => assignedByOreId.get(node.id) ?? node),
+      };
+      syncedPlot = nextPlot;
+
+      return {
+        ...current,
+        plots: {
+          ...current.plots,
+          [plot.id]: nextPlot,
+        },
+        message: `${assignedByOreId.size === 1 ? "A mining drone is" : "Mining drones are"} extracting ore.`,
+      };
+    });
+
+    assignments.forEach(({ plotId, oreId, duration }) => {
+      if (oreMiningTimersRef.current[oreId] !== undefined) {
+        window.clearTimeout(oreMiningTimersRef.current[oreId]);
+      }
+      oreMiningTimersRef.current[oreId] = window.setTimeout(() => {
+        finishMiningOre(plotId, oreId);
+      }, duration);
+    });
+
+    sendSharedPlot(syncedPlot);
+  }, [game.plots, game.claimedPlotId, page, playerName, walletPublicKey]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -4369,7 +4603,9 @@ function App() {
       if (node.miningUntil === null || Date.now() < node.miningUntil) {
         return current;
       }
-      if (node.miningBy && node.miningBy !== (walletPublicKey?.toBase58() ?? playerName)) {
+      const ownerTag = walletPublicKey?.toBase58() ?? playerName;
+      const minedByDrone = node.miningBy?.startsWith(`${ownerTag}:drone:`);
+      if (node.miningBy && node.miningBy !== ownerTag && !minedByDrone) {
         return current;
       }
 
@@ -4431,7 +4667,7 @@ function App() {
           label: reward.label,
           detail:
             reward.kind === "sol"
-              ? `${totalSolEarned.toFixed(4)} SOL paid from reserve`
+              ? `${totalSolEarned.toFixed(6)} SOL paid from reserve`
               : reward.kind === "mints"
                 ? `${reward.mints!.toFixed(2)} test mints`
                 : reward.kind === "skin" && reward.skinId
@@ -4447,10 +4683,10 @@ function App() {
         },
         message:
           reward.kind === "sol"
-            ? `Mined ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(4)} SOL.`
+            ? `${minedByDrone ? "Drone mined" : "Mined"} ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(6)} SOL.`
             : reward.kind === "mints"
-              ? `Mined ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(4)} SOL and ${reward.mints!.toFixed(2)} test mints.`
-              : `Mined ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(4)} SOL and found ${reward.label}.`,
+              ? `${minedByDrone ? "Drone mined" : "Mined"} ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(6)} SOL and ${reward.mints!.toFixed(2)} test mints.`
+              : `${minedByDrone ? "Drone mined" : "Mined"} ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(6)} SOL and found ${reward.label}.`,
       };
       syncedPlot = nextPlot;
       return nextState;
@@ -5358,7 +5594,7 @@ function App() {
         <div className="stats">
           <div>
             <span>Idle SOL</span>
-            <strong>{game.sol.toFixed(4)}</strong>
+            <strong>{game.sol.toFixed(6)}</strong>
           </div>
           <div>
             <span>Pump.fun mint balance</span>
@@ -5386,7 +5622,7 @@ function App() {
           </div>
           <div>
             <span>Total earned</span>
-            <strong>{game.stats.totalEarned.toFixed(4)}</strong>
+            <strong>{game.stats.totalEarned.toFixed(6)}</strong>
           </div>
           <div className="stats__meter">
             <span>Reward reserve</span>
@@ -5584,6 +5820,13 @@ function App() {
             </button>
             <button
               type="button"
+              className={`ghost world-action-bar__utility ${hideCharacter ? "active" : ""}`}
+              onClick={toggleHideCharacter}
+            >
+              {hideCharacter ? "Show Char" : "Hide Char"}
+            </button>
+            <button
+              type="button"
               className={`ghost world-action-bar__utility ${musicEnabled ? "active" : ""}`}
               onClick={toggleMusic}
             >
@@ -5675,7 +5918,7 @@ function App() {
                         <strong>{plot.name}</strong>
                         <span>
                           {plot.owner ? (plot.owner.me ? "Your plot" : `${plot.owner.label}'s plot`) : "Open plot"}{" "}
-                          • {plot.totalCollectedSol.toFixed(2)} SOL total
+                          • {plot.totalCollectedSol.toFixed(6)} SOL total
                         </span>
                       </div>
 
@@ -5867,6 +6110,48 @@ function App() {
                               </button>
                             );
                           })}
+                        {Object.entries(plot.structures)
+                          .filter(([, structure]) => structure.type === "drone")
+                          .map(([tile, structure]) => {
+                            const activeDroneNode = plot.oreNodes.find(
+                              (node) =>
+                                droneTileFromMinerTag(node.miningBy) === tile &&
+                                node.miningUntil !== null &&
+                                node.miningUntil > Date.now(),
+                            );
+                            const homePosition = tileWorldPosition(plot, tile);
+                            const targetPosition = activeDroneNode
+                              ? oreNodeWorldPosition(plot, activeDroneNode)
+                              : homePosition;
+                            const targetPercent = activeDroneNode
+                              ? tilePercentPosition(activeDroneNode.tile)
+                              : tilePercentPosition(tile);
+                            const direction = activeDroneNode
+                              ? droneDirection(homePosition, targetPosition)
+                              : "down";
+
+                            return (
+                              <div
+                                key={`drone-agent-${tile}`}
+                                className={`plot-zone__drone-agent ${activeDroneNode ? "mining" : ""}`}
+                                style={{
+                                  left: targetPercent.left,
+                                  top: targetPercent.top,
+                                }}
+                                aria-hidden="true"
+                              >
+                                <MinerDroneSprite
+                                  direction={direction}
+                                  mining={Boolean(activeDroneNode)}
+                                  targetKey={activeDroneNode?.id ?? tile}
+                                  mode="world"
+                                />
+                                <span className="plot-zone__drone-label">
+                                  {activeDroneNode ? "AUTO-MINING" : structureLabel(structure)}
+                                </span>
+                              </div>
+                            );
+                          })}
                       </div>
 
                       {plot.chest ? (
@@ -5905,32 +6190,34 @@ function App() {
                         })()
                       ) : null}
 
-                      <div className="plot-zone__badge">Lifetime: {plot.totalCollectedSol.toFixed(2)} SOL</div>
+                      <div className="plot-zone__badge">Lifetime: {plot.totalCollectedSol.toFixed(6)} SOL</div>
                     </div>
                   );
                 })}
 
-                <div
-                  className="avatar-anchor"
-                  style={{
-                    left: `${game.avatar.x}px`,
-                    top: `${game.avatar.y}px`,
-                  }}
-                >
-                  <AvatarSprite
-                    moving={moving}
-                    mining={Boolean(activeMiningOre)}
-                    facing={miningFacing}
-                    avatarStyle={game.avatarStyle}
-                    pickaxeSkin={game.equippedPickaxeSkin}
-                    clothesSkin={game.equippedClothesSkin}
-                  />
-                  {game.activePet ? (
-                    <div className={`avatar-pet avatar-pet--${petSide}`}>
-                      <PetSprite type={game.activePet} />
-                    </div>
-                  ) : null}
-                </div>
+                {!hideCharacter ? (
+                  <div
+                    className="avatar-anchor"
+                    style={{
+                      left: `${game.avatar.x}px`,
+                      top: `${game.avatar.y}px`,
+                    }}
+                  >
+                    <AvatarSprite
+                      moving={moving}
+                      mining={Boolean(activeMiningOre)}
+                      facing={miningFacing}
+                      avatarStyle={game.avatarStyle}
+                      pickaxeSkin={game.equippedPickaxeSkin}
+                      clothesSkin={game.equippedClothesSkin}
+                    />
+                    {game.activePet ? (
+                      <div className={`avatar-pet avatar-pet--${petSide}`}>
+                        <PetSprite type={game.activePet} />
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {Object.values(remotePlayers).map((player) => (
                   <div
