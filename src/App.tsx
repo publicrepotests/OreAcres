@@ -336,6 +336,7 @@ const PLOT_HEADER_HEIGHT = 50;
 const PLOT_BOARD_SIZE = PLOT_SIZE - PLOT_HEADER_HEIGHT;
 const TILE_COUNT = 7;
 const TILE_SIZE = PLOT_BOARD_SIZE / TILE_COUNT;
+const SHACK_FOOTPRINT_SIZE = 2;
 const STRUCTURE_ART_ATLASES = {
   core: "/assets/shop/item-atlas.png",
   special: "/assets/shop/item-atlas-special.png",
@@ -1150,6 +1151,66 @@ function tileKey(x: number, y: number) {
   return `${x}:${y}`;
 }
 
+function parseTileKey(tile: string) {
+  const [xRaw, yRaw] = tile.split(":");
+  return {
+    x: Number(xRaw) || 0,
+    y: Number(yRaw) || 0,
+  };
+}
+
+function structureFootprintSize(type: StructureType) {
+  return type === "shack" ? SHACK_FOOTPRINT_SIZE : 1;
+}
+
+function structureFootprintTiles(anchorTile: string, type: StructureType) {
+  const { x, y } = parseTileKey(anchorTile);
+  const size = structureFootprintSize(type);
+  const tiles: string[] = [];
+  for (let offsetY = 0; offsetY < size; offsetY += 1) {
+    for (let offsetX = 0; offsetX < size; offsetX += 1) {
+      tiles.push(tileKey(x + offsetX, y + offsetY));
+    }
+  }
+  return tiles;
+}
+
+function structureFootprintFits(anchorTile: string, type: StructureType) {
+  const { x, y } = parseTileKey(anchorTile);
+  const size = structureFootprintSize(type);
+  return x >= 0 && y >= 0 && x + size <= TILE_COUNT && y + size <= TILE_COUNT;
+}
+
+function findStructureAtTile(plot: Plot, tile: string) {
+  const directStructure = plot.structures[tile];
+  if (directStructure) {
+    return { anchorTile: tile, structure: directStructure };
+  }
+
+  for (const [anchorTile, structure] of Object.entries(plot.structures)) {
+    if (structureFootprintSize(structure.type) <= 1) continue;
+    if (structureFootprintTiles(anchorTile, structure.type).includes(tile)) {
+      return { anchorTile, structure };
+    }
+  }
+
+  return null;
+}
+
+function canFitStructureAt(plot: Plot, type: StructureType, anchorTile: string, ignoreAnchorTile?: string | null) {
+  if (!structureFootprintFits(anchorTile, type)) return false;
+
+  return structureFootprintTiles(anchorTile, type).every((tile) => {
+    const occupiedByStructure = findStructureAtTile(plot, tile);
+    const occupiedByOre = plot.oreNodes.some((node) => node.tile === tile);
+
+    return (
+      (!occupiedByStructure || occupiedByStructure.anchorTile === ignoreAnchorTile) &&
+      !occupiedByOre
+    );
+  });
+}
+
 function defaultAvatarPosition() {
   return {
     x: Math.floor(WORLD_WIDTH / 2),
@@ -1268,7 +1329,9 @@ function isAvatarNearOre(avatar: { x: number; y: number }, plot: Plot, node: Ore
 
 function findOreSpawnTile(plot: Plot) {
   const occupiedTiles = new Set([
-    ...Object.keys(plot.structures),
+    ...Object.entries(plot.structures).flatMap(([tile, structure]) =>
+      structureFootprintTiles(tile, structure.type),
+    ),
     ...plot.oreNodes.map((node) => node.tile),
   ]);
   const freeTiles: string[] = [];
@@ -1633,19 +1696,19 @@ function preferredChestTiles() {
 }
 
 function findChestPlacementTile(plot: Plot, preferredTile?: string | null) {
-  if (preferredTile && !plot.structures[preferredTile]) {
+  if (preferredTile && canFitStructureAt(plot, "chest", preferredTile)) {
     return preferredTile;
   }
 
   for (const [x, y] of preferredChestTiles()) {
     const key = tileKey(x, y);
-    if (!plot.structures[key]) return key;
+    if (canFitStructureAt(plot, "chest", key)) return key;
   }
 
   for (let x = 0; x < TILE_COUNT; x += 1) {
     for (let y = 0; y < TILE_COUNT; y += 1) {
       const key = tileKey(x, y);
-      if (!plot.structures[key]) return key;
+      if (canFitStructureAt(plot, "chest", key)) return key;
     }
   }
 
@@ -1898,7 +1961,7 @@ function resolveMissionRewards(state: GameState) {
 
 function starterStructures() {
   return {
-    [tileKey(3, 3)]: { type: "shack", level: 1 },
+    [tileKey(2, 3)]: { type: "shack", level: 1 },
     [tileKey(4, 3)]: { type: "drill", level: 1 },
   } satisfies Record<string, Structure>;
 }
@@ -4079,7 +4142,7 @@ function App() {
   const emissionThrottle = reserveThrottle(rewardReserveRunwayDays);
   const selectedChest = selectedPlot.chest;
   const selectedStructure =
-    claimedPlot && game.selectedTile ? claimedPlot.structures[game.selectedTile] ?? null : null;
+    claimedPlot && game.selectedTile ? findStructureAtTile(claimedPlot, game.selectedTile)?.structure ?? null : null;
   const selectedStructureMax = selectedStructure ? maxStructureLevel(selectedStructure.type) : null;
   const nextStructureCost =
     selectedStructure && selectedStructureMax && selectedStructure.level < selectedStructureMax
@@ -4989,11 +5052,14 @@ function App() {
       const tileY = Math.max(0, Math.min(TILE_COUNT - 1, Math.floor(localY / tileHeight)));
       const key = tileKey(tileX, tileY);
 
-      if (plot.structures[key]) {
+      if (!canFitStructureAt(plot, current.activeTool, key)) {
         return {
           ...current,
           selectedTile: key,
-          message: "That tile already has a structure.",
+          message:
+            current.activeTool === "shack"
+              ? "The house needs a clear 2x2 space."
+              : "That tile is already occupied.",
         };
       }
 
@@ -5046,15 +5112,17 @@ function App() {
       const selectedTile = current.selectedTile;
       if (!selectedTile) return { ...current, message: "Select a structure first." };
 
-      const structure = plot.structures[selectedTile];
-      if (!structure) return { ...current, message: "Select a structure first." };
+      const selectedEntry = findStructureAtTile(plot, selectedTile);
+      const structure = selectedEntry?.structure;
+      if (!selectedEntry || !structure) return { ...current, message: "Select a structure first." };
       if (structure.type === "chest") {
         return { ...current, message: "That chest is fixed in place." };
       }
 
       return {
         ...current,
-        moveSource: { plotId: current.claimedPlotId, tile: selectedTile },
+        selectedTile: selectedEntry.anchorTile,
+        moveSource: { plotId: current.claimedPlotId, tile: selectedEntry.anchorTile },
         message: `Click an empty tile to move ${structureLabel(structure)}.`,
       };
     });
@@ -5085,8 +5153,14 @@ function App() {
         };
       }
 
-      if (plot.structures[toTile]) {
-        return { ...current, message: "Pick an empty tile for the move." };
+      if (!canFitStructureAt(plot, sourceStructure.type, toTile, fromTile)) {
+        return {
+          ...current,
+          message:
+            sourceStructure.type === "shack"
+              ? "Pick a clear 2x2 space for the house."
+              : "Pick an empty tile for the move.",
+        };
       }
 
       const nextStructures = { ...plot.structures };
@@ -5126,8 +5200,9 @@ function App() {
       return;
     }
 
-    const structure = plot.structures[selectedTile];
-    if (!structure) {
+    const selectedEntry = findStructureAtTile(plot, selectedTile);
+    const structure = selectedEntry?.structure;
+    if (!selectedEntry || !structure) {
       setMessage("That tile is empty.");
       return;
     }
@@ -5152,8 +5227,9 @@ function App() {
       const selectedTileNow = current.selectedTile;
       if (!selectedTileNow) return { ...current, message: "Select a structure first." };
 
-      const structureNow = plotNow.structures[selectedTileNow];
-      if (!structureNow) return { ...current, message: "That tile is empty." };
+      const selectedEntryNow = findStructureAtTile(plotNow, selectedTileNow);
+      const structureNow = selectedEntryNow?.structure;
+      if (!selectedEntryNow || !structureNow) return { ...current, message: "That tile is empty." };
 
       const maxLevelNow = maxStructureLevel(structureNow.type);
       const nextState = {
@@ -5165,7 +5241,7 @@ function App() {
             ...plotNow,
             structures: {
               ...plotNow.structures,
-              [selectedTileNow]: { ...structureNow, level: Math.min(maxLevelNow, structureNow.level + 1) },
+              [selectedEntryNow.anchorTile]: { ...structureNow, level: Math.min(maxLevelNow, structureNow.level + 1) },
             },
           },
         },
@@ -5932,14 +6008,32 @@ function App() {
                         {Array.from({ length: TILE_COUNT }).map((_, y) =>
                           Array.from({ length: TILE_COUNT }).map((__, x) => {
                             const tile = tileKey(x, y);
-                            const structure = plot.structures[tile];
+                            const structureEntry = findStructureAtTile(plot, tile);
+                            const structure = structureEntry?.structure ?? null;
+                            const structureAnchorTile = structureEntry?.anchorTile ?? null;
+                            const isStructureAnchor = structureAnchorTile === tile;
+                            const structureFootprint = structure ? structureFootprintSize(structure.type) : 1;
+                            const isReservedFootprintTile = Boolean(structure && !isStructureAnchor);
                             return (
                               <button
                                 key={tile}
-                                className={`plot-tile ${structure ? structure.type : "empty"}`}
-                                draggable={Boolean(structure && plot.owner?.me && structure.type !== "chest")}
+                                className={`plot-tile ${structure ? structure.type : "empty"} ${
+                                  isReservedFootprintTile ? "plot-tile--reserved-footprint" : ""
+                                }`}
+                                draggable={Boolean(
+                                  structure &&
+                                    plot.owner?.me &&
+                                    structure.type !== "chest",
+                                )}
                                 onMouseEnter={() => {
-                                  if (!plot.owner?.me || structure || !canPlaceActiveTool) return;
+                                  if (
+                                    !plot.owner?.me ||
+                                    structure ||
+                                    !canPlaceActiveTool ||
+                                    !canFitStructureAt(plot, game.activeTool, tile)
+                                  ) {
+                                    return;
+                                  }
                                   setPlacementPreview({ plotId: plot.id, tile });
                                 }}
                                 onMouseLeave={() => {
@@ -5966,8 +6060,11 @@ function App() {
                                     if (structure) {
                                       setGame((current) => ({
                                         ...current,
-                                        selectedTile: tile,
-                                        message: "Pick an empty tile for the move.",
+                                        selectedTile: structureAnchorTile ?? tile,
+                                        message:
+                                          structure.type === "shack"
+                                            ? "Pick a clear 2x2 space for the house."
+                                            : "Pick an empty tile for the move.",
                                       }));
                                       return;
                                     }
@@ -5979,7 +6076,7 @@ function App() {
                                   if (structure) {
                                     setGame((current) => ({
                                       ...current,
-                                      selectedTile: tile,
+                                      selectedTile: structureAnchorTile ?? tile,
                                       message: `${structureLabel(structure)} selected.`,
                                     }));
                                     return;
@@ -6005,7 +6102,14 @@ function App() {
                                 }}
                                 onPointerUp={(event) => {
                                   if (!game.moveSource || game.moveSource.plotId !== plot.id) return;
-                                  if (game.moveSource.tile === tile || structure) return;
+                                  const movingStructure = plot.structures[game.moveSource.tile];
+                                  if (
+                                    game.moveSource.tile === tile ||
+                                    !movingStructure ||
+                                    !canFitStructureAt(plot, movingStructure.type, tile, game.moveSource.tile)
+                                  ) {
+                                    return;
+                                  }
 
                                   event.stopPropagation();
                                   event.preventDefault();
@@ -6018,18 +6122,18 @@ function App() {
                                 onDragStart={(event) => {
                                   if (!structure || !plot.owner?.me || structure.type === "chest") return;
                                   event.dataTransfer.effectAllowed = "move";
-                                  event.dataTransfer.setData("text/plain", tile);
+                                  event.dataTransfer.setData("text/plain", structureAnchorTile ?? tile);
                                   setGame((current) => ({
                                     ...current,
-                                    selectedTile: tile,
-                                    moveSource: { plotId: plot.id, tile },
+                                    selectedTile: structureAnchorTile ?? tile,
+                                    moveSource: { plotId: plot.id, tile: structureAnchorTile ?? tile },
                                     message: `Drag ${structureLabel(structure)} to an empty tile.`,
                                   }));
                                 }}
                                 onDragOver={(event) => {
                                   if (!game.moveSource || !plot.owner?.me) return;
                                   event.preventDefault();
-                                  if (!structure) {
+                                  if (!structure && canFitStructureAt(plot, game.moveSource ? plot.structures[game.moveSource.tile]?.type ?? game.activeTool : game.activeTool, tile, game.moveSource?.tile)) {
                                     setPlacementPreview({ plotId: plot.id, tile });
                                   }
                                 }}
@@ -6044,10 +6148,17 @@ function App() {
                                   event.stopPropagation();
                                   setPlacementPreview(null);
 
-                                  if (structure) {
+                                  const movingStructure = plot.structures[game.moveSource.tile];
+                                  if (
+                                    !movingStructure ||
+                                    !canFitStructureAt(plot, movingStructure.type, tile, game.moveSource.tile)
+                                  ) {
                                     setGame((current) => ({
                                       ...current,
-                                      message: "Drop onto an empty tile.",
+                                      message:
+                                        movingStructure?.type === "shack"
+                                          ? "Drop onto a clear 2x2 space."
+                                          : "Drop onto an empty tile.",
                                     }));
                                     return;
                                   }
@@ -6055,19 +6166,21 @@ function App() {
                                   moveStructure(plot.id, game.moveSource.tile, tile);
                                 }}
                               >
-                                {game.selectedTile === tile && structure ? <span className="plot-tile__ring" /> : null}
+                                {isStructureAnchor && game.selectedTile === structureAnchorTile && structure ? <span className="plot-tile__ring" /> : null}
                                 {placementPreview?.plotId === plot.id && placementPreview.tile === tile && !structure ? (
                                   <span className="plot-tile__preview" />
                                 ) : null}
                                 <span className="plot-tile__soil" />
-                                {structure ? (
-                                  <div className="plot-tile__sprite">
+                                {structure && isStructureAnchor ? (
+                                  <div className={`plot-tile__sprite plot-tile__sprite--footprint-${structureFootprint}`}>
                                     <BuildingSprite type={structure.type} level={structure.level} opened={structure.opened} />
                                   </div>
+                                ) : isReservedFootprintTile ? (
+                                  <span className="plot-tile__reserved-mark" />
                                 ) : (
                                   <span className="plot-tile__spark" />
                                 )}
-                                {plotEconomy && structure?.type === "shack" ? (
+                                {plotEconomy && isStructureAnchor && structure?.type === "shack" ? (
                                   <span className="plot-tile__earnings">+{plotEconomy.income.toFixed(6)} SOL/min</span>
                                 ) : null}
                               </button>
