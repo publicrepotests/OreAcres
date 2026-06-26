@@ -3716,6 +3716,15 @@ h1 {
     min-height: 560px;
   }
 
+  .tutorial-coach,
+  .tutorial-coach--shop,
+  .tutorial-coach--market {
+    left: 10px;
+    right: 10px;
+    top: 10px;
+    width: auto;
+  }
+
   .market-overlay {
     inset: 8px;
   }
@@ -5256,6 +5265,126 @@ h1 {
   inset: 12px;
   z-index: 18;
   pointer-events: none;
+}
+
+.tutorial-coach {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  z-index: 24;
+  width: min(420px, calc(100% - 36px));
+  padding: 14px;
+  border-radius: 18px;
+  border: 2px solid rgba(103, 245, 211, 0.16);
+  background:
+    radial-gradient(circle at top left, rgba(103, 245, 211, 0.16), transparent 38%),
+    radial-gradient(circle at bottom right, rgba(255, 209, 102, 0.1), transparent 28%),
+    rgba(3, 7, 14, 0.94);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 0 0 4px rgba(0, 0, 0, 0.2) inset,
+    0 20px 64px rgba(0, 0, 0, 0.44);
+  pointer-events: auto;
+}
+
+.tutorial-coach--shop,
+.tutorial-coach--market {
+  left: auto;
+  right: 18px;
+}
+
+.tutorial-coach__progress {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.tutorial-coach__progress span {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tutorial-coach__progress span.active {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--warm));
+  box-shadow: 0 0 12px rgba(103, 245, 211, 0.22);
+}
+
+.tutorial-coach__head {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.tutorial-coach__head span,
+.tutorial-coach__objective span,
+.tutorial-coach__voice span {
+  color: var(--accent);
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tutorial-coach__head strong {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.tutorial-coach p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.48;
+}
+
+.tutorial-coach__objective,
+.tutorial-coach__voice {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.tutorial-coach__objective strong {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.tutorial-coach__voice p {
+  color: #dce6ff;
+  font-size: 0.88rem;
+}
+
+.tutorial-coach__voice-actions,
+.tutorial-coach__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.tutorial-coach__voice-actions small {
+  flex: 1 1 180px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.tutorial-coach__actions {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.tutorial-coach__actions button,
+.tutorial-coach__voice-actions button {
+  min-height: 36px;
+  padding: 0 12px;
 }
 
 .quests-overlay.open {

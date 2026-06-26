@@ -301,7 +301,7 @@ declare global {
 }
 
 const TICK_MS = 1000;
-const STARTING_SOL = 35;
+const STARTING_SOL = 0.02;
 const STARTING_MINTS = 18;
 const STARTING_REWARD_RESERVE_SOL = 250;
 const PLAYTEST_MINT_GRANT = 250;
@@ -980,14 +980,14 @@ const DEFAULT_NFT_INVENTORY: Record<string, number> = {
 };
 
 const MISSION_REWARDS: Record<MissionId, { title: string; reward: number }> = {
-  claim_plot: { title: "Claim a plot", reward: 0.05 },
-  second_drill: { title: "Place a second drill", reward: 0.1 },
-  first_upgrade: { title: "Upgrade anything once", reward: 0.1 },
-  equip_pet: { title: "Equip a pet", reward: 0.05 },
-  open_chest: { title: "Open a gacha chest", reward: 0.15 },
-  income_1: { title: "Hit 1 SOL/min", reward: 0.2 },
-  mansion: { title: "Reach mansion tier", reward: 0.35 },
-  balance_100: { title: "Hold 100 SOL", reward: 0.25 },
+  claim_plot: { title: "Claim a plot", reward: 0.001 },
+  second_drill: { title: "Place a second drill", reward: 0.0015 },
+  first_upgrade: { title: "Upgrade anything once", reward: 0.0015 },
+  equip_pet: { title: "Equip a pet", reward: 0.001 },
+  open_chest: { title: "Open a gacha chest", reward: 0.002 },
+  income_1: { title: "Reach sustainable output", reward: 0.002 },
+  mansion: { title: "Reach mansion tier", reward: 0.003 },
+  balance_100: { title: "Hold 0.10 SOL", reward: 0.0025 },
 };
 
 const MISSION_ORDER: MissionId[] = [
@@ -1003,7 +1003,19 @@ const MISSION_ORDER: MissionId[] = [
 
 const ECONOMY_SCALE = 0.0045;
 const COST_SCALE = 0.68;
-const QUEST_BOX_REWARD_SCALE = 0.03;
+const QUEST_BOX_REWARD_SCALE = 0.006;
+const USD_TO_RESERVE_SOL = 0.0025;
+const SHOP_RESERVE_BPS = 5200;
+const COSMETIC_RESERVE_BPS = 3800;
+const CHEST_RESERVE_BPS = 6500;
+const MARKETPLACE_FEE_BPS = 700;
+const MARKETPLACE_RESERVE_FEE_BPS = 500;
+const MAX_IDLE_SOL_PER_DAY = 0.004;
+const MAX_ORE_SOL_PER_DAY = 0.0015;
+const MAX_BOX_SOL_PER_DAY = 0.001;
+const MAX_OFFLINE_SECONDS = 60 * 60 * 6;
+const RESERVE_FLOOR_SOL = 25;
+const RESERVE_TARGET_RUNWAY_DAYS = 120;
 
 function isStructureType(value: unknown): value is StructureType {
   return (
@@ -1081,7 +1093,7 @@ function plotKey(x: number, y: number) {
 }
 
 function round(value: number) {
-  return Math.round(value * 100) / 100;
+  return Math.round(value * 1_000_000) / 1_000_000;
 }
 
 function pickWeightedOreRarity() {
@@ -1232,6 +1244,44 @@ function reserveHealthLabel(runwayDays: number) {
   if (runwayDays >= 7) return "Tight";
   if (runwayDays > 0) return "Critical";
   return "Depleted";
+}
+
+function reserveThrottle(runwayDays: number) {
+  if (!Number.isFinite(runwayDays)) return 0;
+  if (runwayDays >= RESERVE_TARGET_RUNWAY_DAYS) return 1;
+  if (runwayDays >= 90) return 0.82;
+  if (runwayDays >= 45) return 0.55;
+  if (runwayDays >= 21) return 0.32;
+  if (runwayDays >= 7) return 0.14;
+  if (runwayDays > 0) return 0.04;
+  return 0;
+}
+
+function cappedEmissionPerMinute(rawIncome: number, rewardReserveSol: number, dailyCap: number) {
+  if (rawIncome <= 0 || rewardReserveSol <= RESERVE_FLOOR_SOL) return 0;
+  const cappedIncome = Math.min(rawIncome, dailyCap / 1440);
+  const projectedDaily = cappedIncome * 1440;
+  const runway = reserveRunwayDays(Math.max(0, rewardReserveSol - RESERVE_FLOOR_SOL), projectedDaily);
+  return round(cappedIncome * reserveThrottle(runway));
+}
+
+function claimSolFromReserve(amount: number, reserveSol: number, dailyCap: number) {
+  if (amount <= 0 || reserveSol <= RESERVE_FLOOR_SOL) {
+    return { paid: 0, reserve: Math.max(0, reserveSol) };
+  }
+
+  const throttle = reserveThrottle(reserveRunwayDays(Math.max(0, reserveSol - RESERVE_FLOOR_SOL), dailyCap));
+  const cap = dailyCap * throttle;
+  const available = Math.max(0, reserveSol - RESERVE_FLOOR_SOL);
+  const paid = round(Math.min(amount, cap, available));
+  return {
+    paid,
+    reserve: round(Math.max(0, reserveSol - paid)),
+  };
+}
+
+function reserveContribution(usdAmount: number, bps: number) {
+  return round(usdAmount * USD_TO_RESERVE_SOL * (bps / 10_000));
 }
 
 function playtestMintCost(usdAmount: number) {
@@ -1552,6 +1602,7 @@ function computeEconomy(
   activePet?: PetType | null,
   equippedPickaxeSkin?: SkinId | null,
   equippedClothesSkin?: SkinId | null,
+  rewardReserveSol = Number.POSITIVE_INFINITY,
 ) {
   let income = 0;
   let storage = BASE_STORAGE;
@@ -1560,7 +1611,7 @@ function computeEconomy(
   const structures = plot?.structures ?? {};
 
   if (!plot) {
-    return { income, storage };
+    return { income, rawIncome: income, storage };
   }
 
   for (const key of Object.keys(structures)) {
@@ -1642,14 +1693,19 @@ function computeEconomy(
     globalMultiplier += 0.08;
   }
 
-  return { income: income * globalMultiplier * ECONOMY_SCALE, storage };
+  const rawIncome = income * globalMultiplier * ECONOMY_SCALE;
+  return {
+    income: cappedEmissionPerMinute(rawIncome, rewardReserveSol, MAX_IDLE_SOL_PER_DAY),
+    rawIncome,
+    storage,
+  };
 }
 
 function resolveMissionRewards(state: GameState) {
   let next = state;
   const claimedPlot = next.claimedPlotId ? next.plots[next.claimedPlotId] : null;
   const economy = claimedPlot
-    ? computeEconomy(claimedPlot, next.activePet, next.equippedPickaxeSkin, next.equippedClothesSkin)
+    ? computeEconomy(claimedPlot, next.activePet, next.equippedPickaxeSkin, next.equippedClothesSkin, next.rewardReserveSol)
     : null;
   const structures = claimedPlot ? Object.values(claimedPlot.structures) : [];
   const drillCount = structures.filter((structure) => structure.type === "drill").length;
@@ -1662,9 +1718,9 @@ function resolveMissionRewards(state: GameState) {
     ["first_upgrade", hasUpgradedStructure],
     ["equip_pet", hasPet],
     ["open_chest", next.stats.chestsOpened > 0],
-    ["income_1", Boolean(economy && economy.income >= 1)],
+    ["income_1", Boolean(economy && economy.rawIncome >= 0.0025)],
     ["mansion", hasMansion],
-    ["balance_100", next.sol >= 100],
+    ["balance_100", next.sol >= 0.1],
   ];
 
   const completed: string[] = [];
@@ -1672,12 +1728,13 @@ function resolveMissionRewards(state: GameState) {
 
   for (const [id, met] of missionChecks) {
     if (!met || next.missions[id]) continue;
-    const reward = MISSION_REWARDS[id].reward;
-    const mintReward = Math.max(2, Math.round(reward * 4));
+    const rewardClaim = claimSolFromReserve(MISSION_REWARDS[id].reward, next.rewardReserveSol, MAX_BOX_SOL_PER_DAY);
+    const reward = rewardClaim.paid;
+    const mintReward = next.playtestMode ? Math.max(1, Math.round(MISSION_REWARDS[id].reward * 400)) : 0;
     next = {
       ...next,
       sol: round(next.sol + reward),
-      rewardReserveSol: round(Math.max(0, next.rewardReserveSol - reward)),
+      rewardReserveSol: rewardClaim.reserve,
       mints: round(next.mints + mintReward),
       questBoxes: next.questBoxes + 1,
       missions: {
@@ -2000,12 +2057,22 @@ function loadGameState(saveKey: string): GameState {
         loaded.activePet,
         loaded.equippedPickaxeSkin,
         loaded.equippedClothesSkin,
+        loaded.rewardReserveSol,
       );
-      const offlineGain = Math.min(economy.storage, round(economy.income * offlineSeconds));
+      const cappedOfflineSeconds = Math.min(offlineSeconds, MAX_OFFLINE_SECONDS);
+      const offlinePotential = Math.min(economy.storage, round(economy.income * cappedOfflineSeconds / 60));
+      const offlineClaim = claimSolFromReserve(
+        offlinePotential,
+        loaded.rewardReserveSol,
+        MAX_IDLE_SOL_PER_DAY * (cappedOfflineSeconds / 86_400),
+      );
+      const offlineGain = offlineClaim.paid;
       if (offlineGain > 0) {
         loaded.sol = round(Math.min(loaded.sol + offlineGain, economy.storage));
-        loaded.rewardReserveSol = round(Math.max(0, loaded.rewardReserveSol - offlineGain));
-        loaded.mints = round(loaded.mints + Math.max(0.2, economy.income * 0.45) * offlineSeconds / 60);
+        loaded.rewardReserveSol = offlineClaim.reserve;
+        if (loaded.playtestMode) {
+          loaded.mints = round(loaded.mints + Math.max(0.02, economy.rawIncome * 0.08) * cappedOfflineSeconds / 60);
+        }
         loaded.plots[claimedPlot.id] = {
           ...claimedPlot,
           totalCollectedSol: round((claimedPlot.totalCollectedSol ?? 0) + offlineGain),
@@ -2878,6 +2945,117 @@ function App() {
     );
   }
 
+  const tutorialStep = TUTORIAL_STEPS[tutorialStepIndex] ?? TUTORIAL_STEPS[0];
+
+  function focusTutorialPanel(panel: TutorialPanel) {
+    setGame((current) => ({
+      ...current,
+      inventoryOpen: panel === "inventory",
+      shopOpen: panel === "shop",
+      marketOpen: panel === "market",
+      questsOpen: panel === "quests",
+    }));
+  }
+
+  function startTutorial() {
+    setTutorialStepIndex(0);
+    setTutorialOpen(true);
+    focusTutorialPanel("world");
+  }
+
+  function completeTutorial() {
+    window.localStorage.setItem("ore-acres-tutorial-complete", "1");
+    setTutorialOpen(false);
+    focusTutorialPanel("world");
+  }
+
+  function nextTutorialStep() {
+    setTutorialStepIndex((current) => {
+      if (current >= TUTORIAL_STEPS.length - 1) {
+        window.localStorage.setItem("ore-acres-tutorial-complete", "1");
+        setTutorialOpen(false);
+        focusTutorialPanel("world");
+        return current;
+      }
+      return current + 1;
+    });
+  }
+
+  function previousTutorialStep() {
+    setTutorialStepIndex((current) => Math.max(0, current - 1));
+  }
+
+  async function playTutorialVoiceover() {
+    const audio = tutorialAudioRef.current;
+    if (!audio) return;
+
+    try {
+      audio.currentTime = tutorialStep.voiceStart;
+      await audio.play();
+      setTutorialAudioStatus("playing");
+    } catch {
+      setTutorialAudioStatus("missing");
+    }
+  }
+
+  function playSynthNote(context: AudioContext, gain: GainNode, frequency: number, duration = 0.12) {
+    const oscillator = context.createOscillator();
+    const noteGain = context.createGain();
+    oscillator.type = "square";
+    oscillator.frequency.value = frequency;
+    noteGain.gain.setValueAtTime(0.0001, context.currentTime);
+    noteGain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.012);
+    noteGain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + duration);
+    oscillator.connect(noteGain);
+    noteGain.connect(gain);
+    oscillator.start();
+    oscillator.stop(context.currentTime + duration + 0.02);
+  }
+
+  function startChipMusic() {
+    if (musicEngineRef.current) {
+      void musicEngineRef.current.context.resume();
+      return;
+    }
+
+    const context = new AudioContext();
+    const gain = context.createGain();
+    gain.gain.value = 0.045;
+    gain.connect(context.destination);
+    const melody = [261.63, 329.63, 392, 493.88, 392, 329.63, 293.66, 392];
+    const bass = [130.81, 130.81, 164.81, 196, 146.83, 146.83, 196, 164.81];
+    const engine = { context, gain, timer: null as number | null, step: 0 };
+    const tick = () => {
+      const index = engine.step % melody.length;
+      playSynthNote(context, gain, melody[index], 0.11);
+      if (engine.step % 2 === 0) {
+        playSynthNote(context, gain, bass[Math.floor(engine.step / 2) % bass.length], 0.16);
+      }
+      engine.step += 1;
+    };
+    tick();
+    engine.timer = window.setInterval(tick, 210);
+    musicEngineRef.current = engine;
+  }
+
+  function stopChipMusic() {
+    const engine = musicEngineRef.current;
+    if (!engine) return;
+    if (engine.timer !== null) {
+      window.clearInterval(engine.timer);
+    }
+    void engine.context.close();
+    musicEngineRef.current = null;
+  }
+
+  function toggleMusic() {
+    setMusicEnabled((enabled) => {
+      const next = !enabled;
+      window.localStorage.setItem("ore-acres-music-enabled", next ? "1" : "0");
+      return next;
+    });
+  }
+
   useEffect(() => {
     const syncWallet = () => {
       setWalletPublicKey(window.solana?.publicKey ?? null);
@@ -2967,6 +3145,24 @@ function App() {
     window.addEventListener("keydown", closeMenus);
     return () => window.removeEventListener("keydown", closeMenus);
   }, [page]);
+
+  useEffect(() => {
+    if (!tutorialOpen || page !== "game") return;
+    focusTutorialPanel(tutorialStep.panel);
+    setTutorialAudioStatus((status) => (status === "playing" ? "ready" : status));
+  }, [page, tutorialOpen, tutorialStep.panel, tutorialStepIndex]);
+
+  useEffect(() => {
+    if (musicEnabled && page === "game") {
+      startChipMusic();
+    } else {
+      stopChipMusic();
+    }
+
+    return () => {
+      stopChipMusic();
+    };
+  }, [musicEnabled, page]);
 
   useEffect(() => {
     setGame((current) => resolveMissionRewards(current));
@@ -3256,9 +3452,13 @@ function App() {
           next.activePet,
           next.equippedPickaxeSkin,
           next.equippedClothesSkin,
+          next.rewardReserveSol,
         );
-        const nextSol = round(Math.min(next.sol + economy.income / 60, economy.storage));
-        const nextMints = round(next.mints + Math.max(0.35, economy.income * 0.45) / 60);
+        const reserveClaim = claimSolFromReserve(economy.income / 60, next.rewardReserveSol, MAX_IDLE_SOL_PER_DAY);
+        const nextSol = round(Math.min(next.sol + reserveClaim.paid, economy.storage));
+        const nextMints = next.playtestMode
+          ? round(next.mints + Math.max(0.02, economy.rawIncome * 0.08) / 60)
+          : next.mints;
         const earned = round(nextSol - next.sol);
 
         if (earned > 0) {
@@ -3272,7 +3472,7 @@ function App() {
               },
             },
             sol: nextSol,
-            rewardReserveSol: round(Math.max(0, next.rewardReserveSol - earned)),
+            rewardReserveSol: reserveClaim.reserve,
             mints: nextMints,
             stats: {
               ...next.stats,
@@ -3400,13 +3600,14 @@ function App() {
   const claimedPlot = game.claimedPlotId ? game.plots[game.claimedPlotId] : null;
   const selectedPlot = game.plots[game.selectedPlotId];
   const selectedPlotEconomy = claimedPlot
-    ? computeEconomy(claimedPlot, game.activePet, game.equippedPickaxeSkin, game.equippedClothesSkin)
+    ? computeEconomy(claimedPlot, game.activePet, game.equippedPickaxeSkin, game.equippedClothesSkin, game.rewardReserveSol)
     : null;
   const rewardReserveRunwayDays = reserveRunwayDays(
     game.rewardReserveSol,
     selectedPlotEconomy ? selectedPlotEconomy.income * 1440 : 0,
   );
   const rewardReserveHealth = reserveHealthLabel(rewardReserveRunwayDays);
+  const emissionThrottle = reserveThrottle(rewardReserveRunwayDays);
   const selectedChest = selectedPlot.chest;
   const selectedStructure =
     claimedPlot && game.selectedTile ? claimedPlot.structures[game.selectedTile] ?? null : null;
@@ -3747,6 +3948,10 @@ function App() {
       if (!current.claimedPlotId) return { ...current, message: "Claim a plot first." };
 
       const plot = current.plots[current.claimedPlotId];
+      const reserveTopUp = reserveContribution(
+        item.cost,
+        type === "chest" ? CHEST_RESERVE_BPS : SHOP_RESERVE_BPS,
+      );
 
       if (type === "chest") {
         if (plot.chest) {
@@ -3756,6 +3961,7 @@ function App() {
         const nextState = {
           ...current,
           mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+          rewardReserveSol: round(current.rewardReserveSol + reserveTopUp),
           plots: {
             ...current.plots,
             [current.claimedPlotId]: {
@@ -3773,6 +3979,7 @@ function App() {
       return {
         ...current,
         mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+        rewardReserveSol: round(current.rewardReserveSol + reserveTopUp),
         inventory: {
           ...current.inventory,
           [type]: (current.inventory[type] ?? 0) + 1,
@@ -3808,6 +4015,7 @@ function App() {
     setGame((current) => ({
       ...current,
       mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+      rewardReserveSol: round(current.rewardReserveSol + reserveContribution(item.cost, COSMETIC_RESERVE_BPS)),
       petInventory: {
         ...current.petInventory,
         [type]: 1,
@@ -3831,6 +4039,7 @@ function App() {
     setGame((current) => ({
       ...current,
       mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+      rewardReserveSol: round(current.rewardReserveSol + reserveContribution(skin.cost, COSMETIC_RESERVE_BPS)),
       skinInventory: {
         ...current.skinInventory,
         [skinId]: (current.skinInventory[skinId] ?? 0) + 1,
@@ -3918,17 +4127,18 @@ function App() {
         current.equippedClothesSkin,
         current.activePet,
       );
+      const bonusSol = reward.kind === "sol" ? reward.sol ?? 0 : 0;
+      const reserveClaim = claimSolFromReserve(baseSol + bonusSol, current.rewardReserveSol, MAX_ORE_SOL_PER_DAY);
+      const totalSolEarned = reserveClaim.paid;
       const nextPlot = {
         ...plot,
         oreNodes: plot.oreNodes.filter((entry) => entry.id !== oreId),
-        totalCollectedSol: round((plot.totalCollectedSol ?? 0) + baseSol),
+        totalCollectedSol: round((plot.totalCollectedSol ?? 0) + totalSolEarned),
       };
-      const bonusSol = reward.kind === "sol" ? reward.sol ?? 0 : 0;
-      const totalSolEarned = round(baseSol + bonusSol);
       const nextState: GameState = {
         ...current,
         sol: round(current.sol + totalSolEarned),
-        rewardReserveSol: round(Math.max(0, current.rewardReserveSol - totalSolEarned)),
+        rewardReserveSol: reserveClaim.reserve,
         mints:
           reward.kind === "mints"
             ? round(current.mints + reward.mints!)
@@ -3968,7 +4178,7 @@ function App() {
           label: reward.label,
           detail:
             reward.kind === "sol"
-              ? `${baseSol.toFixed(2)} SOL + ${reward.sol!.toFixed(2)} bonus SOL`
+              ? `${totalSolEarned.toFixed(4)} SOL paid from reserve`
               : reward.kind === "mints"
                 ? `${reward.mints!.toFixed(2)} test mints`
                 : reward.kind === "skin" && reward.skinId
@@ -3984,10 +4194,10 @@ function App() {
         },
         message:
           reward.kind === "sol"
-            ? `Mined ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(2)} SOL.`
+            ? `Mined ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(4)} SOL.`
             : reward.kind === "mints"
-              ? `Mined ${oreNodeDisplayLabel(node.rarity)} for ${baseSol.toFixed(2)} SOL and ${reward.mints!.toFixed(2)} test mints.`
-              : `Mined ${oreNodeDisplayLabel(node.rarity)} for ${baseSol.toFixed(2)} SOL and found ${reward.label}.`,
+              ? `Mined ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(4)} SOL and ${reward.mints!.toFixed(2)} test mints.`
+              : `Mined ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(4)} SOL and found ${reward.label}.`,
       };
       syncedPlot = nextPlot;
       return nextState;
@@ -4064,7 +4274,7 @@ function App() {
   function openQuestBox() {
     setGame((current) => {
       if (current.questBoxes <= 0) return { ...current, message: "You need a quest box first." };
-      const reward = QUEST_BOX_REWARDS[Math.floor(Math.random() * QUEST_BOX_REWARDS.length)];
+      const reward = pickWeightedEntry(QUEST_BOX_REWARDS);
       const next = {
         ...current,
         questBoxes: current.questBoxes - 1,
@@ -4075,11 +4285,16 @@ function App() {
       };
 
       if (reward.kind === "sol" && reward.rewardSol !== undefined) {
-        const amount = scaledReward(reward.rewardSol);
+        const reserveClaim = claimSolFromReserve(
+          scaledReward(reward.rewardSol),
+          next.rewardReserveSol,
+          MAX_BOX_SOL_PER_DAY,
+        );
+        const amount = reserveClaim.paid;
         return {
           ...next,
           sol: round(next.sol + amount),
-          rewardReserveSol: round(Math.max(0, next.rewardReserveSol - amount)),
+          rewardReserveSol: reserveClaim.reserve,
           stats: {
             ...next.stats,
             totalEarned: round(next.stats.totalEarned + amount),
@@ -4191,10 +4406,13 @@ function App() {
       if (current.sol < listing.price) {
         return { ...current, message: "Not enough SOL to buy that skin." };
       }
+      const reserveFee = round(listing.price * (MARKETPLACE_RESERVE_FEE_BPS / 10_000));
+      const burnedFee = round(listing.price * ((MARKETPLACE_FEE_BPS - MARKETPLACE_RESERVE_FEE_BPS) / 10_000));
 
       return {
         ...current,
         sol: round(current.sol - listing.price),
+        rewardReserveSol: round(current.rewardReserveSol + reserveFee),
         skinInventory:
           listing.kind === "skin"
             ? {
@@ -4210,7 +4428,7 @@ function App() {
               }
             : current.petInventory,
         marketListings: current.marketListings.filter((entry) => entry.id !== listingId),
-        message: `${marketplaceListingLabel(listing)} purchased from the marketplace.`,
+        message: `${marketplaceListingLabel(listing)} purchased. ${reserveFee.toFixed(4)} SOL to reserves, ${burnedFee.toFixed(4)} SOL sunk.`,
       };
     });
   }
@@ -4867,7 +5085,7 @@ function App() {
         <div className="stats">
           <div>
             <span>Idle SOL</span>
-            <strong>{game.sol.toFixed(2)}</strong>
+            <strong>{game.sol.toFixed(4)}</strong>
           </div>
           <div>
             <span>Pump.fun mint balance</span>
@@ -4879,7 +5097,7 @@ function App() {
           </div>
           <div>
             <span>Income</span>
-            <strong>{claimedPlotEconomy ? `${claimedPlotEconomy.income.toFixed(2)}/min` : "0.00/min"}</strong>
+            <strong>{claimedPlotEconomy ? `${claimedPlotEconomy.income.toFixed(6)}/min` : "0.000000/min"}</strong>
           </div>
           <div>
             <span>Storage</span>
@@ -4895,11 +5113,11 @@ function App() {
           </div>
           <div>
             <span>Total earned</span>
-            <strong>{game.stats.totalEarned.toFixed(2)}</strong>
+            <strong>{game.stats.totalEarned.toFixed(4)}</strong>
           </div>
           <div className="stats__meter">
             <span>Reward reserve</span>
-            <strong>{game.rewardReserveSol.toFixed(2)} SOL</strong>
+            <strong>{game.rewardReserveSol.toFixed(4)} SOL</strong>
             <div className="stats__meter-bar" aria-hidden="true">
               <div
                 className="stats__meter-fill"
@@ -4923,6 +5141,10 @@ function App() {
               {" · "}
               {rewardReserveHealth}
             </small>
+          </div>
+          <div>
+            <span>Emission throttle</span>
+            <strong>{Math.round(emissionThrottle * 100)}%</strong>
           </div>
           <div>
             <span>Quest boxes</span>
@@ -5084,6 +5306,16 @@ function App() {
                 +Mints
               </button>
             ) : null}
+            <button type="button" className="ghost world-action-bar__utility" onClick={startTutorial}>
+              Tutorial
+            </button>
+            <button
+              type="button"
+              className={`ghost world-action-bar__utility ${musicEnabled ? "active" : ""}`}
+              onClick={toggleMusic}
+            >
+              {musicEnabled ? "Music On" : "Music Off"}
+            </button>
             <button type="button" className="ghost world-action-bar__utility" onClick={resetWorld}>
               Reset
             </button>
@@ -5149,7 +5381,7 @@ function App() {
                   const owned = Boolean(plot.owner?.me);
                   const claimed = Boolean(plot.owner && !plot.owner.me);
                   const plotEconomy = owned
-                    ? computeEconomy(plot, game.activePet, game.equippedPickaxeSkin, game.equippedClothesSkin)
+                    ? computeEconomy(plot, game.activePet, game.equippedPickaxeSkin, game.equippedClothesSkin, game.rewardReserveSol)
                     : null;
                   return (
                     <div
@@ -5314,7 +5546,7 @@ function App() {
                                   <span className="plot-tile__spark" />
                                 )}
                                 {plotEconomy && structure?.type === "shack" ? (
-                                  <span className="plot-tile__earnings">+{plotEconomy.income.toFixed(2)} SOL/min</span>
+                                  <span className="plot-tile__earnings">+{plotEconomy.income.toFixed(6)} SOL/min</span>
                                 ) : null}
                               </button>
                             );
@@ -6094,6 +6326,63 @@ function App() {
                       }
                     >
                       Close
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <audio
+                ref={tutorialAudioRef}
+                src={TUTORIAL_VOICEOVER_SRC}
+                preload="metadata"
+                onCanPlay={() => setTutorialAudioStatus("ready")}
+                onError={() => setTutorialAudioStatus("missing")}
+                onEnded={() => setTutorialAudioStatus("ready")}
+              />
+
+              {tutorialOpen ? (
+                <div className={`tutorial-coach tutorial-coach--${tutorialStep.panel}`}>
+                  <div className="tutorial-coach__progress">
+                    {TUTORIAL_STEPS.map((step, index) => (
+                      <span
+                        key={step.id}
+                        className={index <= tutorialStepIndex ? "active" : ""}
+                        aria-label={`Tutorial step ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                  <div className="tutorial-coach__head">
+                    <span>{tutorialStep.eyebrow}</span>
+                    <strong>{tutorialStep.title}</strong>
+                  </div>
+                  <p>{tutorialStep.body}</p>
+                  <div className="tutorial-coach__objective">
+                    <span>Do this</span>
+                    <strong>{tutorialStep.objective}</strong>
+                  </div>
+                  <div className="tutorial-coach__voice">
+                    <span>Voiceover line</span>
+                    <p>{tutorialStep.voiceLine}</p>
+                    <div className="tutorial-coach__voice-actions">
+                      <button type="button" className="ghost" onClick={playTutorialVoiceover}>
+                        {tutorialAudioStatus === "playing" ? "Replay VO" : "Play VO"}
+                      </button>
+                      <small>
+                        {tutorialAudioStatus === "missing"
+                          ? "Drop tutorial-voiceover.mp3 into public/audio to enable playback."
+                          : `Cue starts at ${tutorialStep.voiceStart}s.`}
+                      </small>
+                    </div>
+                  </div>
+                  <div className="tutorial-coach__actions">
+                    <button type="button" className="ghost" onClick={previousTutorialStep} disabled={tutorialStepIndex === 0}>
+                      Back
+                    </button>
+                    <button type="button" className="ghost" onClick={completeTutorial}>
+                      Skip
+                    </button>
+                    <button type="button" className="primary" onClick={nextTutorialStep}>
+                      {tutorialStepIndex >= TUTORIAL_STEPS.length - 1 ? "Finish" : "Next"}
                     </button>
                   </div>
                 </div>
