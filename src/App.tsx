@@ -24,6 +24,16 @@ type StructureType =
 type PetType = "mole" | "fox" | "drake";
 
 type PetSide = "left" | "right" | "top" | "bottom";
+type AvatarFacing = "down" | "up" | "left" | "right";
+type AvatarSkinTone = "sunlit" | "terra" | "umbra";
+type AvatarHairColor = "cocoa" | "midnight" | "neon";
+type AvatarBaseOutfit = "mint" | "ember" | "denim";
+
+type AvatarStyle = {
+  skinTone: AvatarSkinTone;
+  hairColor: AvatarHairColor;
+  baseOutfit: AvatarBaseOutfit;
+};
 
 type ChestRarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
 
@@ -226,6 +236,7 @@ type GameState = {
   moveSource: { plotId: string; tile: string } | null;
   activeTool: StructureType;
   avatar: { x: number; y: number };
+  avatarStyle: AvatarStyle;
   inventory: Record<StructureType, number>;
   petInventory: Record<PetType, number>;
   activePet: PetType | null;
@@ -355,6 +366,26 @@ const PICKAXE_ART: Record<"troll_pick" | "laser_pick" | "banana_pick", string> =
   troll_pick: "/assets/cosmetics/pickaxes/troll-pick.png",
   laser_pick: "/assets/cosmetics/pickaxes/laser-pick.png",
   banana_pick: "/assets/cosmetics/pickaxes/banana-pick.png",
+};
+const AVATAR_STYLE_DEFAULT: AvatarStyle = {
+  skinTone: "sunlit",
+  hairColor: "cocoa",
+  baseOutfit: "mint",
+};
+const AVATAR_SKIN_TONES: Record<AvatarSkinTone, { label: string; base: string; shade: string }> = {
+  sunlit: { label: "Sunlit", base: "#ffdcbc", shade: "#d99164" },
+  terra: { label: "Terra", base: "#c98355", shade: "#7a4632" },
+  umbra: { label: "Umbra", base: "#8b5a42", shade: "#3d241c" },
+};
+const AVATAR_HAIR_COLORS: Record<AvatarHairColor, { label: string; base: string; shade: string }> = {
+  cocoa: { label: "Cocoa", base: "#3b241b", shade: "#21120d" },
+  midnight: { label: "Midnight", base: "#182037", shade: "#070a12" },
+  neon: { label: "Neon", base: "#67f5d3", shade: "#1e8db5" },
+};
+const AVATAR_BASE_OUTFITS: Record<AvatarBaseOutfit, { label: string; base: string; shade: string }> = {
+  mint: { label: "Mint", base: "#67f5d3", shade: "#238e83" },
+  ember: { label: "Ember", base: "#ffd166", shade: "#d96a27" },
+  denim: { label: "Denim", base: "#7aa7ff", shade: "#243a78" },
 };
 const HOME_ART = {
   1: "/assets/structures/homes/tier1-shack.png",
@@ -1046,6 +1077,18 @@ function isPetType(value: unknown): value is PetType {
   return value === "mole" || value === "fox" || value === "drake";
 }
 
+function isAvatarSkinTone(value: unknown): value is AvatarSkinTone {
+  return value === "sunlit" || value === "terra" || value === "umbra";
+}
+
+function isAvatarHairColor(value: unknown): value is AvatarHairColor {
+  return value === "cocoa" || value === "midnight" || value === "neon";
+}
+
+function isAvatarBaseOutfit(value: unknown): value is AvatarBaseOutfit {
+  return value === "mint" || value === "ember" || value === "denim";
+}
+
 function isSkinId(value: unknown): value is SkinId {
   return (
     value === "troll_pick" ||
@@ -1055,6 +1098,15 @@ function isSkinId(value: unknown): value is SkinId {
     value === "cyber_jacket" ||
     value === "astronaut_fit"
   );
+}
+
+function normalizeAvatarStyle(raw: unknown): AvatarStyle {
+  const candidate = raw && typeof raw === "object" ? raw as Partial<AvatarStyle> : {};
+  return {
+    skinTone: isAvatarSkinTone(candidate.skinTone) ? candidate.skinTone : AVATAR_STYLE_DEFAULT.skinTone,
+    hairColor: isAvatarHairColor(candidate.hairColor) ? candidate.hairColor : AVATAR_STYLE_DEFAULT.hairColor,
+    baseOutfit: isAvatarBaseOutfit(candidate.baseOutfit) ? candidate.baseOutfit : AVATAR_STYLE_DEFAULT.baseOutfit,
+  };
 }
 
 function isPickaxeSkinId(value: SkinId): value is "troll_pick" | "laser_pick" | "banana_pick" {
@@ -1842,6 +1894,7 @@ function createInitialState(): GameState {
     moveSource: null,
     activeTool: "drill",
     avatar: defaultAvatarPosition(),
+    avatarStyle: { ...AVATAR_STYLE_DEFAULT },
     inventory: {
       shack: 0,
       drill: 0,
@@ -2042,6 +2095,7 @@ function loadGameState(saveKey: string): GameState {
               y: clamp(Math.floor(parsed.avatar.y), 0, WORLD_HEIGHT),
             }
           : fallback.avatar,
+      avatarStyle: normalizeAvatarStyle(parsed.avatarStyle),
       inventory: { ...fallback.inventory, ...(parsed.inventory ?? {}) },
       petInventory: { ...DEFAULT_PET_INVENTORY, ...(parsed.petInventory ?? {}) },
       activePet: isPetType(parsed.activePet) ? parsed.activePet : null,
@@ -2141,6 +2195,7 @@ function gameDigest(state: GameState, wallet: PublicKey | null) {
     rewardReserveSol: round(state.rewardReserveSol),
     claimedPlotId: state.claimedPlotId,
     activePet: state.activePet,
+    avatarStyle: state.avatarStyle,
     petInventory: state.petInventory,
     missions: state.missions,
     stats: state.stats,
@@ -2487,30 +2542,62 @@ function AvatarSprite({
   moving,
   pickaxeSkin,
   clothesSkin,
+  avatarStyle = AVATAR_STYLE_DEFAULT,
+  facing = "down",
   variant = "local",
 }: {
   moving: boolean;
   pickaxeSkin?: SkinId | null;
   clothesSkin?: SkinId | null;
+  avatarStyle?: AvatarStyle;
+  facing?: AvatarFacing;
   variant?: "local" | "remote";
 }) {
+  const tone = AVATAR_SKIN_TONES[avatarStyle.skinTone];
+  const hair = AVATAR_HAIR_COLORS[avatarStyle.hairColor];
+  const outfit = AVATAR_BASE_OUTFITS[avatarStyle.baseOutfit];
+
   return (
       <div
       className={[
         "avatar",
         moving ? "avatar--moving" : "",
+        `avatar--facing-${facing}`,
         variant === "remote" ? "avatar--remote" : "",
         pickaxeSkin ? `avatar--pickaxe-${pickaxeSkin}` : "",
         clothesSkin ? `avatar--clothes-${clothesSkin}` : "",
       ]
         .filter(Boolean)
         .join(" ")}
+      style={{
+        ["--avatar-skin" as string]: tone.base,
+        ["--avatar-skin-shade" as string]: tone.shade,
+        ["--avatar-hair" as string]: hair.base,
+        ["--avatar-hair-shade" as string]: hair.shade,
+        ["--avatar-outfit" as string]: outfit.base,
+        ["--avatar-outfit-shade" as string]: outfit.shade,
+      }}
     >
       <div className="avatar__shadow" />
-      <div className="avatar__head" />
-      <div className="avatar__body" />
-      <div className="avatar__legs" />
+      <div className="avatar__legs">
+        <span className="avatar__leg avatar__leg--left" />
+        <span className="avatar__leg avatar__leg--right" />
+      </div>
+      <div className="avatar__body">
+        <span className="avatar__shirt-detail" />
+        <span className="avatar__arm avatar__arm--left" />
+        <span className="avatar__arm avatar__arm--right" />
+      </div>
+      <div className="avatar__head">
+        <span className="avatar__hair" />
+        <span className="avatar__face">
+          <i className="avatar__eye avatar__eye--left" />
+          <i className="avatar__eye avatar__eye--right" />
+          <i className="avatar__mouth" />
+        </span>
+      </div>
       <div className="avatar__tool" />
+      <div className="avatar__aura" />
     </div>
   );
 }
@@ -2901,6 +2988,7 @@ function App() {
   );
   const [walletMessage, setWalletMessage] = useState("");
   const [moving, setMoving] = useState(false);
+  const [avatarFacing, setAvatarFacing] = useState<AvatarFacing>("down");
   const [petSide, setPetSide] = useState<PetSide>("right");
   const [jackpotReveal, setJackpotReveal] = useState<ChestReward | null>(null);
   const [shopFilter, setShopFilter] = useState<ShopItem["category"] | "all">("all");
@@ -3683,6 +3771,7 @@ function App() {
       if (dx !== 0 || dy !== 0) {
         const speed = 180;
         setPetSide(petSideForMovement(dx, dy));
+        setAvatarFacing(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up");
         setMoving(true);
         setGame((current) => {
           const nextX = Math.max(0, Math.min(WORLD_WIDTH, current.avatar.x + dx * speed * dt));
@@ -4601,6 +4690,26 @@ function App() {
         message: `${skin.label} equipped.`,
       };
     });
+  }
+
+  function unequipSkin(category: SkinCategory) {
+    setGame((current) => ({
+      ...current,
+      equippedPickaxeSkin: category === "pickaxe" ? null : current.equippedPickaxeSkin,
+      equippedClothesSkin: category === "clothes" ? null : current.equippedClothesSkin,
+      message: `${category === "pickaxe" ? "Pickaxe" : "Outfit"} cosmetic removed.`,
+    }));
+  }
+
+  function updateAvatarStyle(nextStyle: Partial<AvatarStyle>) {
+    setGame((current) => ({
+      ...current,
+      avatarStyle: {
+        ...current.avatarStyle,
+        ...nextStyle,
+      },
+      message: "Character style updated.",
+    }));
   }
 
   function placeStructure(plotId: string, clientX: number, clientY: number, element: HTMLElement) {
@@ -5792,6 +5901,8 @@ function App() {
                 >
                   <AvatarSprite
                     moving={moving}
+                    facing={avatarFacing}
+                    avatarStyle={game.avatarStyle}
                     pickaxeSkin={game.equippedPickaxeSkin}
                     clothesSkin={game.equippedClothesSkin}
                   />
@@ -6039,6 +6150,70 @@ function App() {
                         </button>
                       </div>
 
+                      <div className="overlay-panel__subhead">Character</div>
+                      <div className="character-customizer">
+                        <div className="character-customizer__preview">
+                          <AvatarSprite
+                            moving
+                            facing="down"
+                            avatarStyle={game.avatarStyle}
+                            pickaxeSkin={game.equippedPickaxeSkin}
+                            clothesSkin={game.equippedClothesSkin}
+                          />
+                          <span>Live miner preview</span>
+                        </div>
+                        <div className="character-customizer__groups">
+                          <div className="character-customizer__group">
+                            <strong>Skin</strong>
+                            <div className="character-customizer__options">
+                              {(Object.entries(AVATAR_SKIN_TONES) as Array<[AvatarSkinTone, typeof AVATAR_SKIN_TONES[AvatarSkinTone]]>).map(([id, option]) => (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  className={`swatch-button ${game.avatarStyle.skinTone === id ? "active" : ""}`}
+                                  onClick={() => updateAvatarStyle({ skinTone: id })}
+                                >
+                                  <span style={{ background: `linear-gradient(180deg, ${option.base}, ${option.shade})` }} />
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="character-customizer__group">
+                            <strong>Hair</strong>
+                            <div className="character-customizer__options">
+                              {(Object.entries(AVATAR_HAIR_COLORS) as Array<[AvatarHairColor, typeof AVATAR_HAIR_COLORS[AvatarHairColor]]>).map(([id, option]) => (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  className={`swatch-button ${game.avatarStyle.hairColor === id ? "active" : ""}`}
+                                  onClick={() => updateAvatarStyle({ hairColor: id })}
+                                >
+                                  <span style={{ background: `linear-gradient(180deg, ${option.base}, ${option.shade})` }} />
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="character-customizer__group">
+                            <strong>Fit</strong>
+                            <div className="character-customizer__options">
+                              {(Object.entries(AVATAR_BASE_OUTFITS) as Array<[AvatarBaseOutfit, typeof AVATAR_BASE_OUTFITS[AvatarBaseOutfit]]>).map(([id, option]) => (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  className={`swatch-button ${game.avatarStyle.baseOutfit === id ? "active" : ""}`}
+                                  onClick={() => updateAvatarStyle({ baseOutfit: id })}
+                                >
+                                  <span style={{ background: `linear-gradient(180deg, ${option.base}, ${option.shade})` }} />
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
                       <div className="overlay-panel__subhead">Cosmetics</div>
                       <div className="inventory-list inventory-list--skins">
                         {SKIN_ITEMS.map((skin) => {
@@ -6061,11 +6236,15 @@ function App() {
                                     className="ghost inventory-item__action inventory-item__action--equip"
                                     onClick={(event) => {
                                       event.stopPropagation();
-                                      equipSkin(skin.id);
+                                      if (active) {
+                                        unequipSkin(skin.category);
+                                      } else {
+                                        equipSkin(skin.id);
+                                      }
                                     }}
                                     disabled={count <= 0}
                                   >
-                                    {active ? "Equipped" : "Equip"}
+                                    {active ? "Unequip" : "Equip"}
                                   </button>
                                   <button
                                     type="button"

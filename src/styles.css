@@ -2670,14 +2670,31 @@ h1 {
   box-shadow: 0 0 18px rgba(255, 107, 214, 0.22);
 }
 
+.avatar--clothes-aura_hoodie .avatar__aura {
+  opacity: 1;
+  background: radial-gradient(circle, rgba(255, 107, 214, 0.2), transparent 70%);
+  animation: avatarAura 1.8s ease-in-out infinite;
+}
+
 .avatar--clothes-cyber_jacket .avatar__body {
   background: linear-gradient(180deg, #67f5d3, #1e8db5);
   box-shadow: 0 0 18px rgba(103, 245, 211, 0.2);
 }
 
+.avatar--clothes-cyber_jacket .avatar__shirt-detail {
+  background: linear-gradient(180deg, #fff8b3, #67f5d3);
+  box-shadow: 0 0 8px rgba(103, 245, 211, 0.6);
+}
+
 .avatar--clothes-astronaut_fit .avatar__body {
   background: linear-gradient(180deg, #eaf2ff, #8aa8d6);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.avatar--clothes-astronaut_fit .avatar__head {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.36),
+    0 0 0 2px rgba(234, 242, 255, 0.2);
 }
 
 .avatar--clothes-aura_hoodie .avatar__head,
@@ -3014,6 +3031,102 @@ h1 {
   background-repeat: no-repeat;
   background-color: transparent;
   filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.28));
+}
+
+.character-customizer {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.45fr) minmax(0, 1.55fr);
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(103, 245, 211, 0.12), transparent 38%),
+    linear-gradient(135deg, rgba(12, 22, 34, 0.95), rgba(6, 10, 18, 0.94));
+  border: 1px solid rgba(103, 245, 211, 0.16);
+}
+
+.character-customizer__preview {
+  min-height: 112px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
+    rgba(4, 8, 16, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.character-customizer__preview .avatar {
+  transform: scale(1.9);
+}
+
+.character-customizer__preview .avatar--moving {
+  animation: avatarWalkBobPreview 0.6s ease-in-out infinite;
+}
+
+.character-customizer__preview > span {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.48rem;
+  color: #aecdff;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.character-customizer__groups {
+  display: grid;
+  gap: 10px;
+}
+
+.character-customizer__group {
+  display: grid;
+  gap: 6px;
+}
+
+.character-customizer__group > strong {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.52rem;
+  color: #f5f7ff;
+  text-transform: uppercase;
+}
+
+.character-customizer__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.swatch-button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #dce6ff;
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.48rem;
+  cursor: pointer;
+}
+
+.swatch-button:hover,
+.swatch-button.active {
+  border-color: rgba(103, 245, 211, 0.5);
+  background: rgba(103, 245, 211, 0.12);
+  color: #fff;
+}
+
+.swatch-button span {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
 .shop-card__icon--pet {
@@ -3483,6 +3596,111 @@ h1 {
   }
   50% {
     transform: translateY(-3px);
+  }
+}
+
+@keyframes avatarIdle {
+  0%,
+  100% {
+    transform: scale(1.18) translateY(0);
+  }
+  50% {
+    transform: scale(1.18) translateY(-1px);
+  }
+}
+
+@keyframes avatarWalkBob {
+  0%,
+  100% {
+    transform: scale(1.18) translateY(0);
+  }
+  50% {
+    transform: scale(1.18) translateY(-3px);
+  }
+}
+
+@keyframes avatarWalkBobPreview {
+  0%,
+  100% {
+    transform: scale(1.9) translateY(0);
+  }
+  50% {
+    transform: scale(1.9) translateY(-3px);
+  }
+}
+
+@keyframes avatarShadow {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: scaleX(1);
+  }
+  50% {
+    opacity: 0.18;
+    transform: scaleX(0.82);
+  }
+}
+
+@keyframes avatarBlink {
+  0%,
+  94%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes avatarStepLeft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes avatarStepRight {
+  0%,
+  100% {
+    transform: translateY(-3px);
+  }
+  50% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes avatarArmLeft {
+  0%,
+  100% {
+    transform: rotate(12deg);
+  }
+  50% {
+    transform: rotate(-16deg);
+  }
+}
+
+@keyframes avatarArmRight {
+  0%,
+  100% {
+    transform: rotate(-16deg);
+  }
+  50% {
+    transform: rotate(12deg);
+  }
+}
+
+@keyframes avatarAura {
+  0%,
+  100% {
+    opacity: 0.52;
+    transform: translateX(-50%) scale(0.92);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateX(-50%) scale(1.08);
   }
 }
 
@@ -4995,74 +5213,226 @@ h1 {
 
 .avatar {
   position: relative;
-  width: 20px;
-  height: 28px;
+  width: 26px;
+  height: 34px;
   z-index: 7;
-  transform: scale(1.38);
+  transform: scale(1.18);
   transform-origin: center center;
   filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.45)) drop-shadow(0 0 10px rgba(255, 255, 255, 0.08));
+  animation: avatarIdle 1.8s ease-in-out infinite;
 }
 
 .avatar__shadow {
   position: absolute;
-  left: 2px;
-  right: 2px;
+  left: 3px;
+  right: 3px;
   bottom: 0;
-  height: 6px;
+  height: 7px;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.3);
   filter: blur(2px);
+  animation: avatarShadow 1.8s ease-in-out infinite;
 }
 
 .avatar__head,
 .avatar__body,
 .avatar__legs,
-.avatar__tool {
+.avatar__tool,
+.avatar__aura {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
 }
 
 .avatar__head {
-  top: 0;
-  width: 12px;
-  height: 10px;
-  border-radius: 3px;
-  background: #ffd6b0;
-  box-shadow: inset 0 0 0 1px rgba(83, 48, 29, 0.45);
+  top: 1px;
+  width: 16px;
+  height: 14px;
+  border-radius: 6px 6px 5px 5px;
+  background: linear-gradient(180deg, var(--avatar-skin, #ffdcbc), var(--avatar-skin-shade, #d99164));
+  box-shadow:
+    inset 0 0 0 1px rgba(83, 48, 29, 0.45),
+    inset 0 -2px 0 rgba(122, 68, 40, 0.18);
+  z-index: 4;
+}
+
+.avatar__hair {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: -1px;
+  height: 6px;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(180deg, var(--avatar-hair, #3b241b), var(--avatar-hair-shade, #21120d));
+}
+
+.avatar__face {
+  position: absolute;
+  inset: 5px 3px 2px;
+}
+
+.avatar__eye {
+  position: absolute;
+  top: 1px;
+  width: 2px;
+  height: 3px;
+  border-radius: 999px;
+  background: #1a1010;
+  animation: avatarBlink 4.4s steps(1) infinite;
+}
+
+.avatar__eye--left { left: 2px; }
+.avatar__eye--right { right: 2px; }
+
+.avatar__mouth {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 4px;
+  height: 1px;
+  transform: translateX(-50%);
+  background: rgba(82, 38, 30, 0.72);
+  border-radius: 999px;
 }
 
 .avatar__body {
-  top: 9px;
-  width: 14px;
-  height: 10px;
-  border-radius: 4px;
-  background: linear-gradient(180deg, #67f5d3, #2aa88f);
-  box-shadow: inset 0 0 0 1px rgba(7, 27, 31, 0.46);
+  top: 14px;
+  width: 18px;
+  height: 13px;
+  border-radius: 6px 6px 4px 4px;
+  background: linear-gradient(180deg, var(--avatar-outfit, #67f5d3), var(--avatar-outfit-shade, #238e83));
+  box-shadow:
+    inset 0 0 0 1px rgba(7, 27, 31, 0.46),
+    inset 0 -3px 0 rgba(3, 11, 18, 0.15);
+  z-index: 3;
 }
 
 .avatar__legs {
-  top: 18px;
-  width: 14px;
+  top: 25px;
+  width: 18px;
   height: 8px;
+  z-index: 2;
+}
+
+.avatar__leg,
+.avatar__arm,
+.avatar__shirt-detail {
+  position: absolute;
+  display: block;
+}
+
+.avatar__leg {
+  top: 0;
+  width: 7px;
+  height: 8px;
+  border-radius: 2px 2px 3px 3px;
   background: linear-gradient(180deg, #2a3451, #182037);
-  clip-path: polygon(0 0, 45% 0, 45% 100%, 0 100%, 0 45%, 100% 45%, 100% 100%, 55% 100%, 55% 0, 100% 0);
   box-shadow: inset 0 0 0 1px rgba(6, 9, 17, 0.34);
 }
 
+.avatar__leg--left { left: 1px; }
+.avatar__leg--right { right: 1px; }
+
+.avatar__arm {
+  top: 2px;
+  width: 5px;
+  height: 11px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--avatar-skin, #ffd6b0), var(--avatar-skin-shade, #bd7655));
+  box-shadow: inset 0 0 0 1px rgba(73, 39, 27, 0.25);
+}
+
+.avatar__arm--left {
+  left: -3px;
+  transform-origin: top center;
+}
+
+.avatar__arm--right {
+  right: -3px;
+  transform-origin: top center;
+}
+
+.avatar__shirt-detail {
+  left: 50%;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .avatar__tool {
-  top: 8px;
-  left: 100%;
-  width: 12px;
-  height: 12px;
-  transform: translateX(-3px) rotate(-15deg);
+  top: 12px;
+  left: 104%;
+  width: 15px;
+  height: 15px;
+  transform: translateX(-3px) rotate(-18deg);
   background-position: center;
   background-repeat: no-repeat;
   background-size: contain;
+  z-index: 5;
+  transform-origin: 35% 80%;
+}
+
+.avatar__aura {
+  top: 3px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(103, 245, 211, 0.12), transparent 70%);
+  opacity: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .avatar--moving {
-  animation: hop 0.18s ease-in-out;
+  animation: avatarWalkBob 0.42s ease-in-out infinite;
+}
+
+.avatar--moving .avatar__leg--left {
+  animation: avatarStepLeft 0.42s ease-in-out infinite;
+}
+
+.avatar--moving .avatar__leg--right {
+  animation: avatarStepRight 0.42s ease-in-out infinite;
+}
+
+.avatar--moving .avatar__arm--left {
+  animation: avatarArmLeft 0.42s ease-in-out infinite;
+}
+
+.avatar--moving .avatar__arm--right,
+.avatar--moving .avatar__tool {
+  animation: avatarArmRight 0.42s ease-in-out infinite;
+}
+
+.avatar--facing-left .avatar__tool {
+  left: -4px;
+  transform: scaleX(-1) rotate(-18deg);
+}
+
+.avatar--facing-up .avatar__face {
+  opacity: 0;
+}
+
+.avatar--facing-up .avatar__hair {
+  height: 9px;
+  border-radius: 7px 7px 5px 5px;
+}
+
+.avatar--facing-up .avatar__tool {
+  left: 0;
+  top: 11px;
+  transform: rotate(26deg);
+}
+
+.avatar--facing-down .avatar__tool {
+  left: 104%;
+}
+
+.avatar--facing-right .avatar__tool {
+  left: 104%;
 }
 
 .neighbor {
