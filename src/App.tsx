@@ -1,10 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
-import {
-  createTransferCheckedInstruction,
-  getAssociatedTokenAddress,
-  getMint,
-} from "@solana/spl-token";
+import type { PublicKey, Transaction } from "@solana/web3.js";
 
 type StructureType =
   | "shack"
@@ -1529,7 +1524,7 @@ function createInitialState(): GameState {
     marketListings: seededMarketListings(),
     nftInventory: { ...DEFAULT_NFT_INVENTORY },
     questBoxes: 0,
-    inventoryOpen: true,
+    inventoryOpen: false,
     shopOpen: false,
     marketOpen: false,
     questsOpen: false,
@@ -1710,7 +1705,7 @@ function loadGameState(saveKey: string): GameState {
         : seededMarketListings(),
       nftInventory: { ...DEFAULT_NFT_INVENTORY, ...(parsed.nftInventory ?? {}) },
       questBoxes: typeof parsed.questBoxes === "number" ? parsed.questBoxes : 0,
-      inventoryOpen: typeof parsed.inventoryOpen === "boolean" ? parsed.inventoryOpen : fallback.inventoryOpen,
+      inventoryOpen: false,
       proof: typeof parsed.proof === "string" ? parsed.proof : "",
       message: typeof parsed.message === "string" ? parsed.message : fallback.message,
       shopOpen: false,
@@ -2637,7 +2632,11 @@ function App() {
 
   useEffect(() => {
     const saveState = { ...game, chestReveal: null, lastUpdatedAt: Date.now() };
-    window.localStorage.setItem(saveKey, JSON.stringify(saveState));
+    const timeout = window.setTimeout(() => {
+      window.localStorage.setItem(saveKey, JSON.stringify(saveState));
+    }, 250);
+
+    return () => window.clearTimeout(timeout);
   }, [game, saveKey]);
 
   useEffect(() => {
@@ -3238,6 +3237,11 @@ function App() {
       return null;
     }
 
+    const [{ Connection, PublicKey, Transaction }, splToken] = await Promise.all([
+      import("@solana/web3.js"),
+      import("@solana/spl-token"),
+    ]);
+    const { createTransferCheckedInstruction, getAssociatedTokenAddress, getMint } = splToken;
     const connection = new Connection(SOLANA_RPC_URL, "confirmed");
     const mint = new PublicKey(quote.mintAddress);
 
