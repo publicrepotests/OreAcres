@@ -471,10 +471,10 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "shop",
     eyebrow: "Step 3",
     title: "Buy Buildables",
-    body: "Open the Shop to buy storage, boosters, automation, decor, and chests. Playtest mode gives test mints so you can try everything before the token is live.",
+    body: "Open the Shop to buy boosters, automation, prestige decor, pets, and cosmetics. Playtest mode gives test mints so you can try everything before the token is live.",
     objective: "Open Shop, buy an item, then place it from Inventory.",
     voiceLine:
-      "The shop is where the tycoon layer starts. Buy storage, boosters, automation, cosmetics, and special chests with the game token.",
+      "The shop is where the tycoon layer starts. Buy boosters, automation, cosmetics, and prestige items with the game token.",
     panel: "shop",
     voiceStart: 18,
   },
@@ -599,46 +599,11 @@ const PET_ART_SLOTS: Record<PetType, CosmeticArtSlot> = {
 
 const SHOP_ITEMS: ShopItem[] = [
   {
-    id: "storage",
-    label: "Ore Shed",
-    description: "Raises your storage cap.",
-    cost: 1.25,
-    category: "utility",
-  },
-  {
     id: "relay",
     label: "Power Relay",
     description: "Boosts nearby drills.",
     cost: 1.75,
     category: "utility",
-  },
-  {
-    id: "solar",
-    label: "Solar Array",
-    description: "Gives nearby drills a small output boost.",
-    cost: 1.75,
-    category: "power",
-  },
-  {
-    id: "battery",
-    label: "Battery Bank",
-    description: "Adds storage and protects your idle gains.",
-    cost: 2.25,
-    category: "power",
-  },
-  {
-    id: "cooling",
-    label: "Cooling Fan",
-    description: "Keeps nearby drills efficient.",
-    cost: 1.5,
-    category: "power",
-  },
-  {
-    id: "conveyor",
-    label: "Conveyor Belt",
-    description: "Helps output move faster across the plot.",
-    cost: 1.65,
-    category: "automation",
   },
   {
     id: "drone",
@@ -655,39 +620,11 @@ const SHOP_ITEMS: ShopItem[] = [
     category: "automation",
   },
   {
-    id: "refinery",
-    label: "Refinery",
-    description: "Turns raw output into better yield.",
-    cost: 3.5,
-    category: "automation",
-  },
-  {
-    id: "decor",
-    label: "Lantern Post",
-    description: "A small glowing decor item.",
-    cost: 0.55,
-    category: "decor",
-  },
-  {
-    id: "shop",
-    label: "Build Kiosk",
-    description: "A little plot shop stand.",
-    cost: 1.25,
-    category: "build",
-  },
-  {
     id: "vault",
     label: "Vault",
     description: "Adds serious storage and a little flex.",
     cost: 3.25,
     category: "utility",
-  },
-  {
-    id: "neon",
-    label: "Neon Sign",
-    description: "Pure style with a tiny morale bump.",
-    cost: 0.75,
-    category: "decor",
   },
   {
     id: "statue",
@@ -696,40 +633,16 @@ const SHOP_ITEMS: ShopItem[] = [
     cost: 0.95,
     category: "decor",
   },
-  {
-    id: "sign",
-    label: "Billboard",
-    description: "Showcase your brand and flex your plot.",
-    cost: 0.65,
-    category: "decor",
-  },
-  {
-    id: "chest",
-    label: "Gacha Chest",
-    description: "A massive mystery chest that bursts open with a reveal.",
-    cost: 9,
-    category: "special",
-  },
 ];
 
 const INVENTORY_TYPES: StructureType[] = [
-  "storage",
   "relay",
-  "decor",
-  "shop",
-  "solar",
-  "battery",
-  "cooling",
-  "conveyor",
   "drone",
   "scanner",
-  "refinery",
   "vault",
-  "neon",
   "statue",
-  "sign",
-  "chest",
 ];
+const SHOP_FILTERS = ["all", "utility", "automation", "decor"] as const;
 const CORE_TYPES: StructureType[] = ["shack", "drill"];
 
 const PET_ITEMS: PetItem[] = [
@@ -978,7 +891,7 @@ const ROADMAP: RoadmapItem[] = [
   {
     phase: "Phase 4",
     title: "Seasonal raids and on-chain rewards",
-    copy: "Timed world events, special chests, seasonal land cosmetics, and collectible rewards.",
+    copy: "Timed world events, rare ore surges, seasonal land cosmetics, and collectible rewards.",
     status: "Next",
   },
   {
@@ -1033,7 +946,7 @@ const MISSION_REWARDS: Record<MissionId, { title: string; reward: number }> = {
   second_drill: { title: "Place a second drill", reward: 0.0015 },
   first_upgrade: { title: "Upgrade anything once", reward: 0.0015 },
   equip_pet: { title: "Equip a pet", reward: 0.001 },
-  open_chest: { title: "Open a gacha chest", reward: 0.002 },
+  open_chest: { title: "Legacy chest objective", reward: 0.002 },
   income_1: { title: "Reach sustainable output", reward: 0.002 },
   mansion: { title: "Reach mansion tier", reward: 0.003 },
   balance_100: { title: "Hold 0.10 SOL", reward: 0.0025 },
@@ -1044,7 +957,6 @@ const MISSION_ORDER: MissionId[] = [
   "second_drill",
   "first_upgrade",
   "equip_pet",
-  "open_chest",
   "income_1",
   "mansion",
   "balance_100",
@@ -6780,7 +6692,7 @@ function App() {
                     </p>
 
                     <div className="shop-filters">
-                      {(["all", "build", "utility", "power", "automation", "decor", "special"] as const).map((category) => (
+                      {SHOP_FILTERS.map((category) => (
                         <button
                           type="button"
                           key={category}
