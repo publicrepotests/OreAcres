@@ -2540,6 +2540,7 @@ function avatarCenter(avatar: { x: number; y: number }) {
 
 function AvatarSprite({
   moving,
+  mining = false,
   pickaxeSkin,
   clothesSkin,
   avatarStyle = AVATAR_STYLE_DEFAULT,
@@ -2547,6 +2548,7 @@ function AvatarSprite({
   variant = "local",
 }: {
   moving: boolean;
+  mining?: boolean;
   pickaxeSkin?: SkinId | null;
   clothesSkin?: SkinId | null;
   avatarStyle?: AvatarStyle;
@@ -2562,6 +2564,7 @@ function AvatarSprite({
       className={[
         "avatar",
         moving ? "avatar--moving" : "",
+        mining ? "avatar--mining" : "",
         `avatar--facing-${facing}`,
         variant === "remote" ? "avatar--remote" : "",
         pickaxeSkin ? `avatar--pickaxe-${pickaxeSkin}` : "",
@@ -3870,6 +3873,14 @@ function App() {
   const activeMiningProgress = activeMiningOre && activeMiningDurationMs > 0
     ? clamp(1 - activeMiningRemainingMs / activeMiningDurationMs, 0, 1)
     : 0;
+  const miningFacing: AvatarFacing = activeMiningOre
+    ? (() => {
+        const orePosition = oreNodeWorldPosition(activeMiningOre.plot, activeMiningOre.node);
+        const dx = orePosition.x - game.avatar.x;
+        const dy = orePosition.y - game.avatar.y;
+        return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
+      })()
+    : avatarFacing;
   const hasPlacedDrill = Boolean(
     claimedPlot && Object.values(claimedPlot.structures).some((structure) => structure.type === "drill"),
   );
@@ -5838,6 +5849,13 @@ function App() {
                                 aria-label={`${isMining ? "Mining" : "Mine"} ${oreNodeDisplayLabel(node.rarity)}`}
                               >
                                 <span className="plot-zone__ore-glow" />
+                                {isMining ? (
+                                  <span className="plot-zone__ore-impact" aria-hidden="true">
+                                    <i />
+                                    <i />
+                                    <i />
+                                  </span>
+                                ) : null}
                                 <img
                                   src={ORE_ART[node.rarity]}
                                   alt=""
@@ -5901,7 +5919,8 @@ function App() {
                 >
                   <AvatarSprite
                     moving={moving}
-                    facing={avatarFacing}
+                    mining={Boolean(activeMiningOre)}
+                    facing={miningFacing}
                     avatarStyle={game.avatarStyle}
                     pickaxeSkin={game.equippedPickaxeSkin}
                     clothesSkin={game.equippedClothesSkin}

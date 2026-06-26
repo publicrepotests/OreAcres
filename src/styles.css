@@ -3692,6 +3692,72 @@ h1 {
   }
 }
 
+@keyframes avatarMineBrace {
+  0%,
+  100% {
+    transform: scale(1.18) translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.18) translateY(1px) rotate(-1deg);
+  }
+}
+
+@keyframes avatarMineStance {
+  0%,
+  100% {
+    transform: translateY(0) scaleX(1.08);
+  }
+  50% {
+    transform: translateY(1px) scaleX(1.18);
+  }
+}
+
+@keyframes avatarMineArm {
+  0%,
+  100% {
+    transform: rotate(-42deg);
+  }
+  52% {
+    transform: rotate(24deg);
+  }
+}
+
+@keyframes avatarMineSwingRight {
+  0%,
+  100% {
+    transform: translateX(-3px) rotate(-68deg) scale(1.05);
+  }
+  48% {
+    transform: translateX(1px) translateY(4px) rotate(24deg) scale(1.08);
+  }
+  58% {
+    transform: translateX(2px) translateY(5px) rotate(34deg) scale(1.12);
+  }
+}
+
+@keyframes avatarMineSwingLeft {
+  0%,
+  100% {
+    transform: scaleX(-1) translateX(-3px) rotate(-68deg) scale(1.05);
+  }
+  48% {
+    transform: scaleX(-1) translateX(1px) translateY(4px) rotate(24deg) scale(1.08);
+  }
+  58% {
+    transform: scaleX(-1) translateX(2px) translateY(5px) rotate(34deg) scale(1.12);
+  }
+}
+
+@keyframes avatarMineSwingUp {
+  0%,
+  100% {
+    transform: rotate(-18deg) translateY(-3px) scale(1.05);
+  }
+  52% {
+    transform: rotate(42deg) translateY(4px) scale(1.1);
+  }
+}
+
 @keyframes avatarAura {
   0%,
   100% {
@@ -3701,6 +3767,20 @@ h1 {
   50% {
     opacity: 0.9;
     transform: translateX(-50%) scale(1.08);
+  }
+}
+
+@keyframes oreImpactSpark {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  42% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--spark-x, 14px)), calc(-50% + var(--spark-y, -12px))) scale(1.1);
   }
 }
 
@@ -4642,6 +4722,48 @@ h1 {
   animation-duration: 1.2s;
 }
 
+.plot-zone__ore-impact {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  width: 44px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.plot-zone__ore-impact i {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ffd166;
+  box-shadow: 0 0 10px rgba(255, 209, 102, 0.7);
+  opacity: 0;
+  animation: oreImpactSpark 0.56s ease-out infinite;
+}
+
+.plot-zone__ore-impact i:nth-child(1) {
+  --spark-x: 14px;
+  --spark-y: -12px;
+  animation-delay: 0s;
+}
+
+.plot-zone__ore-impact i:nth-child(2) {
+  --spark-x: -12px;
+  --spark-y: -10px;
+  animation-delay: 0.08s;
+}
+
+.plot-zone__ore-impact i:nth-child(3) {
+  --spark-x: 5px;
+  --spark-y: 13px;
+  animation-delay: 0.16s;
+}
+
 .plot-zone__badge,
 .plot-prompt,
 .world-hud {
@@ -5368,6 +5490,7 @@ h1 {
   width: 15px;
   height: 15px;
   transform: translateX(-3px) rotate(-18deg);
+  background-image: url("/assets/cosmetics/pickaxes/troll-pick.png");
   background-position: center;
   background-repeat: no-repeat;
   background-size: contain;
@@ -5407,9 +5530,35 @@ h1 {
   animation: avatarArmRight 0.42s ease-in-out infinite;
 }
 
+.avatar--mining {
+  animation: avatarMineBrace 0.56s ease-in-out infinite;
+}
+
+.avatar--mining .avatar__leg--left,
+.avatar--mining .avatar__leg--right {
+  animation: avatarMineStance 0.56s ease-in-out infinite;
+}
+
+.avatar--mining .avatar__arm--right {
+  animation: avatarMineArm 0.56s ease-in-out infinite;
+}
+
+.avatar--mining .avatar__arm--left {
+  transform: rotate(18deg);
+}
+
+.avatar--mining .avatar__tool {
+  animation: avatarMineSwingRight 0.56s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  filter: drop-shadow(0 0 8px rgba(255, 209, 102, 0.34));
+}
+
 .avatar--facing-left .avatar__tool {
   left: -4px;
   transform: scaleX(-1) rotate(-18deg);
+}
+
+.avatar--mining.avatar--facing-left .avatar__tool {
+  animation-name: avatarMineSwingLeft;
 }
 
 .avatar--facing-up .avatar__face {
@@ -5427,8 +5576,17 @@ h1 {
   transform: rotate(26deg);
 }
 
+.avatar--mining.avatar--facing-up .avatar__tool {
+  animation-name: avatarMineSwingUp;
+}
+
 .avatar--facing-down .avatar__tool {
   left: 104%;
+}
+
+.avatar--mining.avatar--facing-down .avatar__tool,
+.avatar--mining.avatar--facing-right .avatar__tool {
+  animation-name: avatarMineSwingRight;
 }
 
 .avatar--facing-right .avatar__tool {
