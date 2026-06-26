@@ -4663,24 +4663,26 @@ function App() {
           ...current.stats,
           totalEarned: round(current.stats.totalEarned + totalSolEarned),
         },
-        mineReveal: {
-          label: reward.label,
-          detail:
-            reward.kind === "sol"
-              ? `${totalSolEarned.toFixed(6)} SOL paid from reserve`
-              : reward.kind === "mints"
-                ? `${reward.mints!.toFixed(2)} test mints`
-                : reward.kind === "skin" && reward.skinId
-                  ? `${skinItem(reward.skinId)?.label ?? reward.skinId} added`
-                  : reward.kind === "pet" && reward.petId
-                    ? `${petItem(reward.petId)?.label ?? reward.petId} added`
-                    : reward.kind === "box"
-                      ? "Quest box added"
-                      : reward.kind === "nft" && reward.nftId
-                        ? `${nftLabel(reward.nftId)} added`
-                        : "Reward added",
-          kind: reward.kind,
-        },
+        mineReveal: minedByDrone
+          ? null
+          : {
+              label: reward.label,
+              detail:
+                reward.kind === "sol"
+                  ? `${totalSolEarned.toFixed(6)} SOL paid from reserve`
+                  : reward.kind === "mints"
+                    ? `${reward.mints!.toFixed(2)} test mints`
+                    : reward.kind === "skin" && reward.skinId
+                      ? `${skinItem(reward.skinId)?.label ?? reward.skinId} added`
+                      : reward.kind === "pet" && reward.petId
+                        ? `${petItem(reward.petId)?.label ?? reward.petId} added`
+                        : reward.kind === "box"
+                          ? "Quest box added"
+                          : reward.kind === "nft" && reward.nftId
+                            ? `${nftLabel(reward.nftId)} added`
+                            : "Reward added",
+              kind: reward.kind,
+            },
         message:
           reward.kind === "sol"
             ? `${minedByDrone ? "Drone mined" : "Mined"} ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(6)} SOL.`
