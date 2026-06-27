@@ -2369,6 +2369,24 @@ function resolvePaymentApiBase() {
     }
   }
 
+  const multiplayerUrl = (import.meta.env.VITE_MULTIPLAYER_WS_URL as string | undefined)?.trim();
+  if (multiplayerUrl) {
+    try {
+      const parsed = new URL(multiplayerUrl);
+      parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
+      parsed.pathname = "";
+      parsed.search = "";
+      parsed.hash = "";
+      return parsed.toString().replace(/\/$/, "");
+    } catch {
+      // Fall back to localhost/origin below.
+    }
+  }
+
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return `${window.location.protocol}//${window.location.hostname}:8080`;
+  }
+
   return window.location.origin;
 }
 
@@ -4309,6 +4327,7 @@ function App() {
       return {
         signature: `playtest-${Date.now()}`,
         tokenAmountUi,
+        localDebitMints: tokenAmountUi,
         usdAmount,
         tokenPriceUsd: PLAYTEST_MINT_RATE,
       };
@@ -4329,13 +4348,6 @@ function App() {
       quote = await fetchPaymentQuote(usdAmount);
     } catch (error) {
       setWalletMessage(error instanceof Error ? error.message : "Could not load payment quote.");
-      return null;
-    }
-
-    if (game.mints < quote.tokenAmountUi) {
-      setWalletMessage(
-        `Need ${quote.tokenAmountUi.toFixed(2)} Pump.fun mints to buy ${label}.`,
-      );
       return null;
     }
 
@@ -4423,6 +4435,7 @@ function App() {
       return {
         signature,
         tokenAmountUi: quote.tokenAmountUi,
+        localDebitMints: 0,
         usdAmount: quote.usdAmount,
         tokenPriceUsd: quote.tokenPriceUsd,
       };
@@ -4511,12 +4524,12 @@ function App() {
       return;
     }
 
-    let payment: { tokenAmountUi: number } | null = null;
+    let payment: { tokenAmountUi: number; localDebitMints: number } | null = null;
     if (item.cost > 0) {
       payment = await chargePumpMint(item.cost, item.label);
       if (!payment) return;
     } else {
-      payment = { tokenAmountUi: 0 };
+      payment = { tokenAmountUi: 0, localDebitMints: 0 };
     }
 
     setGame((current) => {
@@ -4535,7 +4548,7 @@ function App() {
 
         const nextState = {
           ...current,
-          mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+          mints: Math.max(0, round(current.mints - payment.localDebitMints)),
           rewardReserveSol: round(current.rewardReserveSol + reserveTopUp),
           plots: {
             ...current.plots,
@@ -4553,7 +4566,7 @@ function App() {
 
       return {
         ...current,
-        mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+        mints: Math.max(0, round(current.mints - payment.localDebitMints)),
         rewardReserveSol: round(current.rewardReserveSol + reserveTopUp),
         inventory: {
           ...current.inventory,
@@ -4589,7 +4602,7 @@ function App() {
 
     setGame((current) => ({
       ...current,
-      mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+      mints: Math.max(0, round(current.mints - payment.localDebitMints)),
       rewardReserveSol: round(current.rewardReserveSol + reserveContribution(item.cost, COSMETIC_RESERVE_BPS)),
       petInventory: {
         ...current.petInventory,
@@ -4613,7 +4626,7 @@ function App() {
 
     setGame((current) => ({
       ...current,
-      mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+      mints: Math.max(0, round(current.mints - payment.localDebitMints)),
       rewardReserveSol: round(current.rewardReserveSol + reserveContribution(skin.cost, COSMETIC_RESERVE_BPS)),
       skinInventory: {
         ...current.skinInventory,
@@ -5248,7 +5261,7 @@ function App() {
       const maxLevelNow = maxStructureLevel(structureNow.type);
       const nextState = {
         ...current,
-        mints: Math.max(0, round(current.mints - payment.tokenAmountUi)),
+        mints: Math.max(0, round(current.mints - payment.localDebitMints)),
         plots: {
           ...current.plots,
           [current.claimedPlotId]: {
