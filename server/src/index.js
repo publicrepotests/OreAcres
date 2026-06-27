@@ -7,16 +7,27 @@ import { WebSocketServer } from "ws";
 const PORT = Number(process.env.PORT || 8080);
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 const STATE_FILE = process.env.STATE_FILE || path.join(process.cwd(), "ore-acres-state.json");
-const PAYMENT_MINT_ADDRESS = process.env.PAYMENT_MINT_ADDRESS || "";
+const DEFAULT_PAYMENT_MINT_ADDRESS = "7eTsoXT3HA2rCu1vF61CkvTJbA5bnh9pDgnB2vqMpump";
+const DEFAULT_RESERVE_OWNER_WALLET = "B3VZNSnWYGCZ1ZcydfSKvzjrL1UsYXWG5HTbgHAKaVjX";
+const DEFAULT_REWARD_RESERVE_OWNER_WALLET = "39DYX1oRUHCuQg9zFhB5HW8pJ3WhBeNXmZYyzVWf9Cao";
+const DEFAULT_OPS_OWNER_WALLET = "GrKAPcrb45WoxdxEwxoXyhbZmLWGoADwNsGGpWNmA4XC";
+const PAYMENT_MINT_ADDRESS = process.env.PAYMENT_MINT_ADDRESS || DEFAULT_PAYMENT_MINT_ADDRESS;
 const PAYMENT_RESERVE_TOKEN_ACCOUNT =
   process.env.PAYMENT_RESERVE_TOKEN_ACCOUNT || process.env.PAYMENT_TREASURY_TOKEN_ACCOUNT || "";
 const PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT =
   process.env.PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT || process.env.PAYMENT_BURN_TOKEN_ACCOUNT || "";
 const PAYMENT_OPS_TOKEN_ACCOUNT = process.env.PAYMENT_OPS_TOKEN_ACCOUNT || "";
+const PAYMENT_RESERVE_OWNER_WALLET =
+  process.env.PAYMENT_RESERVE_OWNER_WALLET || process.env.PAYMENT_TREASURY_OWNER_WALLET || DEFAULT_RESERVE_OWNER_WALLET;
+const PAYMENT_REWARD_RESERVE_OWNER_WALLET =
+  process.env.PAYMENT_REWARD_RESERVE_OWNER_WALLET ||
+  process.env.PAYMENT_BURN_OWNER_WALLET ||
+  DEFAULT_REWARD_RESERVE_OWNER_WALLET;
+const PAYMENT_OPS_OWNER_WALLET = process.env.PAYMENT_OPS_OWNER_WALLET || DEFAULT_OPS_OWNER_WALLET;
 const PAYMENT_RESERVE_BPS = Number(process.env.PAYMENT_RESERVE_BPS || "8000");
 const PAYMENT_REWARD_RESERVE_BPS = Number(process.env.PAYMENT_REWARD_RESERVE_BPS || "1000");
 const PAYMENT_OPS_BPS = Number(process.env.PAYMENT_OPS_BPS || "1000");
-const PAYMENT_TOKEN_PRICE_USD_OVERRIDE = Number(process.env.PAYMENT_TOKEN_PRICE_USD_OVERRIDE || "");
+const PAYMENT_TOKEN_PRICE_USD_OVERRIDE = Number(process.env.PAYMENT_TOKEN_PRICE_USD_OVERRIDE || "0.0001");
 const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY || "";
 const BIRDEYE_PRICE_URL = process.env.BIRDEYE_PRICE_URL || "https://public-api.birdeye.so/defi/price";
 const WORLD_COLUMNS = 5;
@@ -142,18 +153,29 @@ function sendJson(res, statusCode, body) {
 
 function paymentAllocations() {
   const entries = [
-    PAYMENT_RESERVE_TOKEN_ACCOUNT
-      ? { label: "reserve", tokenAccount: PAYMENT_RESERVE_TOKEN_ACCOUNT, bps: PAYMENT_RESERVE_BPS }
+    PAYMENT_RESERVE_TOKEN_ACCOUNT || PAYMENT_RESERVE_OWNER_WALLET
+      ? {
+          label: "reserve",
+          tokenAccount: PAYMENT_RESERVE_TOKEN_ACCOUNT,
+          ownerWallet: PAYMENT_RESERVE_OWNER_WALLET,
+          bps: PAYMENT_RESERVE_BPS,
+        }
       : null,
-    PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT
+    PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT || PAYMENT_REWARD_RESERVE_OWNER_WALLET
       ? {
           label: "reward_reserve",
           tokenAccount: PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT,
+          ownerWallet: PAYMENT_REWARD_RESERVE_OWNER_WALLET,
           bps: PAYMENT_REWARD_RESERVE_BPS,
         }
       : null,
-    PAYMENT_OPS_TOKEN_ACCOUNT
-      ? { label: "ops", tokenAccount: PAYMENT_OPS_TOKEN_ACCOUNT, bps: PAYMENT_OPS_BPS }
+    PAYMENT_OPS_TOKEN_ACCOUNT || PAYMENT_OPS_OWNER_WALLET
+      ? {
+          label: "ops",
+          tokenAccount: PAYMENT_OPS_TOKEN_ACCOUNT,
+          ownerWallet: PAYMENT_OPS_OWNER_WALLET,
+          bps: PAYMENT_OPS_BPS,
+        }
       : null,
   ].filter(Boolean);
 
@@ -559,9 +581,9 @@ const server = http.createServer(async (req, res) => {
           sendJson(res, 503, {
             error: "Payment split configuration is missing.",
             needs: [
-              "PAYMENT_RESERVE_TOKEN_ACCOUNT",
-              "PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT",
-              "PAYMENT_OPS_TOKEN_ACCOUNT",
+              "PAYMENT_RESERVE_OWNER_WALLET or PAYMENT_RESERVE_TOKEN_ACCOUNT",
+              "PAYMENT_REWARD_RESERVE_OWNER_WALLET or PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT",
+              "PAYMENT_OPS_OWNER_WALLET or PAYMENT_OPS_TOKEN_ACCOUNT",
             ],
           });
           return;
@@ -572,6 +594,7 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 200, {
           mintAddress: PAYMENT_MINT_ADDRESS,
           treasuryTokenAccount: PAYMENT_RESERVE_TOKEN_ACCOUNT,
+          treasuryOwnerWallet: PAYMENT_RESERVE_OWNER_WALLET,
           usdAmount: usd,
           tokenPriceUsd,
           tokenAmountUi,

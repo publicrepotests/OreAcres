@@ -712,6 +712,56 @@ h1 {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.economy-panel--payments {
+  border-color: rgba(122, 167, 255, 0.18);
+  background:
+    radial-gradient(circle at top left, rgba(122, 167, 255, 0.16), transparent 44%),
+    linear-gradient(180deg, rgba(10, 15, 29, 0.98), rgba(5, 9, 16, 0.96));
+}
+
+.payment-structure-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.payment-structure-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.payment-structure-card span {
+  color: var(--accent);
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.payment-structure-card strong {
+  line-height: 1.35;
+}
+
+.payment-structure-card code {
+  padding: 8px;
+  border-radius: 10px;
+  color: var(--warm);
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.payment-structure-card small {
+  color: var(--muted);
+}
+
 .game-panel {
   border-radius: 16px;
   padding: 12px;
@@ -4122,6 +4172,7 @@ h1 {
   .roadmap-grid,
   .economy-grid--guards,
   .economy-grid--stress,
+  .payment-structure-grid,
   .world-map,
   .shop-grid {
     grid-template-columns: 1fr;
@@ -6898,6 +6949,7 @@ h1 {
   .roadmap-grid,
   .economy-grid--guards,
   .economy-grid--stress,
+  .payment-structure-grid,
   .shop-grid {
     grid-template-columns: 1fr;
   }

@@ -65,15 +65,27 @@ Server:
 - `PORT` - runtime port used by Fly
 - `ALLOWED_ORIGIN` - optional client origin allowlist
 - `PAYMENT_MINT_ADDRESS` - the pump.fun token mint used for item pricing
-- `PAYMENT_RESERVE_TOKEN_ACCOUNT` - main reward reserve token account
-- `PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT` - future rewards reserve token account
-- `PAYMENT_OPS_TOKEN_ACCOUNT` - ops / maintenance token account
+- `PAYMENT_RESERVE_OWNER_WALLET` - main treasury/reward reserve owner wallet
+- `PAYMENT_REWARD_RESERVE_OWNER_WALLET` - reward-reserve sink owner wallet
+- `PAYMENT_OPS_OWNER_WALLET` - ops / maintenance owner wallet
+- `PAYMENT_RESERVE_TOKEN_ACCOUNT` - optional pre-created token account override
+- `PAYMENT_REWARD_RESERVE_TOKEN_ACCOUNT` - optional pre-created token account override
+- `PAYMENT_OPS_TOKEN_ACCOUNT` - optional pre-created token account override
 - `PAYMENT_RESERVE_BPS` - default `8000`
 - `PAYMENT_REWARD_RESERVE_BPS` - default `1000`
 - `PAYMENT_OPS_BPS` - default `1000`
 - `PAYMENT_TOKEN_PRICE_USD_OVERRIDE` - optional fallback USD price per token
 - `BIRDEYE_API_KEY` - optional price API key if you want live token pricing
 - `BIRDEYE_PRICE_URL` - optional price endpoint override
+
+Current test/planning payment structure:
+
+- `PAYMENT_MINT_ADDRESS`: `7eTsoXT3HA2rCu1vF61CkvTJbA5bnh9pDgnB2vqMpump`
+- `PAYMENT_RESERVE_OWNER_WALLET`: `B3VZNSnWYGCZ1ZcydfSKvzjrL1UsYXWG5HTbgHAKaVjX`
+- `PAYMENT_REWARD_RESERVE_OWNER_WALLET`: `39DYX1oRUHCuQg9zFhB5HW8pJ3WhBeNXmZYyzVWf9Cao`
+- `PAYMENT_OPS_OWNER_WALLET`: `GrKAPcrb45WoxdxEwxoXyhbZmLWGoADwNsGGpWNmA4XC`
+
+The checkout transaction derives associated token accounts for owner wallets automatically. You only need pre-created token-account env vars if you want to override the default ATA flow.
 
 Client can optionally also use:
 

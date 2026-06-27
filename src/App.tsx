@@ -1019,6 +1019,33 @@ const ECONOMY_STRESS_TESTS = [
   },
 ];
 
+const PAYMENT_STRUCTURE = [
+  {
+    label: "Payment mint",
+    role: "TestMint for checkout planning",
+    address: "7eTsoXT3HA2rCu1vF61CkvTJbA5bnh9pDgnB2vqMpump",
+    split: "100% source mint",
+  },
+  {
+    label: "OreAcreWallet1",
+    role: "Main treasury and reward-reserve backing",
+    address: "B3VZNSnWYGCZ1ZcydfSKvzjrL1UsYXWG5HTbgHAKaVjX",
+    split: "80% of item payments",
+  },
+  {
+    label: "OreAcreWallet2",
+    role: "Reward-reserve sink wallet for future player rewards",
+    address: "39DYX1oRUHCuQg9zFhB5HW8pJ3WhBeNXmZYyzVWf9Cao",
+    split: "10% of item payments",
+  },
+  {
+    label: "OreAcreWallet3",
+    role: "Ops, maintenance, liquidity, and launch costs",
+    address: "GrKAPcrb45WoxdxEwxoXyhbZmLWGoADwNsGGpWNmA4XC",
+    split: "10% of item payments",
+  },
+];
+
 function isStructureType(value: unknown): value is StructureType {
   return (
     value === "shack" ||
@@ -2347,13 +2374,15 @@ function resolvePaymentApiBase() {
 
 type PaymentQuote = {
   mintAddress: string;
-  treasuryTokenAccount: string;
+  treasuryTokenAccount?: string;
+  treasuryOwnerWallet?: string;
   usdAmount: number;
   tokenPriceUsd: number;
   tokenAmountUi: number;
   allocations: Array<{
     label: string;
-    tokenAccount: string;
+    tokenAccount?: string;
+    ownerWallet?: string;
     bps: number;
   }>;
 };
@@ -2369,7 +2398,6 @@ async function fetchPaymentQuote(usdAmount: number): Promise<PaymentQuote> {
 
   if (
     typeof data?.mintAddress !== "string" ||
-    typeof data?.treasuryTokenAccount !== "string" ||
     typeof data?.tokenPriceUsd !== "number" ||
     typeof data?.tokenAmountUi !== "number" ||
     !Array.isArray(data?.allocations)
@@ -2382,7 +2410,8 @@ async function fetchPaymentQuote(usdAmount: number): Promise<PaymentQuote> {
       (entry: unknown) =>
         !!entry &&
         typeof (entry as { label?: unknown }).label === "string" &&
-        typeof (entry as { tokenAccount?: unknown }).tokenAccount === "string" &&
+        (typeof (entry as { tokenAccount?: unknown }).tokenAccount === "string" ||
+          typeof (entry as { ownerWallet?: unknown }).ownerWallet === "string") &&
         typeof (entry as { bps?: unknown }).bps === "number",
     )
   ) {
@@ -4314,7 +4343,12 @@ function App() {
       import("@solana/web3.js"),
       import("@solana/spl-token"),
     ]);
-    const { createTransferCheckedInstruction, getAssociatedTokenAddress, getMint } = splToken;
+    const {
+      createAssociatedTokenAccountIdempotentInstruction,
+      createTransferCheckedInstruction,
+      getAssociatedTokenAddress,
+      getMint,
+    } = splToken;
     const connection = new Connection(SOLANA_RPC_URL, "confirmed");
     const mint = new PublicKey(quote.mintAddress);
 
@@ -4333,12 +4367,26 @@ function App() {
         const allocation = quote.allocations[index];
         const amount = splitAmounts[index];
         if (amount <= 0n) continue;
+        const destinationTokenAccount = allocation.tokenAccount
+          ? new PublicKey(allocation.tokenAccount)
+          : await getAssociatedTokenAddress(mint, new PublicKey(allocation.ownerWallet!));
+
+        if (!allocation.tokenAccount) {
+          transaction.add(
+            createAssociatedTokenAccountIdempotentInstruction(
+              walletPublicKey,
+              destinationTokenAccount,
+              new PublicKey(allocation.ownerWallet!),
+              mint,
+            ),
+          );
+        }
 
         transaction.add(
           createTransferCheckedInstruction(
             sourceTokenAccount,
             mint,
-            new PublicKey(allocation.tokenAccount),
+            destinationTokenAccount,
             walletPublicKey,
             amount,
             mintInfo.decimals,
@@ -5711,6 +5759,27 @@ function App() {
                 authoritatively per player and wallet.
               </p>
             </article>
+          </div>
+
+          <div className="economy-panel economy-panel--payments">
+            <span className="landing-card__eyebrow">Payment structure</span>
+            <h2>Test mint routing is now explicit.</h2>
+            <p>
+              Checkout quotes use the TestMint and split item payments across
+              three owner wallets. The app derives associated token accounts for
+              these wallets automatically during checkout, so the wallets can
+              receive the mint without manually pasting token-account addresses.
+            </p>
+            <div className="payment-structure-grid">
+              {PAYMENT_STRUCTURE.map((entry) => (
+                <article key={entry.label} className="payment-structure-card">
+                  <span>{entry.label}</span>
+                  <strong>{entry.role}</strong>
+                  <code>{entry.address}</code>
+                  <small>{entry.split}</small>
+                </article>
+              ))}
+            </div>
           </div>
 
           <div className="economy-grid economy-grid--stress">
