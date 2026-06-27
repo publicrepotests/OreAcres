@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "sim:economy": "node scripts/economy-sim.mjs"
+    "preview": "npm run build && wrangler dev",
+    "sim:economy": "node scripts/economy-sim.mjs",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.14",
@@ -16,10 +17,12 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.42.3",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^5.1.0",
     "typescript": "^5.5.4",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "wrangler": "^4.105.0"
   }
 }
