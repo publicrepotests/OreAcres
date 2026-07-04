@@ -3190,7 +3190,7 @@ function AvatarSprite({
           .join(" ")}
       >
         <div className="avatar__shadow" />
-        <AvatarFallbackRig avatarStyle={avatarStyle} className="avatar__fallback-rig--sheet" />
+        <AvatarFallbackRig avatarStyle={avatarStyle} className="avatar__fallback-rig--sheet avatar__fallback-rig--astronaut" />
         <AstronautSkinSprite facing={facing} moving={moving} mining={mining} />
         <div className="avatar__tool" />
         <div className="avatar__aura" />
