@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { WheelEvent } from "react";
+import type { DragEvent, WheelEvent } from "react";
 import type { PublicKey, Transaction } from "@solana/web3.js";
 
 type StructureType =
@@ -91,6 +91,13 @@ type TutorialStep = {
   voiceStart: number;
 };
 
+type NpcId = "marketplace" | "banker" | "pickaxe" | "quest" | "plotSeller";
+
+type NpcDialogueState = {
+  npcId: NpcId;
+  step: number;
+};
+
 type RoadmapItem = {
   phase: string;
   title: string;
@@ -126,12 +133,14 @@ type PlotOwner = {
 type Plot = {
   id: string;
   name: string;
+  kind: "plot" | "town" | "mine";
   position: { x: number; y: number };
   owner: PlotOwner | null;
   structures: Record<string, Structure>;
   chest: { id: string } | null;
   oreNodes: OreNode[];
   totalCollectedSol: number;
+  totalCollectedMints: number;
 };
 
 type ShopItem = {
@@ -158,7 +167,8 @@ type SkinId =
   | "banana_pick"
   | "aura_hoodie"
   | "cyber_jacket"
-  | "astronaut_fit";
+  | "astronaut_fit"
+  | "purplespace";
 
 type SkinItem = {
   id: SkinId;
@@ -231,6 +241,8 @@ type GameState = {
   mints: number;
   playtestMode: boolean;
   rewardReserveSol: number;
+  miningXp: number;
+  miningLevel: number;
   plots: Record<string, Plot>;
   claimedPlotId: string | null;
   selectedPlotId: string;
@@ -251,6 +263,7 @@ type GameState = {
   marketListings: MarketplaceListing[];
   nftInventory: Record<string, number>;
   questBoxes: number;
+  npcDialogue: NpcDialogueState | null;
   inventoryOpen: boolean;
   shopOpen: boolean;
   marketOpen: boolean;
@@ -267,11 +280,15 @@ type RemotePlayer = {
   name: string;
   x: number;
   y: number;
+  avatarStyle?: AvatarStyle;
+  equippedPickaxeSkin?: SkinId | null;
+  equippedClothesSkin?: SkinId | null;
 };
 
 type SharedPlotSnapshot = {
   id: string;
   name: string;
+  kind?: "plot" | "town" | "mine";
   ownerLabel: string | null;
   structures: Record<
     string,
@@ -285,6 +302,7 @@ type SharedPlotSnapshot = {
   chest: { id: string } | null;
   oreNodes: OreNode[];
   totalCollectedSol: number;
+  totalCollectedMints: number;
 };
 
 type InjectedSolanaProvider = {
@@ -324,12 +342,20 @@ const BASE_STORAGE = 60;
 const WORLD_COLUMNS = 5;
 const WORLD_ROWS = 5;
 const PLOT_SIZE = 520;
+const TOWN_PLOT_SIZE = PLOT_SIZE * 2;
 const ROAD_GAP = 170;
 const WORLD_PADDING = 100;
-const WORLD_WIDTH =
+const PLOT_WORLD_WIDTH =
   WORLD_PADDING * 2 + WORLD_COLUMNS * PLOT_SIZE + (WORLD_COLUMNS - 1) * ROAD_GAP;
-const WORLD_HEIGHT =
+const PLOT_WORLD_HEIGHT =
   WORLD_PADDING * 2 + WORLD_ROWS * PLOT_SIZE + (WORLD_ROWS - 1) * ROAD_GAP;
+const TOWN_ID = "starter-town";
+const TOWN_TOP = PLOT_WORLD_HEIGHT + 240 - PLOT_SIZE / 2;
+const MINE_ID = "dustfall-mine";
+const MINE_TOP = TOWN_TOP + TOWN_PLOT_SIZE + 240;
+const WORLD_WIDTH = PLOT_WORLD_WIDTH;
+const WORLD_HEIGHT = MINE_TOP + PLOT_SIZE + WORLD_PADDING;
+const MINING_LEVEL_CAP = 99;
 const MIN_CAMERA_ZOOM = 0.7;
 const MAX_CAMERA_ZOOM = 1.55;
 const PLOT_HEADER_HEIGHT = 50;
@@ -392,6 +418,69 @@ const AVATAR_BASE_OUTFITS: Record<AvatarBaseOutfit, { label: string; base: strin
   ember: { label: "Ember", base: "#ffd166", shade: "#d96a27" },
   denim: { label: "Denim", base: "#7aa7ff", shade: "#243a78" },
 };
+const PURPLESPACE_SKIN_ART = {
+  down: "/assets/cosmetics/skins/purplespace/front.png",
+  up: "/assets/cosmetics/skins/purplespace/back.png",
+  side: "/assets/cosmetics/skins/purplespace/side-cutout.png",
+} as const;
+const PURPLESPACE_SKIN_SHEET = "/assets/cosmetics/skins/purplespace/purplesheet.png";
+const PURPLESPACE_SKIN_TRANSPARENT = {
+  down: "/assets/cosmetics/skins/purplespace/front-cutout.png",
+  up: "/assets/cosmetics/skins/purplespace/back-cutout.png",
+  side: "/assets/cosmetics/skins/purplespace/side-cutout.png",
+} as const;
+const PURPLESPACE_RIG_PARTS = {
+  head: "/assets/cosmetics/skins/purplespace/rig/down/head.png",
+  body: "/assets/cosmetics/skins/purplespace/rig/down/body.png",
+  armLeft: "/assets/cosmetics/skins/purplespace/rig/down/arm-left.png",
+  armRight: "/assets/cosmetics/skins/purplespace/rig/down/arm-right.png",
+  legLeft: "/assets/cosmetics/skins/purplespace/rig/down/leg-left.png",
+  legRight: "/assets/cosmetics/skins/purplespace/rig/down/leg-right.png",
+} as const;
+const PURPLESPACE_RIG_SIDE_PARTS = {
+  head: "/assets/cosmetics/skins/purplespace/rig/side/head.png",
+  body: "/assets/cosmetics/skins/purplespace/rig/side/body.png",
+  armBack: "/assets/cosmetics/skins/purplespace/rig/side/arm-back.png",
+  armFront: "/assets/cosmetics/skins/purplespace/rig/side/arm-front.png",
+  legBack: "/assets/cosmetics/skins/purplespace/rig/side/leg-back.png",
+  legFront: "/assets/cosmetics/skins/purplespace/rig/side/leg-front.png",
+} as const;
+const ASTRONAUT_SKIN_SHEET = "/assets/cosmetics/skins/astronaut_fit/sheet.png";
+const ASTRONAUT_SKIN_PREVIEW = "/assets/cosmetics/skins/astronaut_fit/preview.png";
+const ASTRONAUT_FRAME_SIZE = 64;
+const ASTRONAUT_FRAME_GROUPS = {
+  down: 0,
+  up: 4,
+  side: 8,
+} as const;
+type AvatarRigSlot = "shadow" | "head" | "body" | "legs" | "tool" | "aura";
+type AvatarRigBox = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  transform?: string;
+  zIndex?: number;
+};
+const AVATAR_RIG: Record<AvatarRigSlot, AvatarRigBox> = {
+  shadow: { left: 3, top: 27, width: 20, height: 7, zIndex: 1, transform: "none" },
+  head: { left: 5, top: 1, width: 16, height: 14, zIndex: 4, transform: "none" },
+  body: { left: 4, top: 14, width: 18, height: 13, zIndex: 3, transform: "none" },
+  legs: { left: 4, top: 25, width: 18, height: 8, zIndex: 2, transform: "none" },
+  tool: { left: 10, top: 12, width: 15, height: 15, zIndex: 5 },
+  aura: { left: -4, top: 3, width: 34, height: 34, zIndex: 1, transform: "none" },
+};
+function rigStyle(slot: AvatarRigSlot) {
+  const box = AVATAR_RIG[slot];
+  return {
+    left: `${box.left}px`,
+    top: `${box.top}px`,
+    width: `${box.width}px`,
+    height: `${box.height}px`,
+    ...(box.transform ? { transform: box.transform } : {}),
+    ...(box.zIndex ? { zIndex: box.zIndex } : {}),
+  };
+}
 const HOME_ART = {
   1: "/assets/structures/homes/tier1-shack.png",
   2: "/assets/structures/homes/tier2-house.png",
@@ -433,10 +522,13 @@ const ORE_MINING_MS: Record<OreNodeRarity, number> = {
   large: 180_000,
 };
 const ORE_REWARD_RANGE: Record<OreNodeRarity, [number, number]> = {
-  small: [0.000001, 0.000004],
-  medium: [0.000005, 0.000012],
-  large: [0.000018, 0.000035],
+  small: [0.04, 0.07],
+  medium: [0.09, 0.15],
+  large: [0.22, 0.32],
 };
+const DAILY_MINT_POOL = 10_000;
+const MAX_MINT_PER_PLOT_PER_DAY = 2_000;
+const AVERAGE_STAGE_SCORE = 4;
 const ORE_RARITY_WEIGHTS: Array<[OreNodeRarity, number]> = [
   ["small", 74],
   ["medium", 21],
@@ -449,7 +541,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     id: "welcome",
     eyebrow: "Step 1",
     title: "Welcome to Ore Acres",
-    body: "This is an idle mining MMO-lite: walk the shared map, claim one plot, build miners, and grow your SOL income over time.",
+    body: "This is an idle mining MMO-lite: walk the shared map, claim one plot, build miners, and grow your mint income over time.",
     objective: "Move with WASD or arrow keys and look for an open plot.",
     voiceLine:
       "Welcome to Ore Acres. You start as a miner in a shared world where every plot can become a tiny SOL-producing empire.",
@@ -548,6 +640,162 @@ const WORLD_DECORATIONS = [
   { kind: "rocks", x: 930, y: 2600, size: 1.15 },
   { kind: "crystal", x: 3410, y: 2600, size: 1.05 },
 ] as const;
+
+const TOWN_NPCS = [
+  {
+    id: "banker" as NpcId,
+    label: "Banker",
+    subtitle: "Safe storage and wallet",
+    x: 23,
+    y: 54,
+    asset: "/assets/town/bank.png",
+  },
+  {
+    id: "quest" as NpcId,
+    label: "Quest Giver",
+    subtitle: "Tasks and rewards",
+    x: 50,
+    y: 26,
+    asset: "/assets/town/castle.png",
+  },
+  {
+    id: "pickaxe" as NpcId,
+    label: "Pickaxe Store",
+    subtitle: "Tools and upgrades",
+    x: 75,
+    y: 52,
+    asset: "/assets/town/Cave.png",
+  },
+  {
+    id: "marketplace" as NpcId,
+    label: "Marketplace",
+    subtitle: "Cosmetic trading",
+    x: 76,
+    y: 20,
+    asset: "/assets/town/Market.png",
+  },
+  {
+    id: "plotSeller" as NpcId,
+    label: "Plot Seller",
+    subtitle: "Buy your acre",
+    x: 49,
+    y: 58,
+    asset: "/assets/town/purple bulding.png",
+  },
+] as const;
+const TOWN_NPC_AVATARS: Record<NpcId, AvatarStyle> = {
+  banker: { skinTone: "terra", hairColor: "midnight", baseOutfit: "denim" },
+  quest: { skinTone: "sunlit", hairColor: "cocoa", baseOutfit: "ember" },
+  pickaxe: { skinTone: "sunlit", hairColor: "midnight", baseOutfit: "denim" },
+  marketplace: { skinTone: "terra", hairColor: "neon", baseOutfit: "mint" },
+  plotSeller: { skinTone: "umbra", hairColor: "cocoa", baseOutfit: "ember" },
+};
+type TownAssetId =
+  | "bank"
+  | "market"
+  | "castle"
+  | "cave"
+  | "pond"
+  | "rocks-bank"
+  | "rocks-top"
+  | "barrels"
+  | "crates-a"
+  | "crates-b"
+  | "bush-left"
+  | "bush-right"
+  | "farm"
+  | "purple";
+
+type TownPlacement = {
+  id: string;
+  assetId: TownAssetId;
+  x: number;
+  y: number;
+  scale: number;
+  zIndex: number;
+};
+
+type TownAssetDef = {
+  id: TownAssetId;
+  label: string;
+  src: string;
+  width: number;
+  height: number;
+  zIndex: number;
+  category: "building" | "decor";
+};
+
+const TOWN_ASSET_DEFS: TownAssetDef[] = [
+  { id: "bank", label: "Bank", src: "/assets/town/bank.png", width: 16, height: 14, zIndex: 8, category: "building" },
+  { id: "market", label: "Market", src: "/assets/town/Market.png", width: 15, height: 10, zIndex: 8, category: "building" },
+  { id: "castle", label: "Castle", src: "/assets/town/castle.png", width: 19, height: 17, zIndex: 8, category: "building" },
+  { id: "cave", label: "Cave", src: "/assets/town/Cave.png", width: 18, height: 14, zIndex: 8, category: "building" },
+  { id: "purple", label: "Purple Shop", src: "/assets/town/purple bulding.png", width: 17, height: 17, zIndex: 8, category: "building" },
+  { id: "pond", label: "Pond", src: "/assets/town/Pond.png", width: 17, height: 8, zIndex: 2, category: "decor" },
+  { id: "farm", label: "Farm", src: "/assets/town/farm behind market.png", width: 13, height: 7, zIndex: 3, category: "decor" },
+  { id: "barrels", label: "Barrels", src: "/assets/town/barrels left of market.png", width: 6, height: 5, zIndex: 9, category: "decor" },
+  { id: "crates-a", label: "Crates A", src: "/assets/town/crates behind bank.png", width: 10, height: 6, zIndex: 7, category: "decor" },
+  { id: "crates-b", label: "Crates B", src: "/assets/town/crates behind bank-2.png", width: 10, height: 6, zIndex: 7, category: "decor" },
+  { id: "rocks-bank", label: "Bank Rocks", src: "/assets/town/Rocks in front of bank.png", width: 10, height: 8, zIndex: 10, category: "decor" },
+  { id: "rocks-top", label: "Top Rocks", src: "/assets/town/Rocks top-right center.png", width: 9, height: 8, zIndex: 10, category: "decor" },
+  { id: "bush-left", label: "Left Bush", src: "/assets/town/bush left side of farm.png", width: 4, height: 14, zIndex: 2, category: "decor" },
+  { id: "bush-right", label: "Right Bush", src: "/assets/town/bush right side of farm.png", width: 4, height: 14, zIndex: 2, category: "decor" },
+];
+
+const TOWN_ASSET_BY_ID = Object.fromEntries(TOWN_ASSET_DEFS.map((asset) => [asset.id, asset] as const)) as Record<
+  TownAssetId,
+  TownAssetDef
+>;
+
+const TOWN_ASSET_TO_NPC: Partial<Record<TownAssetId, NpcId>> = {
+  bank: "banker",
+  market: "marketplace",
+  castle: "quest",
+  cave: "pickaxe",
+  purple: "plotSeller",
+};
+
+const TOWN_LAYOUT_STORAGE_KEY = "ore-acres-town-builder-layout";
+
+const DEFAULT_TOWN_PLACEMENTS: TownPlacement[] = [];
+
+function normalizeTownPlacements(raw: unknown): TownPlacement[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const candidate = entry as Partial<TownPlacement> & { assetId?: unknown };
+      const assetId = typeof candidate.assetId === "string" && candidate.assetId in TOWN_ASSET_BY_ID
+        ? (candidate.assetId as TownAssetId)
+        : null;
+      if (!assetId) return null;
+
+      return {
+        id: typeof candidate.id === "string" ? candidate.id : `town-place-${Date.now()}`,
+        assetId,
+        x: typeof candidate.x === "number" ? clamp(candidate.x, 0, 100) : 50,
+        y: typeof candidate.y === "number" ? clamp(candidate.y, 0, 100) : 50,
+        scale: typeof candidate.scale === "number" ? clamp(candidate.scale, 0.4, 2.5) : 1,
+        zIndex: typeof candidate.zIndex === "number" ? candidate.zIndex : TOWN_ASSET_BY_ID[assetId].zIndex,
+      } satisfies TownPlacement;
+    })
+    .filter(Boolean) as TownPlacement[];
+}
+
+function loadTownPlacements() {
+  if (typeof window === "undefined") return DEFAULT_TOWN_PLACEMENTS;
+
+  try {
+    const raw = window.localStorage.getItem(TOWN_LAYOUT_STORAGE_KEY);
+    if (!raw) return DEFAULT_TOWN_PLACEMENTS;
+    const parsed = JSON.parse(raw);
+    const placements = normalizeTownPlacements(parsed);
+    return placements.length > 0 ? placements : DEFAULT_TOWN_PLACEMENTS;
+  } catch {
+    return DEFAULT_TOWN_PLACEMENTS;
+  }
+}
 const DRILL_FRAMESETS = {
   1: [
     "/assets/structures/Animations/Drill-animations-tier-1/Drill-1.png",
@@ -590,6 +838,7 @@ const SKIN_ART_SLOTS: Record<SkinId, CosmeticArtSlot> = {
   aura_hoodie: { col: 0, row: 1 },
   cyber_jacket: { col: 1, row: 1 },
   astronaut_fit: { col: 2, row: 1 },
+  purplespace: { col: 0, row: 0 },
 };
 const PET_ART_SLOTS: Record<PetType, CosmeticArtSlot> = {
   mole: { col: 0, row: 2 },
@@ -718,11 +967,20 @@ const SKIN_ITEMS: SkinItem[] = [
   {
     id: "astronaut_fit",
     label: "Astronaut Fit",
-    description: "A shiny suit for mining the moon before anyone else.",
-    cost: 8,
+    description: "A clean animated astronaut suit pulled from a free asset pack.",
+    cost: 0,
     category: "clothes",
-    meme: "space-time bag holder",
-    incomeMultiplier: 1.08,
+    meme: "starter suit, but make it look expensive",
+    incomeMultiplier: 1.06,
+  },
+  {
+    id: "purplespace",
+    label: "Purple Space",
+    description: "A modular void suit with animated space-miner drip.",
+    cost: 9.5,
+    category: "clothes",
+    meme: "interstellar bag holder",
+    incomeMultiplier: 1.1,
   },
 ];
 
@@ -731,6 +989,7 @@ const QUEST_BOX_REWARDS: RewardBoxReward[] = [
   { id: "sol-med", label: "Mid SOL Stack", description: "A decent box payout.", kind: "sol", rewardSol: 2, weight: 20 },
   { id: "skin-pick", label: "Pickaxe Skin", description: "A meme mining cosmetic.", kind: "skin", skinId: "banana_pick", weight: 16 },
   { id: "skin-clothes", label: "Clothes Skin", description: "A flashy wearable drop.", kind: "skin", skinId: "aura_hoodie", weight: 14 },
+  { id: "skin-purple", label: "Purple Space Suit", description: "A modular space miner fit.", kind: "skin", skinId: "purplespace", weight: 10 },
   { id: "nft-pass", label: "NFT Pass", description: "A placeholder on-chain style collectible.", kind: "nft", nftId: "genesis-miner-pass", weight: 9 },
   { id: "nft-ape", label: "NFT Ape", description: "A meme collectible with attitude.", kind: "nft", nftId: "turbo-ape-miner", weight: 7 },
 ];
@@ -796,25 +1055,25 @@ const CHEST_REWARDS: ChestReward[] = [
 
 const MINING_REWARD_POOLS: Record<OreNodeRarity, MiningReward[]> = {
   small: [
-    { id: "sol-scrap", label: "Scrap SOL", description: "A tiny mining payout.", kind: "sol", rarity: "small", weight: 56, sol: 0.01 },
-    { id: "sol-gold", label: "Tiny SOL Stack", description: "A slightly better payout.", kind: "sol", rarity: "small", weight: 18, sol: 0.02 },
-    { id: "mints-small", label: "Mint Dust", description: "A small pile of test mint fuel.", kind: "mints", rarity: "small", weight: 14, mints: 0.6 },
+    { id: "mints-scrap", label: "Mint Scrap", description: "A tiny mining payout.", kind: "mints", rarity: "small", weight: 56, mints: 0.08 },
+    { id: "mints-gold", label: "Tiny Mint Stack", description: "A slightly better payout.", kind: "mints", rarity: "small", weight: 18, mints: 0.12 },
+    { id: "mints-small", label: "Mint Dust", description: "A small pile of mint fuel.", kind: "mints", rarity: "small", weight: 14, mints: 0.18 },
     { id: "box-small", label: "Ore Cache", description: "A tiny reward box cache.", kind: "box", rarity: "small", weight: 7 },
     { id: "skin-small", label: "Lucky Shard", description: "A low chance meme skin drop.", kind: "skin", rarity: "small", weight: 4, skinId: "banana_pick" },
     { id: "nft-small", label: "Miner Pass Fragment", description: "A placeholder collectible fragment.", kind: "nft", rarity: "small", weight: 1, nftId: "genesis-miner-pass" },
   ],
   medium: [
-    { id: "sol-mid", label: "Medium SOL Stack", description: "A respectable payout.", kind: "sol", rarity: "medium", weight: 46, sol: 0.03 },
-    { id: "sol-mid-2", label: "Solid SOL Stack", description: "A strong payout.", kind: "sol", rarity: "medium", weight: 18, sol: 0.05 },
-    { id: "mints-mid", label: "Mint Clump", description: "A decent pile of test mints.", kind: "mints", rarity: "medium", weight: 12, mints: 1.1 },
+    { id: "mints-mid", label: "Medium Mint Stack", description: "A respectable payout.", kind: "mints", rarity: "medium", weight: 46, mints: 0.22 },
+    { id: "mints-mid-2", label: "Solid Mint Stack", description: "A strong payout.", kind: "mints", rarity: "medium", weight: 18, mints: 0.36 },
+    { id: "mints-clump", label: "Mint Clump", description: "A decent pile of mint fuel.", kind: "mints", rarity: "medium", weight: 12, mints: 0.52 },
     { id: "box-mid", label: "Quest Box Cache", description: "A box reward hidden in the ore.", kind: "box", rarity: "medium", weight: 10 },
     { id: "pet-mid", label: "Pet Egg", description: "A chance at a mining companion.", kind: "pet", rarity: "medium", weight: 8, petId: "mole" },
     { id: "skin-mid", label: "Pickaxe Skin", description: "A meme-tier cosmetic drop.", kind: "skin", rarity: "medium", weight: 6, skinId: "laser_pick" },
   ],
   large: [
-    { id: "sol-large", label: "Large SOL Stack", description: "A juicy payout for rare ore.", kind: "sol", rarity: "large", weight: 34, sol: 0.08 },
-    { id: "sol-large-2", label: "Heavy SOL Stack", description: "A better rare ore payout.", kind: "sol", rarity: "large", weight: 16, sol: 0.13 },
-    { id: "mints-large", label: "Mint Brick", description: "A bigger pile of test mints.", kind: "mints", rarity: "large", weight: 10, mints: 2.1 },
+    { id: "mints-large", label: "Large Mint Stack", description: "A juicy payout for rare ore.", kind: "mints", rarity: "large", weight: 34, mints: 0.64 },
+    { id: "mints-large-2", label: "Heavy Mint Stack", description: "A better rare ore payout.", kind: "mints", rarity: "large", weight: 16, mints: 0.92 },
+    { id: "mints-brick", label: "Mint Brick", description: "A bigger pile of mint fuel.", kind: "mints", rarity: "large", weight: 10, mints: 1.28 },
     { id: "box-large", label: "Premium Box Cache", description: "A rare box drop.", kind: "box", rarity: "large", weight: 14 },
     { id: "skin-large", label: "Legendary Skin Token", description: "A strong cosmetic roll.", kind: "skin", rarity: "large", weight: 10, skinId: "troll_pick" },
     { id: "nft-large", label: "NFT Drop", description: "A placeholder collectible NFT.", kind: "nft", rarity: "large", weight: 6, nftId: "turbo-ape-miner" },
@@ -873,7 +1132,7 @@ const ROADMAP: RoadmapItem[] = [
   {
     phase: "Phase 1",
     title: "Launch world + plots",
-    copy: "Shared multiplayer plots, building placement, idle mining, and live SOL tracking.",
+    copy: "Shared multiplayer plots, building placement, idle mining, and live mint tracking.",
     status: "Live",
   },
   {
@@ -933,7 +1192,8 @@ const DEFAULT_SKIN_INVENTORY: Record<SkinId, number> = {
   banana_pick: 0,
   aura_hoodie: 0,
   cyber_jacket: 0,
-  astronaut_fit: 0,
+  astronaut_fit: 1,
+  purplespace: 0,
 };
 
 const DEFAULT_NFT_INVENTORY: Record<string, number> = {
@@ -1092,7 +1352,8 @@ function isSkinId(value: unknown): value is SkinId {
     value === "banana_pick" ||
     value === "aura_hoodie" ||
     value === "cyber_jacket" ||
-    value === "astronaut_fit"
+    value === "astronaut_fit" ||
+    value === "purplespace"
   );
 }
 
@@ -1194,7 +1455,7 @@ function canFitStructureAt(plot: Plot, type: StructureType, anchorTile: string, 
 function defaultAvatarPosition() {
   return {
     x: Math.floor(WORLD_WIDTH / 2),
-    y: Math.floor(WORLD_HEIGHT / 2),
+    y: Math.floor(TOWN_TOP + TOWN_PLOT_SIZE / 2),
   };
 }
 
@@ -1204,6 +1465,30 @@ function plotKey(x: number, y: number) {
 
 function round(value: number) {
   return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function miningLevelForXp(xp: number) {
+  if (xp <= 0) return 1;
+  return Math.min(MINING_LEVEL_CAP, Math.max(1, Math.floor(Math.sqrt(xp / 30)) + 1));
+}
+
+function miningXpForRarity(rarity: OreNodeRarity) {
+  switch (rarity) {
+    case "small":
+      return 12;
+    case "medium":
+      return 28;
+    case "large":
+      return 60;
+  }
+}
+
+function miningSpeedMultiplier(level: number) {
+  return Math.max(0.72, 1 - Math.min(level - 1, 30) * 0.008);
+}
+
+function miningDurationForRarity(rarity: OreNodeRarity, level: number) {
+  return Math.max(2600, Math.round(oreNodeMiningMs(rarity) * miningSpeedMultiplier(level)));
 }
 
 function pickWeightedOreRarity() {
@@ -1308,6 +1593,9 @@ function isAvatarNearOre(avatar: { x: number; y: number }, plot: Plot, node: Ore
 }
 
 function findOreSpawnTile(plot: Plot) {
+  if (plot.kind === "town") {
+    return null;
+  }
   const occupiedTiles = new Set([
     ...Object.entries(plot.structures).flatMap(([tile, structure]) =>
       structureFootprintTiles(tile, structure.type),
@@ -1378,7 +1666,7 @@ function rollMiningReward(
     return {
       ...reward,
       mints: amount,
-      description: `Earned ${amount.toFixed(2)} test mints.`,
+      description: `Earned ${amount.toFixed(2)} mints.`,
       detail: `${amount.toFixed(2)} mints`,
     };
   }
@@ -1391,12 +1679,16 @@ function defaultPlaytestMode() {
 
   const params = new URLSearchParams(window.location.search);
   if (params.get("playtest") === "1") return true;
+  if (params.get("playtest") === "0") return false;
 
   try {
-    return window.localStorage.getItem("ore-acres-playtest") === "1";
+    const saved = window.localStorage.getItem("ore-acres-playtest");
+    if (saved === "1") return true;
+    if (saved === "0") return false;
   } catch {
-    return false;
   }
+
+  return true;
 }
 
 function pageFromPath(pathname: string): Page {
@@ -1787,16 +2079,15 @@ function computeEconomy(
   activePet?: PetType | null,
   equippedPickaxeSkin?: SkinId | null,
   equippedClothesSkin?: SkinId | null,
+  activePlayers = 1,
   rewardReserveSol = Number.POSITIVE_INFINITY,
 ) {
-  let income = 0;
+  let stageScore = 0.5;
   let storage = BASE_STORAGE;
-  let globalMultiplier = 1;
-  globalMultiplier *= clothesMultiplier(equippedClothesSkin);
   const structures = plot?.structures ?? {};
 
   if (!plot) {
-    return { income, rawIncome: income, storage };
+    return { income: 0, rawIncome: 0, storage, stageScore: 0 };
   }
 
   for (const key of Object.keys(structures)) {
@@ -1804,23 +2095,23 @@ function computeEconomy(
 
     storage += storageFor(currentStructure) ?? 0;
     if (currentStructure.type === "shack") {
-      globalMultiplier += Math.max(0, (currentStructure.level - 1) * 0.04);
+      stageScore += 1.2 + currentStructure.level * 0.45;
       continue;
     }
     if (currentStructure.type === "solar") {
-      globalMultiplier += 0.03 + currentStructure.level * 0.02;
+      stageScore += 0.22 + currentStructure.level * 0.08;
       continue;
     }
     if (currentStructure.type === "scanner") {
-      globalMultiplier += 0.04 + currentStructure.level * 0.03;
+      stageScore += 0.3 + currentStructure.level * 0.1;
       continue;
     }
     if (currentStructure.type === "refinery") {
-      income += baseIncomeFor(currentStructure) * (1 + currentStructure.level * 0.12);
+      stageScore += 0.42 + currentStructure.level * 0.14;
       continue;
     }
     if (currentStructure.type === "drone") {
-      income += baseIncomeFor(currentStructure) * (1 + currentStructure.level * 0.1);
+      stageScore += 0.5 + currentStructure.level * 0.16;
       continue;
     }
 
@@ -1835,54 +2126,59 @@ function computeEconomy(
     if (currentStructure.type === "drill") {
       const localBoost =
         1 +
-        relayBonus(x, y, structures) * 0.25 +
-        solarNeighbors * 0.06 +
-        coolingNeighbors * 0.08 +
-        conveyorNeighbors * 0.05;
-      income += baseIncomeFor(currentStructure) * localBoost * globalMultiplier;
+        relayBonus(x, y, structures) * 0.2 +
+        solarNeighbors * 0.08 +
+        coolingNeighbors * 0.1 +
+        conveyorNeighbors * 0.06;
+      stageScore += (0.9 + currentStructure.level * 0.38) * localBoost;
       continue;
     }
 
     if (currentStructure.type === "relay") {
-      income += 0.01 * currentStructure.level * (1 + drillNeighbors * 0.08);
+      stageScore += 0.2 * currentStructure.level * (1 + drillNeighbors * 0.08);
       continue;
     }
 
     if (currentStructure.type === "battery" || currentStructure.type === "vault") {
-      income += 0.005 * currentStructure.level * (1 + relayNeighbors * 0.04);
+      stageScore += 0.12 * currentStructure.level * (1 + relayNeighbors * 0.04);
       continue;
     }
 
     if (currentStructure.type === "cooling" || currentStructure.type === "conveyor") {
-      income += 0.01 * currentStructure.level * (1 + drillNeighbors * 0.12);
+      stageScore += 0.12 * currentStructure.level * (1 + drillNeighbors * 0.12);
       continue;
     }
 
     if (currentStructure.type === "storage") {
-      income += 0.003 * currentStructure.level;
+      stageScore += 0.08 * currentStructure.level;
       continue;
     }
 
     if (currentStructure.type === "decor" || currentStructure.type === "neon" || currentStructure.type === "statue" || currentStructure.type === "sign" || currentStructure.type === "shop") {
-      income += 0.002 * currentStructure.level;
+      stageScore += 0.05 * currentStructure.level;
       continue;
     }
   }
 
   if (activePet === "mole") {
-    income += 0.04;
+    stageScore += 0.18;
   } else if (activePet === "fox") {
-    globalMultiplier += 0.04;
+    stageScore += 0.16;
   } else if (activePet === "drake") {
-    income += 0.03;
-    globalMultiplier += 0.08;
+    stageScore += 0.34;
   }
 
-  const rawIncome = income * globalMultiplier * ECONOMY_SCALE;
+  const ownedCosmeticBoost = clothesMultiplier(equippedClothesSkin);
+  const effectivePlayers = Math.max(1, activePlayers);
+  const poolShare = stageScore / Math.max(AVERAGE_STAGE_SCORE * effectivePlayers, AVERAGE_STAGE_SCORE);
+  const rawDailyMintIncome = DAILY_MINT_POOL * poolShare * ownedCosmeticBoost;
+  const cappedDailyMintIncome = Math.min(rawDailyMintIncome, MAX_MINT_PER_PLOT_PER_DAY);
+  const throttle = reserveThrottle(reserveRunwayDays(Math.max(0, rewardReserveSol - RESERVE_FLOOR_SOL), cappedDailyMintIncome));
   return {
-    income: cappedEmissionPerMinute(rawIncome, rewardReserveSol, MAX_IDLE_SOL_PER_DAY),
-    rawIncome,
+    income: round((cappedDailyMintIncome / 1440) * throttle),
+    rawIncome: round(rawDailyMintIncome / 1440),
     storage,
+    stageScore,
   };
 }
 
@@ -1890,7 +2186,7 @@ function resolveMissionRewards(state: GameState) {
   let next = state;
   const claimedPlot = next.claimedPlotId ? next.plots[next.claimedPlotId] : null;
   const economy = claimedPlot
-    ? computeEconomy(claimedPlot, next.activePet, next.equippedPickaxeSkin, next.equippedClothesSkin, next.rewardReserveSol)
+    ? computeEconomy(claimedPlot, next.activePet, next.equippedPickaxeSkin, next.equippedClothesSkin, 1, next.rewardReserveSol)
     : null;
   const structures = claimedPlot ? Object.values(claimedPlot.structures) : [];
   const drillCount = structures.filter((structure) => structure.type === "drill").length;
@@ -1903,7 +2199,7 @@ function resolveMissionRewards(state: GameState) {
     ["first_upgrade", hasUpgradedStructure],
     ["equip_pet", hasPet],
     ["open_chest", next.stats.chestsOpened > 0],
-    ["income_1", Boolean(economy && economy.rawIncome >= 0.000001)],
+    ["income_1", Boolean(economy && economy.rawIncome >= 0.05)],
     ["mansion", hasMansion],
     ["balance_100", next.sol >= 0.1],
   ];
@@ -1956,7 +2252,7 @@ function seededMarketListings(): MarketplaceListing[] {
   return [];
 }
 
-function makePlot(x: number, y: number, owner: PlotOwner | null): Plot {
+function makePlot(x: number, y: number, owner: PlotOwner | null, kind: Plot["kind"] = "plot"): Plot {
   const position = {
     x: WORLD_PADDING + x * (PLOT_SIZE + ROAD_GAP),
     y: WORLD_PADDING + y * (PLOT_SIZE + ROAD_GAP),
@@ -1965,12 +2261,54 @@ function makePlot(x: number, y: number, owner: PlotOwner | null): Plot {
   return {
     id: plotKey(x, y),
     name: `Plot ${x + 1}-${y + 1}`,
+    kind,
     position,
     owner,
     structures: owner?.me ? starterStructures() : {},
     chest: null,
     oreNodes: [],
     totalCollectedSol: 0,
+    totalCollectedMints: 0,
+  };
+}
+
+function makeTown(): Plot {
+  const position = {
+    x: Math.floor((WORLD_WIDTH - TOWN_PLOT_SIZE) / 2),
+    y: TOWN_TOP,
+  };
+
+  return {
+    id: TOWN_ID,
+    name: "Ore Acres Town",
+    kind: "town",
+    position,
+    owner: null,
+    structures: {},
+    chest: null,
+    oreNodes: [],
+    totalCollectedSol: 0,
+    totalCollectedMints: 0,
+  };
+}
+
+function makeMineArea(): Plot {
+  const position = {
+    x: Math.floor((WORLD_WIDTH - PLOT_SIZE) / 2),
+    y: MINE_TOP,
+  };
+
+  return {
+    id: MINE_ID,
+    name: "Dustfall Mine",
+    kind: "mine",
+    position,
+    owner: null,
+    structures: {},
+    chest: null,
+    oreNodes: [],
+    totalCollectedSol: 0,
+    totalCollectedMints: 0,
   };
 }
 
@@ -1982,15 +2320,19 @@ function createInitialState(): GameState {
       plots[plotKey(x, y)] = makePlot(x, y, null);
     }
   }
+  plots[TOWN_ID] = makeTown();
+  plots[MINE_ID] = makeMineArea();
 
   return {
     sol: STARTING_SOL,
     mints: STARTING_MINTS,
     playtestMode: defaultPlaytestMode(),
     rewardReserveSol: STARTING_REWARD_RESERVE_SOL,
+    miningXp: 0,
+    miningLevel: 1,
     plots,
     claimedPlotId: null,
-    selectedPlotId: plotKey(1, 1),
+    selectedPlotId: TOWN_ID,
     selectedTile: null,
     moveSource: null,
     activeTool: "drill",
@@ -2024,10 +2366,11 @@ function createInitialState(): GameState {
     stats: { ...DEFAULT_STATS },
     skinInventory: { ...DEFAULT_SKIN_INVENTORY },
     equippedPickaxeSkin: null,
-    equippedClothesSkin: null,
+    equippedClothesSkin: "astronaut_fit",
     marketListings: seededMarketListings(),
     nftInventory: { ...DEFAULT_NFT_INVENTORY },
     questBoxes: 0,
+    npcDialogue: null,
     inventoryOpen: false,
     shopOpen: false,
     marketOpen: false,
@@ -2074,6 +2417,12 @@ function normalizePlot(raw: unknown): Plot | null {
   return {
     id: candidate.id,
     name: candidate.name,
+    kind: (() => {
+      const legacyKind = typeof (candidate as { kind?: unknown }).kind === "string" ? String((candidate as { kind?: unknown }).kind) : "";
+      if (legacyKind === "town" || legacyKind === "mine") return legacyKind;
+      if (legacyKind === "hub" || candidate.id === "public-hub" || candidate.name === "Public Hub") return "town";
+      return "plot";
+    })(),
     position: {
       x: Number(candidate.position.x) || 0,
       y: Number(candidate.position.y) || 0,
@@ -2090,6 +2439,10 @@ function normalizePlot(raw: unknown): Plot | null {
     totalCollectedSol:
       typeof (candidate as { totalCollectedSol?: unknown }).totalCollectedSol === "number"
         ? Math.max(0, (candidate as { totalCollectedSol: number }).totalCollectedSol)
+        : 0,
+    totalCollectedMints:
+      typeof (candidate as { totalCollectedMints?: unknown }).totalCollectedMints === "number"
+        ? Math.max(0, (candidate as { totalCollectedMints: number }).totalCollectedMints)
         : 0,
   };
 }
@@ -2210,12 +2563,15 @@ function loadGameState(saveKey: string): GameState {
       stats: { ...DEFAULT_STATS, ...(parsed.stats ?? {}) },
       skinInventory: { ...DEFAULT_SKIN_INVENTORY, ...(parsed.skinInventory ?? {}) },
       equippedPickaxeSkin: isSkinId(parsed.equippedPickaxeSkin) ? parsed.equippedPickaxeSkin : null,
-      equippedClothesSkin: isSkinId(parsed.equippedClothesSkin) ? parsed.equippedClothesSkin : null,
+      equippedClothesSkin: isSkinId(parsed.equippedClothesSkin) ? parsed.equippedClothesSkin : "astronaut_fit",
       marketListings: Array.isArray(parsed.marketListings)
         ? parsed.marketListings.map(normalizeMarketplaceListing).filter((entry): entry is MarketplaceListing => Boolean(entry))
         : seededMarketListings(),
       nftInventory: { ...DEFAULT_NFT_INVENTORY, ...(parsed.nftInventory ?? {}) },
       questBoxes: typeof parsed.questBoxes === "number" ? parsed.questBoxes : 0,
+      miningXp: typeof parsed.miningXp === "number" ? Math.max(0, parsed.miningXp) : fallback.miningXp,
+      miningLevel: typeof parsed.miningLevel === "number" ? Math.max(1, parsed.miningLevel) : fallback.miningLevel,
+      npcDialogue: null,
       inventoryOpen: false,
       proof: typeof parsed.proof === "string" ? parsed.proof : "",
       message: typeof parsed.message === "string" ? parsed.message : fallback.message,
@@ -2244,28 +2600,19 @@ function loadGameState(saveKey: string): GameState {
         loaded.activePet,
         loaded.equippedPickaxeSkin,
         loaded.equippedClothesSkin,
+        1,
         loaded.rewardReserveSol,
       );
       const cappedOfflineSeconds = Math.min(offlineSeconds, MAX_OFFLINE_SECONDS);
-      const offlinePotential = Math.min(economy.storage, round(economy.income * cappedOfflineSeconds / 60));
-      const offlineClaim = claimSolFromReserve(
-        offlinePotential,
-        loaded.rewardReserveSol,
-        MAX_IDLE_SOL_PER_DAY * (cappedOfflineSeconds / 86_400),
-      );
-      const offlineGain = offlineClaim.paid;
+      const offlineGain = round(economy.income * cappedOfflineSeconds / 60);
       if (offlineGain > 0) {
-        loaded.sol = round(Math.min(loaded.sol + offlineGain, economy.storage));
-        loaded.rewardReserveSol = offlineClaim.reserve;
-        if (loaded.playtestMode) {
-          loaded.mints = round(loaded.mints + Math.max(0.02, economy.rawIncome * 0.08) * cappedOfflineSeconds / 60);
-        }
+        loaded.mints = round(loaded.mints + offlineGain);
         loaded.plots[claimedPlot.id] = {
           ...claimedPlot,
-          totalCollectedSol: round((claimedPlot.totalCollectedSol ?? 0) + offlineGain),
+          totalCollectedMints: round((claimedPlot.totalCollectedMints ?? 0) + offlineGain),
         };
         loaded.stats.totalEarned = round(loaded.stats.totalEarned + offlineGain);
-        loaded.message = `While you were away, your mine earned ${offlineGain.toFixed(2)} SOL.`;
+        loaded.message = `While you were away, your mine earned ${offlineGain.toFixed(2)} mints.`;
       }
     }
 
@@ -2307,11 +2654,15 @@ function gameDigest(state: GameState, wallet: PublicKey | null) {
     marketListings: state.marketListings,
     nftInventory: state.nftInventory,
     questBoxes: state.questBoxes,
+    miningXp: round(state.miningXp),
+    miningLevel: state.miningLevel,
     marketOpen: state.marketOpen,
     plots: Object.entries(state.plots).map(([id, plot]) => ({
       id,
+      kind: plot.kind,
       owner: plot.owner?.label ?? null,
       totalCollectedSol: round(plot.totalCollectedSol),
+      totalCollectedMints: round(plot.totalCollectedMints),
       oreNodes: plot.oreNodes.map((node) => ({
         id: node.id,
         plotId: node.plotId,
@@ -2462,6 +2813,7 @@ function toSharedPlotSnapshot(plot: Plot, ownerLabel: string | null): SharedPlot
   return {
     id: plot.id,
     name: plot.name,
+    kind: plot.kind,
     ownerLabel,
     structures: Object.fromEntries(
       Object.entries(plot.structures).map(([tile, structure]) => [
@@ -2477,6 +2829,7 @@ function toSharedPlotSnapshot(plot: Plot, ownerLabel: string | null): SharedPlot
     chest: plot.chest ? { ...plot.chest } : null,
     oreNodes: plot.oreNodes.map((node) => ({ ...node })),
     totalCollectedSol: round(plot.totalCollectedSol),
+    totalCollectedMints: round(plot.totalCollectedMints),
   };
 }
 
@@ -2489,6 +2842,7 @@ function mergeSharedPlotSnapshot(
   return {
     ...localPlot,
     name: sharedPlot.name || localPlot.name,
+    kind: sharedPlot.kind === "town" || sharedPlot.kind === "mine" ? sharedPlot.kind : localPlot.kind,
     owner: isMine
       ? { label: fallbackOwner, me: true }
       : sharedPlot.ownerLabel
@@ -2512,6 +2866,9 @@ function mergeSharedPlotSnapshot(
     totalCollectedSol: Number.isFinite(sharedPlot.totalCollectedSol)
       ? Math.max(0, sharedPlot.totalCollectedSol)
       : localPlot.totalCollectedSol,
+    totalCollectedMints: Number.isFinite(sharedPlot.totalCollectedMints)
+      ? Math.max(0, sharedPlot.totalCollectedMints)
+      : localPlot.totalCollectedMints,
   };
 }
 
@@ -2659,6 +3016,77 @@ function avatarCenter(avatar: { x: number; y: number }) {
   };
 }
 
+function SheetSkinSprite({
+  src,
+  facing,
+  moving,
+  mining,
+  className = "",
+}: {
+  src: string;
+  facing: AvatarFacing;
+  moving: boolean;
+  mining: boolean;
+  className?: string;
+}) {
+  const frameClass =
+    facing === "left" || facing === "right"
+      ? "avatar__astronaut--side"
+      : facing === "up"
+        ? "avatar__astronaut--up"
+        : "avatar__astronaut--down";
+  const frameStart = facing === "left" || facing === "right"
+    ? ASTRONAUT_FRAME_GROUPS.side
+    : facing === "up"
+      ? ASTRONAUT_FRAME_GROUPS.up
+      : ASTRONAUT_FRAME_GROUPS.down;
+  const animationName = !moving
+    ? "none"
+    : facing === "up"
+      ? "astronautWalkUp"
+      : facing === "left"
+        ? "astronautWalkSideLeft"
+        : facing === "right"
+          ? "astronautWalkSide"
+          : "astronautWalkDown";
+
+  return (
+    <div
+      className={[
+        "avatar__astronaut",
+        frameClass,
+        moving ? "avatar__astronaut--moving" : "",
+        mining ? "avatar__astronaut--mining" : "",
+        facing === "left" ? "avatar__astronaut--flip" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      style={{
+        ["--astronaut-frame-start" as string]: frameStart,
+        backgroundImage: `url(${src})`,
+        animationName,
+        animationDuration: moving ? "0.68s" : undefined,
+        animationTimingFunction: moving ? "steps(4)" : undefined,
+        animationIterationCount: moving ? "infinite" : undefined,
+      }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function AstronautSkinSprite({
+  facing,
+  moving,
+  mining,
+}: {
+  facing: AvatarFacing;
+  moving: boolean;
+  mining: boolean;
+}) {
+  return <SheetSkinSprite src={ASTRONAUT_SKIN_SHEET} facing={facing} moving={moving} mining={mining} />;
+}
+
 function AvatarSprite({
   moving,
   mining = false,
@@ -2674,14 +3102,61 @@ function AvatarSprite({
   clothesSkin?: SkinId | null;
   avatarStyle?: AvatarStyle;
   facing?: AvatarFacing;
-  variant?: "local" | "remote";
+  variant?: "local" | "remote" | "npc";
 }) {
+  const visualClothesSkin = clothesSkin ?? "astronaut_fit";
   const tone = AVATAR_SKIN_TONES[avatarStyle.skinTone];
   const hair = AVATAR_HAIR_COLORS[avatarStyle.hairColor];
   const outfit = AVATAR_BASE_OUTFITS[avatarStyle.baseOutfit];
 
-  return (
+  if (variant !== "npc" && visualClothesSkin === "astronaut_fit") {
+    return (
       <div
+        className={[
+          "avatar",
+          moving ? "avatar--moving" : "",
+          mining ? "avatar--mining" : "",
+          `avatar--facing-${facing}`,
+          variant === "remote" ? "avatar--remote" : "",
+          pickaxeSkin ? `avatar--pickaxe-${pickaxeSkin}` : "",
+          `avatar--clothes-${visualClothesSkin}`,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <div className="avatar__shadow" />
+        <AstronautSkinSprite facing={facing} moving={moving} mining={mining} />
+        <div className="avatar__tool" />
+        <div className="avatar__aura" />
+      </div>
+    );
+  }
+
+  if (visualClothesSkin === "purplespace") {
+    return (
+      <div
+        className={[
+          "avatar",
+          moving ? "avatar--moving" : "",
+          mining ? "avatar--mining" : "",
+          `avatar--facing-${facing}`,
+          variant === "remote" ? "avatar--remote" : "",
+          pickaxeSkin ? `avatar--pickaxe-${pickaxeSkin}` : "",
+          `avatar--clothes-${visualClothesSkin}`,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <div className="avatar__shadow" />
+        <SheetSkinSprite src={PURPLESPACE_SKIN_SHEET} facing={facing} moving={moving} mining={mining} />
+        <div className="avatar__tool" />
+        <div className="avatar__aura" />
+      </div>
+    );
+  }
+
+  return (
+    <div
       className={[
         "avatar",
         moving ? "avatar--moving" : "",
@@ -2690,6 +3165,7 @@ function AvatarSprite({
         variant === "remote" ? "avatar--remote" : "",
         pickaxeSkin ? `avatar--pickaxe-${pickaxeSkin}` : "",
         clothesSkin ? `avatar--clothes-${clothesSkin}` : "",
+        clothesSkin === "purplespace" ? "avatar--clothes-purplespace" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -2702,17 +3178,17 @@ function AvatarSprite({
         ["--avatar-outfit-shade" as string]: outfit.shade,
       }}
     >
-      <div className="avatar__shadow" />
-      <div className="avatar__legs">
+      <div className="avatar__shadow" style={rigStyle("shadow")} />
+      <div className="avatar__legs" style={rigStyle("legs")}>
         <span className="avatar__leg avatar__leg--left" />
         <span className="avatar__leg avatar__leg--right" />
       </div>
-      <div className="avatar__body">
+      <div className="avatar__body" style={rigStyle("body")}>
         <span className="avatar__shirt-detail" />
         <span className="avatar__arm avatar__arm--left" />
         <span className="avatar__arm avatar__arm--right" />
       </div>
-      <div className="avatar__head">
+      <div className="avatar__head" style={rigStyle("head")}>
         <span className="avatar__hair" />
         <span className="avatar__face">
           <i className="avatar__eye avatar__eye--left" />
@@ -2720,8 +3196,8 @@ function AvatarSprite({
           <i className="avatar__mouth" />
         </span>
       </div>
-      <div className="avatar__tool" />
-      <div className="avatar__aura" />
+      {variant !== "npc" ? <div className="avatar__tool" style={rigStyle("tool")} /> : null}
+      {variant !== "npc" ? <div className="avatar__aura" style={rigStyle("aura")} /> : null}
     </div>
   );
 }
@@ -2898,6 +3374,35 @@ function SkinShopArt({ skinId, className = "" }: { skinId: SkinId; className?: s
       <div
         className={`item-art item-art--pickaxe-image ${className}`.trim()}
         style={{ backgroundImage: `url(${PICKAXE_ART[skinId]})` }}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (skinId === "astronaut_fit") {
+    return (
+      <div className={`item-art item-art--skin-image ${className}`.trim()}>
+        <img
+          src={ASTRONAUT_SKIN_PREVIEW}
+          alt=""
+          draggable={false}
+          aria-hidden="true"
+        />
+      </div>
+    );
+  }
+
+  if (skinId === "purplespace") {
+    return (
+      <div
+        className={`item-art item-art--skin-image ${className}`.trim()}
+        style={{
+          backgroundImage: `url(${PURPLESPACE_SKIN_SHEET})`,
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "768px 64px",
+          backgroundPosition: "0px 0px",
+          imageRendering: "pixelated",
+        }}
         aria-hidden="true"
       />
     );
@@ -3209,6 +3714,9 @@ function App() {
   const [marketFilter, setMarketFilter] = useState<"all" | "skins" | "pickaxes" | "clothes" | "pets">("all");
   const [marketSort, setMarketSort] = useState<"low" | "high" | "newest">("low");
   const [cameraZoom, setCameraZoom] = useState(1);
+  const [townEditorOpen, setTownEditorOpen] = useState(true);
+  const [townPlacements, setTownPlacements] = useState<TownPlacement[]>(() => loadTownPlacements());
+  const [selectedTownPlacementId, setSelectedTownPlacementId] = useState<string | null>(null);
   const [tutorialOpen, setTutorialOpen] = useState(() => {
     return page === "game" && window.localStorage.getItem("ore-acres-tutorial-complete") !== "1";
   });
@@ -3223,6 +3731,7 @@ function App() {
   const devMode = new URLSearchParams(window.location.search).get("dev") === "1";
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gamePanelRef = useRef<HTMLElement | null>(null);
+  const townCanvasRef = useRef<HTMLDivElement | null>(null);
   const tutorialAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicEngineRef = useRef<{
     context: AudioContext;
@@ -3241,7 +3750,13 @@ function App() {
   const socketRef = useRef<WebSocket | null>(null);
   const myPlayerIdRef = useRef<string | null>(null);
   const avatarRef = useRef(game.avatar);
+  const appearanceRef = useRef({
+    avatarStyle: game.avatarStyle,
+    equippedPickaxeSkin: game.equippedPickaxeSkin,
+    equippedClothesSkin: game.equippedClothesSkin,
+  });
   const lastSentMoveRef = useRef({ x: Number.NaN, y: Number.NaN, at: 0 });
+  const lastSentAppearanceRef = useRef<string>("");
   const playerName = useMemo(() => {
     if (!walletPublicKey) {
       return "Guest Miner";
@@ -3269,6 +3784,13 @@ function App() {
   }
 
   const tutorialStep = TUTORIAL_STEPS[tutorialStepIndex] ?? TUTORIAL_STEPS[0];
+
+  const townPlacementById = useMemo(() => {
+    return new Map(townPlacements.map((placement) => [placement.id, placement] as const));
+  }, [townPlacements]);
+  const selectedTownPlacement = selectedTownPlacementId
+    ? townPlacementById.get(selectedTownPlacementId) ?? null
+    : null;
 
   function focusTutorialPanel(panel: TutorialPanel) {
     setGame((current) => ({
@@ -3387,6 +3909,57 @@ function App() {
     });
   }
 
+  function persistTownPlacements(nextPlacements: TownPlacement[]) {
+    setTownPlacements(nextPlacements);
+    setSelectedTownPlacementId((current) =>
+      current && nextPlacements.some((placement) => placement.id === current) ? current : null,
+    );
+    window.localStorage.setItem(TOWN_LAYOUT_STORAGE_KEY, JSON.stringify(nextPlacements));
+  }
+
+  function townDropPoint(event: DragEvent<HTMLDivElement>) {
+    const canvas = townCanvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
+    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+    return { x, y };
+  }
+
+  function placeTownAsset(assetId: TownAssetId, x: number, y: number, placementId?: string) {
+    const asset = TOWN_ASSET_BY_ID[assetId];
+    const nextPlacement: TownPlacement = {
+      id: placementId ?? `town-place-${Date.now()}-${Math.round(Math.random() * 9999)}`,
+      assetId,
+      x,
+      y,
+      scale: 1,
+      zIndex: asset.zIndex,
+    };
+
+    const nextPlacements = placementId
+      ? townPlacements.map((placement) => (placement.id === placementId ? { ...placement, ...nextPlacement } : placement))
+      : [...townPlacements, nextPlacement];
+
+    persistTownPlacements(nextPlacements);
+    setSelectedTownPlacementId(nextPlacement.id);
+  }
+
+  function removeTownPlacement(placementId: string) {
+    persistTownPlacements(townPlacements.filter((placement) => placement.id !== placementId));
+  }
+
+  function nudgeTownScale(delta: number) {
+    if (!selectedTownPlacementId) return;
+    const placement = townPlacementById.get(selectedTownPlacementId);
+    if (!placement) return;
+
+    const nextPlacements = townPlacements.map((entry) =>
+      entry.id === placement.id ? { ...entry, scale: clamp(entry.scale + delta, 0.4, 2.5) } : entry,
+    );
+    persistTownPlacements(nextPlacements);
+  }
+
   useEffect(() => {
     const syncWallet = () => {
       setWalletPublicKey(window.solana?.publicKey ?? null);
@@ -3432,6 +4005,14 @@ function App() {
   }, [game.avatar.x, game.avatar.y]);
 
   useEffect(() => {
+    appearanceRef.current = {
+      avatarStyle: game.avatarStyle,
+      equippedPickaxeSkin: game.equippedPickaxeSkin,
+      equippedClothesSkin: game.equippedClothesSkin,
+    };
+  }, [game.avatarStyle, game.equippedPickaxeSkin, game.equippedClothesSkin]);
+
+  useEffect(() => {
     const minerTag = walletPublicKey?.toBase58() ?? playerName;
     let lockUntil = 0;
 
@@ -3449,6 +4030,10 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem("ore-acres-playtest", game.playtestMode ? "1" : "0");
   }, [game.playtestMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(TOWN_LAYOUT_STORAGE_KEY, JSON.stringify(townPlacements));
+  }, [townPlacements]);
 
   useEffect(() => {
     const saveState = { ...game, chestReveal: null, mineReveal: null, lastUpdatedAt: Date.now() };
@@ -3701,13 +4286,16 @@ function App() {
           for (const entry of players) {
             if (!entry || typeof entry.id !== "string") continue;
             if (entry.id === myPlayerIdRef.current) continue;
-            nextRemotePlayers[entry.id] = {
-              id: entry.id,
-              name: typeof entry.name === "string" ? entry.name : "Miner",
-              x: Number(entry.x ?? 0),
-              y: Number(entry.y ?? 0),
-            };
-          }
+          nextRemotePlayers[entry.id] = {
+            id: entry.id,
+            name: typeof entry.name === "string" ? entry.name : "Miner",
+            x: Number(entry.x ?? 0),
+            y: Number(entry.y ?? 0),
+            avatarStyle: normalizeAvatarStyle(entry.avatarStyle),
+            equippedPickaxeSkin: isSkinId(entry.equippedPickaxeSkin) && isPickaxeSkinId(entry.equippedPickaxeSkin) ? entry.equippedPickaxeSkin : null,
+            equippedClothesSkin: isSkinId(entry.equippedClothesSkin) && !isPickaxeSkinId(entry.equippedClothesSkin) ? entry.equippedClothesSkin : null,
+          };
+        }
 
           setRemotePlayers(nextRemotePlayers);
           return;
@@ -3719,6 +4307,15 @@ function App() {
             name: typeof message.player.name === "string" ? message.player.name : "Miner",
             x: Number(message.player.x ?? 0),
             y: Number(message.player.y ?? 0),
+            avatarStyle: normalizeAvatarStyle(message.player.avatarStyle),
+            equippedPickaxeSkin:
+              isSkinId(message.player.equippedPickaxeSkin) && isPickaxeSkinId(message.player.equippedPickaxeSkin)
+                ? message.player.equippedPickaxeSkin
+                : null,
+            equippedClothesSkin:
+              isSkinId(message.player.equippedClothesSkin) && !isPickaxeSkinId(message.player.equippedClothesSkin)
+                ? message.player.equippedClothesSkin
+                : null,
           });
           return;
         }
@@ -3733,6 +4330,15 @@ function App() {
                 ...existing,
                 x: Number(message.player.x ?? existing.x),
                 y: Number(message.player.y ?? existing.y),
+                avatarStyle: normalizeAvatarStyle(message.player.avatarStyle ?? existing.avatarStyle),
+                equippedPickaxeSkin:
+                  isSkinId(message.player.equippedPickaxeSkin) && isPickaxeSkinId(message.player.equippedPickaxeSkin)
+                    ? message.player.equippedPickaxeSkin
+                    : existing.equippedPickaxeSkin ?? null,
+                equippedClothesSkin:
+                  isSkinId(message.player.equippedClothesSkin) && !isPickaxeSkinId(message.player.equippedClothesSkin)
+                    ? message.player.equippedClothesSkin
+                    : existing.equippedClothesSkin ?? null,
               },
             };
           });
@@ -3748,6 +4354,15 @@ function App() {
               [existing.id]: {
                 ...existing,
                 name: typeof message.player.name === "string" ? message.player.name : existing.name,
+                avatarStyle: normalizeAvatarStyle(message.player.avatarStyle ?? existing.avatarStyle),
+                equippedPickaxeSkin:
+                  isSkinId(message.player.equippedPickaxeSkin) && isPickaxeSkinId(message.player.equippedPickaxeSkin)
+                    ? message.player.equippedPickaxeSkin
+                    : existing.equippedPickaxeSkin ?? null,
+                equippedClothesSkin:
+                  isSkinId(message.player.equippedClothesSkin) && !isPickaxeSkinId(message.player.equippedClothesSkin)
+                    ? message.player.equippedClothesSkin
+                    : existing.equippedClothesSkin ?? null,
               },
             };
           });
@@ -3817,33 +4432,28 @@ function App() {
           next.activePet,
           next.equippedPickaxeSkin,
           next.equippedClothesSkin,
+          Math.max(1, Object.keys(remotePlayers).length + 1),
           next.rewardReserveSol,
         );
-        const reserveClaim = claimSolFromReserve(economy.income / 60, next.rewardReserveSol, MAX_IDLE_SOL_PER_DAY);
-        const nextSol = round(Math.min(next.sol + reserveClaim.paid, economy.storage));
-        const nextMints = next.playtestMode
-          ? round(next.mints + Math.max(0.02, economy.rawIncome * 0.08) / 60)
-          : next.mints;
-        const earned = round(nextSol - next.sol);
+        const mintGain = round(economy.income / 60);
+        const nextMints = round(next.mints + mintGain);
 
-        if (earned > 0) {
+        if (mintGain > 0) {
           next = {
             ...next,
             plots: {
               ...next.plots,
               [plot.id]: {
                 ...plot,
-                totalCollectedSol: round((plot.totalCollectedSol ?? 0) + earned),
+                totalCollectedMints: round((plot.totalCollectedMints ?? 0) + mintGain),
               },
             },
-            sol: nextSol,
-            rewardReserveSol: reserveClaim.reserve,
             mints: nextMints,
             stats: {
               ...next.stats,
-              totalEarned: round(next.stats.totalEarned + earned),
+              totalEarned: round(next.stats.totalEarned + mintGain),
             },
-            message: `Your plot is producing ${economy.income.toFixed(2)} SOL/min.`,
+            message: `Your plot is producing ${economy.income.toFixed(2)} mints/min from the shared pool.`,
           };
         } else if (nextMints !== next.mints) {
           next = {
@@ -3857,27 +4467,27 @@ function App() {
     }, TICK_MS);
 
     return () => window.clearInterval(interval);
-  }, []);
+  }, [remotePlayers]);
 
   useEffect(() => {
     if (page !== "game") return;
 
-    const spawnOre = (force = false) => {
+    const spawnOre = (plotId: string, force = false, label = "area") => {
       let syncedPlot: Plot | null = null;
       const now = Date.now();
 
       setGame((current) => {
-        if (!current.claimedPlotId) return current;
-
-        const plot = current.plots[current.claimedPlotId];
-        if (!plot?.owner?.me) return current;
+        const plot = current.plots[plotId];
+        if (!plot) return current;
+        if (plot.kind === "plot" && !plot.owner?.me) return current;
 
         const activeOreNodes = plot.oreNodes.filter((node) => node.despawnAt > now);
         const cleanedPlot = activeOreNodes.length === plot.oreNodes.length
           ? plot
           : { ...plot, oreNodes: activeOreNodes };
 
-        if (activeOreNodes.length >= ORE_NODE_LIMIT) {
+        const limit = plot.kind === "mine" ? 4 : plot.kind === "town" ? 0 : ORE_NODE_LIMIT;
+        if (activeOreNodes.length >= limit) {
           if (cleanedPlot === plot) return current;
           syncedPlot = cleanedPlot;
           return {
@@ -3889,7 +4499,8 @@ function App() {
           };
         }
 
-        if (!force && Math.random() > ORE_SPAWN_CHANCE) {
+        const chance = plot.kind === "mine" ? 0.85 : ORE_SPAWN_CHANCE;
+        if (!force && Math.random() > chance) {
           if (cleanedPlot === plot) return current;
           syncedPlot = cleanedPlot;
           return {
@@ -3938,21 +4549,34 @@ function App() {
             ...current.plots,
             [plot.id]: nextPlot,
           },
-          message: `${oreNodeDisplayLabel(rarity)} surfaced on your plot.`,
+          message:
+            plot.kind === "mine"
+              ? `${oreNodeDisplayLabel(rarity)} surfaced in Dustfall Mine.`
+              : `${oreNodeDisplayLabel(rarity)} surfaced in the ${label}.`,
         };
       });
 
       sendSharedPlot(syncedPlot);
     };
 
-    const firstSpawn = window.setTimeout(() => spawnOre(true), ORE_FIRST_SPAWN_DELAY_MS);
-    const interval = window.setInterval(() => spawnOre(false), ORE_SPAWN_INTERVAL_MS);
+    const firstSpawn = window.setTimeout(() => {
+      spawnOre(MINE_ID, true, "mine");
+      if (game.claimedPlotId) {
+        spawnOre(game.claimedPlotId, true, "plot");
+      }
+    }, ORE_FIRST_SPAWN_DELAY_MS);
+    const interval = window.setInterval(() => {
+      spawnOre(MINE_ID, false, "mine");
+      if (game.claimedPlotId) {
+        spawnOre(game.claimedPlotId, false, "plot");
+      }
+    }, ORE_SPAWN_INTERVAL_MS);
 
     return () => {
       window.clearTimeout(firstSpawn);
       window.clearInterval(interval);
     };
-  }, [page, playerName]);
+  }, [page, playerName, game.claimedPlotId]);
 
   useEffect(() => {
     if (page !== "game") return;
@@ -4131,14 +4755,50 @@ function App() {
         type: "move",
         x: Math.round(avatar.x),
         y: Math.round(avatar.y),
+        avatarStyle: appearanceRef.current.avatarStyle,
+        equippedPickaxeSkin: appearanceRef.current.equippedPickaxeSkin,
+        equippedClothesSkin: appearanceRef.current.equippedClothesSkin,
       }),
     );
   }, [game.avatar.x, game.avatar.y, multiplayerStatus]);
 
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN || multiplayerStatus !== "online") {
+      return;
+    }
+
+    const payload = {
+      avatarStyle: appearanceRef.current.avatarStyle,
+      equippedPickaxeSkin: appearanceRef.current.equippedPickaxeSkin,
+      equippedClothesSkin: appearanceRef.current.equippedClothesSkin,
+    };
+    const signature = JSON.stringify(payload);
+    if (signature === lastSentAppearanceRef.current) {
+      return;
+    }
+
+    lastSentAppearanceRef.current = signature;
+    socket.send(JSON.stringify({ type: "move", x: Math.round(avatarRef.current.x), y: Math.round(avatarRef.current.y), ...payload }));
+  }, [game.avatarStyle, game.equippedPickaxeSkin, game.equippedClothesSkin, multiplayerStatus]);
+
   const claimedPlot = game.claimedPlotId ? game.plots[game.claimedPlotId] : null;
   const selectedPlot = game.plots[game.selectedPlotId];
+  const selectedPlotLabel =
+    selectedPlot.kind === "town"
+      ? "Ore Acres Town"
+      : selectedPlot.kind === "mine"
+        ? "Dustfall Mine"
+        : selectedPlot.name;
   const selectedPlotEconomy = claimedPlot
-    ? computeEconomy(claimedPlot, game.activePet, game.equippedPickaxeSkin, game.equippedClothesSkin, game.rewardReserveSol)
+    ? computeEconomy(
+        claimedPlot,
+        game.activePet,
+        game.equippedPickaxeSkin,
+        game.equippedClothesSkin,
+        Math.max(1, Object.keys(remotePlayers).length + 1),
+        game.rewardReserveSol,
+      )
     : null;
   const rewardReserveRunwayDays = reserveRunwayDays(
     game.rewardReserveSol,
@@ -4190,8 +4850,11 @@ function App() {
   const hasPlacedDrill = Boolean(
     claimedPlot && Object.values(claimedPlot.structures).some((structure) => structure.type === "drill"),
   );
+  const inPublicTown = selectedPlot.kind === "town";
   const worldObjective = !game.claimedPlotId
-    ? "Claim an open plot to begin your mine."
+    ? inPublicTown
+      ? "Use town to buy your first plot, bank loot, and meet other miners."
+      : "Claim an open plot to begin your mine."
     : !hasPlacedDrill && (game.inventory.drill ?? 0) > 0
       ? "Place your starter drill on an empty tile."
       : selectedStructure && nextStructureCost
@@ -4272,6 +4935,29 @@ function App() {
     }
 
     setGame((current) => ({ ...current, marketOpen: true }));
+  }
+
+  function warpToClaimedPlot() {
+    setGame((current) => {
+      if (!current.claimedPlotId) {
+        return { ...current, message: "Claim a plot first so we know where to warp you." };
+      }
+
+      const plot = current.plots[current.claimedPlotId];
+      if (!plot) {
+        return current;
+      }
+
+      return {
+        ...current,
+        selectedPlotId: plot.id,
+        avatar: {
+          x: plot.position.x + PLOT_SIZE / 2,
+          y: plot.position.y + PLOT_SIZE / 2,
+        },
+        message: "Teleported back to your plot.",
+      };
+    });
   }
 
   function togglePlaytestMode() {
@@ -4446,15 +5132,145 @@ function App() {
   }
 
   function selectPlot(plotId: string) {
+    const plot = game.plots[plotId] ?? null;
     setGame((current) => ({
       ...current,
       selectedPlotId: plotId,
-      message: current.plots[plotId].owner?.me
-        ? "Your plot selected."
-        : current.plots[plotId].owner
-          ? `${current.plots[plotId].owner.label}'s plot selected.`
-          : "Unclaimed plot selected.",
+      message: plot?.kind === "town"
+        ? "Ore Acres Town selected."
+        : plot?.kind === "mine"
+          ? "Dustfall Mine selected."
+        : plot?.owner?.me
+          ? "Your plot selected."
+          : plot?.owner
+            ? `${plot.owner.label}'s plot selected.`
+            : "Unclaimed plot selected.",
     }));
+  }
+
+  function warpToTown() {
+    if (!townPlot) {
+      setMessage("The town area is missing.");
+      return;
+    }
+
+    setGame((current) => ({
+      ...current,
+      selectedPlotId: townPlot.id,
+      avatar: {
+        x: townPlot.position.x + TOWN_PLOT_SIZE / 2,
+        y: townPlot.position.y + TOWN_PLOT_SIZE / 2,
+      },
+      message: "Returned to Ore Acres Town.",
+    }));
+  }
+
+  function openNpcDialogue(npcId: NpcId) {
+    setGame((current) => ({
+      ...current,
+      selectedPlotId: TOWN_ID,
+      npcDialogue: { npcId, step: 0 },
+      inventoryOpen: false,
+      shopOpen: false,
+      marketOpen: false,
+      questsOpen: false,
+      message: "Talking to an NPC...",
+    }));
+  }
+
+  function closeNpcDialogue() {
+    setGame((current) => ({ ...current, npcDialogue: null }));
+  }
+
+  function advanceNpcDialogue() {
+    setGame((current) => {
+      if (!current.npcDialogue) return current;
+      return {
+        ...current,
+        npcDialogue: {
+          ...current.npcDialogue,
+          step: current.npcDialogue.step + 1,
+        },
+      };
+    });
+  }
+
+  function findNearestOpenPlot(plots: Record<string, Plot>, origin: { x: number; y: number }) {
+    const openPlots = Object.values(plots).filter((plot) => plot.kind === "plot" && !plot.owner);
+    if (openPlots.length === 0) return null;
+    return openPlots
+      .map((plot) => ({ plot, distance: Math.hypot(plot.position.x + PLOT_SIZE / 2 - origin.x, plot.position.y + PLOT_SIZE / 2 - origin.y) }))
+      .sort((a, b) => a.distance - b.distance)[0]?.plot ?? null;
+  }
+
+  async function buyStarterPlot() {
+    const payment = await chargePumpMint(5, "starter plot");
+    if (!payment) return;
+
+    let syncedPlot: Plot | null = null;
+    setGame((current) => {
+      const origin = current.claimedPlotId && current.plots[current.claimedPlotId]
+        ? {
+            x: current.plots[current.claimedPlotId].position.x + PLOT_SIZE / 2,
+            y: current.plots[current.claimedPlotId].position.y + PLOT_SIZE / 2,
+          }
+        : townPlot
+          ? { x: townPlot.position.x + TOWN_PLOT_SIZE / 2, y: townPlot.position.y + TOWN_PLOT_SIZE / 2 }
+          : current.avatar;
+      const plot = findNearestOpenPlot(current.plots, origin);
+      if (!plot) {
+        return { ...current, message: "No plots are open right now." };
+      }
+
+      const nextPlot: Plot = {
+        ...plot,
+        owner: { label: "You", me: true },
+        structures: starterStructures(),
+        chest: null,
+      };
+
+      const nextState: GameState = {
+        ...current,
+        plots: {
+          ...current.plots,
+          [plot.id]: nextPlot,
+        },
+        claimedPlotId: plot.id,
+        selectedPlotId: plot.id,
+        avatar: {
+          x: plot.position.x + PLOT_SIZE / 2,
+          y: plot.position.y + PLOT_SIZE / 2,
+        },
+        selectedTile: tileKey(3, 3),
+        activeTool: "drill",
+        inventory: {
+          ...current.inventory,
+          storage: 0,
+          relay: 0,
+          decor: 0,
+          shop: 0,
+          solar: 0,
+          battery: 0,
+          cooling: 0,
+          conveyor: 0,
+          drone: 0,
+          scanner: 0,
+          refinery: 0,
+          vault: 0,
+          neon: 0,
+          statue: 0,
+          sign: 0,
+        },
+        mints: Math.max(0, round(current.mints - payment.localDebitMints)),
+        shopOpen: false,
+        marketOpen: false,
+        questsOpen: false,
+        message: "Plot purchased. Teleported to your new home.",
+      };
+      syncedPlot = nextPlot;
+      return nextState;
+    });
+    sendSharedPlot(syncedPlot);
   }
 
   function claimSelectedPlot() {
@@ -4465,6 +5281,9 @@ function App() {
       }
 
       const plot = current.plots[current.selectedPlotId];
+      if (!plot || plot.kind !== "plot") {
+        return { ...current, message: "Only player plots can be claimed." };
+      }
       if (plot.owner) {
         return { ...current, message: "That plot is already claimed." };
       }
@@ -4689,7 +5508,7 @@ function App() {
     }, 2600);
   }
 
-  function finishMiningOre(plotId: string, oreId: string) {
+function finishMiningOre(plotId: string, oreId: string) {
     const timer = oreMiningTimersRef.current[oreId];
     if (timer !== undefined) {
       window.clearTimeout(timer);
@@ -4710,29 +5529,26 @@ function App() {
         return current;
       }
 
-      const baseSol = round(node.reward * pickaxeMultiplier(current.equippedPickaxeSkin));
+      const baseMint = round(node.reward * pickaxeMultiplier(current.equippedPickaxeSkin));
       const reward = rollMiningReward(
         node.rarity,
         current.equippedPickaxeSkin,
         current.equippedClothesSkin,
         current.activePet,
       );
-      const bonusSol = reward.kind === "sol" ? reward.sol ?? 0 : 0;
-      const reserveClaim = claimSolFromReserve(baseSol + bonusSol, current.rewardReserveSol, MAX_ORE_SOL_PER_DAY);
-      const totalSolEarned = reserveClaim.paid;
+      const miningXpGain = miningXpForRarity(node.rarity);
+      const nextMiningXp = round(current.miningXp + miningXpGain);
+      const nextMiningLevel = miningLevelForXp(nextMiningXp);
+      const bonusMint = reward.kind === "mints" ? reward.mints ?? 0 : 0;
+      const totalMintEarned = round(baseMint + bonusMint);
       const nextPlot = {
         ...plot,
         oreNodes: plot.oreNodes.filter((entry) => entry.id !== oreId),
-        totalCollectedSol: round((plot.totalCollectedSol ?? 0) + totalSolEarned),
+        totalCollectedMints: round((plot.totalCollectedMints ?? 0) + totalMintEarned),
       };
       const nextState: GameState = {
         ...current,
-        sol: round(current.sol + totalSolEarned),
-        rewardReserveSol: reserveClaim.reserve,
-        mints:
-          reward.kind === "mints"
-            ? round(current.mints + reward.mints!)
-            : current.mints,
+        mints: round(current.mints + totalMintEarned),
         questBoxes: reward.kind === "box" ? current.questBoxes + 1 : current.questBoxes,
         skinInventory:
           reward.kind === "skin" && reward.skinId
@@ -4760,22 +5576,22 @@ function App() {
           ...current.plots,
           [plotId]: nextPlot,
         },
+        miningXp: nextMiningXp,
+        miningLevel: nextMiningLevel,
         stats: {
           ...current.stats,
-          totalEarned: round(current.stats.totalEarned + totalSolEarned),
+          totalEarned: round(current.stats.totalEarned + totalMintEarned),
         },
         mineReveal: minedByDrone
           ? null
           : {
               label: reward.label,
               detail:
-                reward.kind === "sol"
-                  ? `${totalSolEarned.toFixed(6)} SOL paid from reserve`
-                  : reward.kind === "mints"
-                    ? `${reward.mints!.toFixed(2)} test mints`
-                    : reward.kind === "skin" && reward.skinId
-                      ? `${skinItem(reward.skinId)?.label ?? reward.skinId} added`
-                      : reward.kind === "pet" && reward.petId
+                reward.kind === "mints"
+                  ? `${totalMintEarned.toFixed(2)} mints`
+                  : reward.kind === "skin" && reward.skinId
+                    ? `${skinItem(reward.skinId)?.label ?? reward.skinId} added`
+                    : reward.kind === "pet" && reward.petId
                         ? `${petItem(reward.petId)?.label ?? reward.petId} added`
                         : reward.kind === "box"
                           ? "Quest box added"
@@ -4785,11 +5601,9 @@ function App() {
               kind: reward.kind,
             },
         message:
-          reward.kind === "sol"
-            ? `${minedByDrone ? "Drone mined" : "Mined"} ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(6)} SOL.`
-            : reward.kind === "mints"
-              ? `${minedByDrone ? "Drone mined" : "Mined"} ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(6)} SOL and ${reward.mints!.toFixed(2)} test mints.`
-              : `${minedByDrone ? "Drone mined" : "Mined"} ${oreNodeDisplayLabel(node.rarity)} for ${totalSolEarned.toFixed(6)} SOL and found ${reward.label}.`,
+          reward.kind === "mints"
+            ? `${minedByDrone ? "Drone mined" : "Mined"} ${oreNodeDisplayLabel(node.rarity)} for ${totalMintEarned.toFixed(2)} mints and +${miningXpGain} XP.`
+            : `${minedByDrone ? "Drone mined" : "Mined"} ${oreNodeDisplayLabel(node.rarity)} for ${totalMintEarned.toFixed(2)} mints, +${miningXpGain} XP, and found ${reward.label}.`,
       };
       syncedPlot = nextPlot;
       return nextState;
@@ -4820,7 +5634,7 @@ function App() {
         };
       }
 
-      miningDuration = oreNodeMiningMs(node.rarity);
+      miningDuration = miningDurationForRarity(node.rarity, current.miningLevel);
       const nextNode = {
         ...node,
         miningUntil: now + miningDuration,
@@ -5310,8 +6124,11 @@ function App() {
     setWalletMessage("World reset.");
   }
 
-  const plotUnderAvatar = getPlotByPoint(game.avatar, game.plots);
-  const canClaim = Boolean(plotUnderAvatar && !plotUnderAvatar.owner && !game.claimedPlotId);
+  const townPlot = Object.values(game.plots).find((plot) => plot.kind === "town") ?? null;
+  const mineAreaPlot = Object.values(game.plots).find((plot) => plot.kind === "mine") ?? null;
+  const buildablePlotUnderAvatar = getBuildablePlotByPoint(game.avatar, game.plots);
+  const canClaim = Boolean(buildablePlotUnderAvatar && !buildablePlotUnderAvatar.owner && !game.claimedPlotId);
+  const regularPlots = Object.values(game.plots).filter((plot) => plot.kind === "plot");
   const claimedPlotEconomy = selectedPlotEconomy;
   const claimedPlotStructures = claimedPlot ? Object.values(claimedPlot.structures) : [];
   const missionCards = MISSION_ORDER.map((id) => {
@@ -5389,6 +6206,114 @@ function App() {
       if (marketSort === "high") return b.price - a.price;
       return a.price - b.price;
     });
+  const townNpcDefs = townPlot
+    ? TOWN_NPCS.map((npc) => ({
+        ...npc,
+        onClick: () => openNpcDialogue(npc.id),
+      }))
+    : [];
+  const npcDialogueState = game.npcDialogue
+    ? (() => {
+        switch (game.npcDialogue.npcId) {
+          case "banker":
+            return {
+              title: "Banker",
+              subtitle: "Safe storage and wallet",
+              text:
+                game.npcDialogue.step === 0
+                  ? "Keep your earnings in one place and check your balance whenever the market gets noisy."
+                  : "The bank never sleeps. Use it to stay organized while your mine keeps earning in the background.",
+              primaryLabel: "Open inventory",
+              primaryAction: () => {
+                setGame((current) => ({ ...current, inventoryOpen: true, shopOpen: false, marketOpen: false, questsOpen: false }));
+                closeNpcDialogue();
+              },
+              secondaryLabel: game.npcDialogue.step === 0 ? "Continue" : "Close",
+              secondaryAction: game.npcDialogue.step === 0 ? advanceNpcDialogue : closeNpcDialogue,
+            };
+          case "quest":
+            return {
+              title: "Quest Giver",
+              subtitle: "Live missions and reward boxes",
+              text:
+                game.npcDialogue.step === 0
+                  ? "I hand out the errands that keep the town moving. Mine, build, return, repeat."
+                  : "Complete quests for reward boxes, small mint bumps, and a reason to keep checking back in.",
+              primaryLabel: "Open quests",
+              primaryAction: () => {
+                setGame((current) => ({ ...current, questsOpen: true, shopOpen: false, marketOpen: false, inventoryOpen: false }));
+                closeNpcDialogue();
+              },
+              secondaryLabel: game.npcDialogue.step === 0 ? "Tell me more" : "Close",
+              secondaryAction: game.npcDialogue.step === 0 ? advanceNpcDialogue : closeNpcDialogue,
+            };
+          case "pickaxe":
+            return {
+              title: "Pickaxe Store",
+              subtitle: "Tools, upgrades, and mining gear",
+              text:
+                game.npcDialogue.step === 0
+                  ? "The right tool makes the mine feel alive. Better pickaxes improve speed and reward chances."
+                  : "New mining gear should feel exciting to buy and obvious to use.",
+              primaryLabel: "Open shop",
+              primaryAction: () => {
+                setGame((current) => ({ ...current, shopOpen: true, marketOpen: false, inventoryOpen: false, questsOpen: false }));
+                closeNpcDialogue();
+              },
+              secondaryLabel: game.npcDialogue.step === 0 ? "Continue" : "Close",
+              secondaryAction: game.npcDialogue.step === 0 ? advanceNpcDialogue : closeNpcDialogue,
+            };
+          case "marketplace":
+            return {
+              title: "Marketplace",
+              subtitle: "Skins, pets, and listings",
+              text:
+                game.npcDialogue.step === 0
+                  ? "List your rare cosmetics here and trade them for SOL when the market is hot."
+                  : "The marketplace is a flex loop. Rare skins, pets, and pickaxes all belong here.",
+              primaryLabel: "Open marketplace",
+              primaryAction: () => {
+                openMarketplace();
+                closeNpcDialogue();
+              },
+              secondaryLabel: game.npcDialogue.step === 0 ? "Continue" : "Close",
+              secondaryAction: game.npcDialogue.step === 0 ? advanceNpcDialogue : closeNpcDialogue,
+            };
+          case "plotSeller":
+            return {
+              title: "Plot Seller",
+              subtitle: "Claim an acre",
+              text:
+                game.npcDialogue.step === 0
+                  ? "I sell the only place in town where you can build your own mining base."
+                  : "Buy a plot, get teleported home, and start shaping your own little empire.",
+              primaryLabel: game.claimedPlotId ? "Warp to plot" : "Buy plot",
+              primaryAction: () => {
+                if (game.claimedPlotId) {
+                  warpToClaimedPlot();
+                } else {
+                  buyStarterPlot();
+                }
+                closeNpcDialogue();
+              },
+              secondaryLabel: game.npcDialogue.step === 0 ? "Continue" : "Close",
+              secondaryAction: game.npcDialogue.step === 0 ? advanceNpcDialogue : closeNpcDialogue,
+            };
+        }
+      })()
+    : null;
+  const minimapEntries = Object.values(game.plots).map((plot) => ({
+    id: plot.id,
+    kind: plot.kind,
+    selected: plot.id === game.selectedPlotId,
+    owned: Boolean(plot.owner?.me),
+    left: (plot.position.x / Math.max(1, WORLD_WIDTH)) * 100,
+    top: (plot.position.y / Math.max(1, WORLD_HEIGHT)) * 100,
+    width: ((plot.kind === "town" ? TOWN_PLOT_SIZE : PLOT_SIZE) / Math.max(1, WORLD_WIDTH)) * 100,
+    height: ((plot.kind === "town" ? TOWN_PLOT_SIZE : PLOT_SIZE) / Math.max(1, WORLD_HEIGHT)) * 100,
+    label: plot.kind === "town" ? "Town" : plot.kind === "mine" ? "Mine" : plot.name,
+  }));
+  const mineOreNodes = mineAreaPlot?.oreNodes ?? [];
 
   return (
     <main className="shell">
@@ -5494,7 +6419,7 @@ function App() {
                 <span>Idle mining</span>
                 <span>Shared plots</span>
                 <span>Marketplace</span>
-                <span>Reserve-backed payouts</span>
+                <span>Reserve-backed SOL payouts</span>
               </div>
             </article>
 
@@ -5505,15 +6430,15 @@ function App() {
               <div className="landing-card__stats-row">
                 <div>
                   <span>Day</span>
-                  <strong>{earningsScenario.solPerDay.toFixed(6)} SOL</strong>
+                  <strong>{earningsScenario.solPerDay.toFixed(6)} MINT</strong>
                 </div>
                 <div>
                   <span>Week</span>
-                  <strong>{earningsScenario.solPerWeek.toFixed(6)} SOL</strong>
+                  <strong>{earningsScenario.solPerWeek.toFixed(6)} MINT</strong>
                 </div>
                 <div>
                   <span>Month</span>
-                  <strong>{earningsScenario.solPerMonth.toFixed(6)} SOL</strong>
+                  <strong>{earningsScenario.solPerMonth.toFixed(6)} MINT</strong>
                 </div>
               </div>
               <div className="landing-card__legend">
@@ -5635,22 +6560,22 @@ function App() {
                 <h3>Core loop</h3>
                 <p>
                   Claim a plot, place drills, upgrade your shack into a mansion,
-                  and stack tiny SOL earnings over time.
+                  and stack tiny mint earnings over time.
                 </p>
               </article>
               <article className="whitepaper-card">
                 <h3>Economy</h3>
                 <p>
-                  Item purchases are priced in the Pump.fun mint, while gameplay
-                  rewards stay denominated in SOL and are constrained by reserve
-                  runway.
+                  Item purchases are priced in the Pump.fun mint, while ore
+                  rewards are primarily minted tokens and SOL stays reserved for
+                  marketplace settlement and bonuses.
                 </p>
               </article>
               <article className="whitepaper-card">
                 <h3>Social layer</h3>
                 <p>
                   Players can walk past each other, inspect each plot, show off
-                  skins, and compare total collected SOL publicly.
+                  skins, and compare total collected SOL and mints publicly.
                 </p>
               </article>
               <article className="whitepaper-card">
@@ -5700,7 +6625,8 @@ function App() {
                 Ore Acres is designed to survive both quiet launches and hype cycles
                 by keeping SOL emissions tiny, reserve-backed, and automatically
                 throttled. The game should sell fun, cosmetics, status, and social
-                progression first. SOL rewards are a small bonus, not a fixed yield.
+                progression first. Mint rewards drive the mining loop, while SOL
+                rewards remain a small bonus, not a fixed yield.
               </p>
               <div className="hero__actions">
                 <button type="button" className="primary" onClick={() => goToPage("game")}>
@@ -5843,7 +6769,7 @@ function App() {
             <strong>{game.playtestMode ? "Playtest" : "Live"}</strong>
           </div>
           <div>
-            <span>Income</span>
+            <span>Mint income</span>
             <strong>{claimedPlotEconomy ? `${claimedPlotEconomy.income.toFixed(6)}/min` : "0.000000/min"}</strong>
           </div>
           <div>
@@ -5859,8 +6785,16 @@ function App() {
             <strong>{petLabel(game.activePet)}</strong>
           </div>
           <div>
-            <span>Total earned</span>
+            <span>Total minted</span>
             <strong>{game.stats.totalEarned.toFixed(6)}</strong>
+          </div>
+          <div>
+            <span>Mining level</span>
+            <strong>Lv. {game.miningLevel}</strong>
+          </div>
+          <div>
+            <span>Mining XP</span>
+            <strong>{game.miningXp.toFixed(0)}</strong>
           </div>
           <div className="stats__meter">
             <span>Reward reserve</span>
@@ -6040,6 +6974,13 @@ function App() {
             >
               Upgrade
             </button>
+            <button
+              type="button"
+              className={`ghost ${townEditorOpen ? "active" : ""}`}
+              onClick={() => setTownEditorOpen((current) => !current)}
+            >
+              Town Tools
+            </button>
             <div className="world-action-bar__spacer" />
             <button
               type="button"
@@ -6086,6 +7027,166 @@ function App() {
             </div>
           </div>
 
+          {townEditorOpen ? (
+            <section className="town-editor-shell" aria-label="Town builder">
+              <div className="town-editor-shell__header">
+                <div>
+                  <strong>Town Toolbox</strong>
+                  <span>Drag assets into the open canvas below. Drag placed items again to move them.</span>
+                </div>
+                <div className="town-editor-shell__actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      selectPlot(mineAreaPlot?.id ?? TOWN_ID);
+                    }}
+                  >
+                    Mine Gate
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      warpToClaimedPlot();
+                    }}
+                    disabled={!game.claimedPlotId}
+                  >
+                    Home Portal
+                  </button>
+                </div>
+              </div>
+
+              <div className="town-editor-shell__body">
+                <aside className="town-builder__toolbox">
+                  <div className="town-builder__toolbox-head">
+                    <strong>Asset Toolbox</strong>
+                    <span>Click to place in the center, or drag items into the canvas.</span>
+                  </div>
+
+                  <div className="town-builder__asset-list">
+                    {TOWN_ASSET_DEFS.map((asset) => (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        className="town-builder__asset"
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "copy";
+                          event.dataTransfer.setData("application/x-town-asset", asset.id);
+                        }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          placeTownAsset(asset.id, 50, 50);
+                        }}
+                      >
+                        <img src={asset.src} alt="" aria-hidden="true" />
+                        <span>{asset.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="town-builder__inspector">
+                    <strong>
+                      {selectedTownPlacement
+                        ? `${TOWN_ASSET_BY_ID[selectedTownPlacement.assetId].label} selected`
+                        : "No placement selected"}
+                    </strong>
+                    <p>
+                      {selectedTownPlacement
+                        ? `Scale: ${Math.round(selectedTownPlacement.scale * 100)}%`
+                        : "Drop an asset, then click it to resize or remove it."}
+                    </p>
+                    <div className="town-builder__inspector-actions">
+                      <button type="button" className="ghost" onClick={() => nudgeTownScale(-0.1)} disabled={!selectedTownPlacement}>
+                        Smaller
+                      </button>
+                      <button type="button" className="ghost" onClick={() => nudgeTownScale(0.1)} disabled={!selectedTownPlacement}>
+                        Bigger
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => selectedTownPlacement && removeTownPlacement(selectedTownPlacement.id)}
+                        disabled={!selectedTownPlacement}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </aside>
+
+                <div
+                  ref={townCanvasRef}
+                  className="town-editor-shell__canvas"
+                  onClick={() => setSelectedTownPlacementId(null)}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const point = townDropPoint(event);
+                    if (!point) return;
+
+                    const placementId = event.dataTransfer.getData("application/x-town-placement");
+                    const assetId = event.dataTransfer.getData("application/x-town-asset");
+                    if (placementId) {
+                      const placement = townPlacementById.get(placementId);
+                      if (placement) {
+                        placeTownAsset(placement.assetId, point.x, point.y, placement.id);
+                      }
+                      return;
+                    }
+
+                    if (assetId && assetId in TOWN_ASSET_BY_ID) {
+                      placeTownAsset(assetId as TownAssetId, point.x, point.y);
+                    }
+                  }}
+                >
+                  <img className="town-editor-shell__background" src="/assets/town/Background.png" alt="" aria-hidden="true" />
+                  <div className="town-editor-shell__drop-hint">Drop town assets here.</div>
+                  {townPlacements.map((placement) => {
+                    const asset = TOWN_ASSET_BY_ID[placement.assetId];
+                    const selected = placement.id === selectedTownPlacementId;
+                    const width = asset.width * placement.scale;
+                    const height = asset.height * placement.scale;
+                    return (
+                      <button
+                        key={placement.id}
+                        type="button"
+                        className={`town-builder__placement ${selected ? "selected" : ""}`}
+                        draggable
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedTownPlacementId(placement.id);
+                        }}
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("application/x-town-placement", placement.id);
+                          setSelectedTownPlacementId(placement.id);
+                        }}
+                        style={{
+                          left: `${placement.x}%`,
+                          top: `${placement.y}%`,
+                          width: `${width}%`,
+                          height: "auto",
+                          zIndex: placement.zIndex,
+                        }}
+                        aria-label={`Placed ${asset.label}`}
+                      >
+                        <img src={asset.src} alt="" aria-hidden="true" />
+                        <span className="town-builder__placement-label">{asset.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
           <div className="layout">
               <div
                 className="world-viewport"
@@ -6123,12 +7224,19 @@ function App() {
                   </div>
                 ))}
 
-                {Object.values(game.plots).map((plot) => {
+                {regularPlots.map((plot) => {
                   const selected = plot.id === game.selectedPlotId;
                   const owned = Boolean(plot.owner?.me);
                   const claimed = Boolean(plot.owner && !plot.owner.me);
                   const plotEconomy = owned
-                    ? computeEconomy(plot, game.activePet, game.equippedPickaxeSkin, game.equippedClothesSkin, game.rewardReserveSol)
+                    ? computeEconomy(
+                        plot,
+                        game.activePet,
+                        game.equippedPickaxeSkin,
+                        game.equippedClothesSkin,
+                        Math.max(1, Object.keys(remotePlayers).length + 1),
+                        game.rewardReserveSol,
+                      )
                     : null;
                   return (
                     <div
@@ -6149,7 +7257,7 @@ function App() {
                         <strong>{plot.name}</strong>
                         <span>
                           {plot.owner ? (plot.owner.me ? "Your plot" : `${plot.owner.label}'s plot`) : "Open plot"}{" "}
-                          • {plot.totalCollectedSol.toFixed(6)} SOL total
+                          • {plot.totalCollectedSol.toFixed(6)} SOL total • {plot.totalCollectedMints.toFixed(2)} mints total
                         </span>
                       </div>
 
@@ -6330,7 +7438,7 @@ function App() {
                                   <span className="plot-tile__spark" />
                                 )}
                                 {plotEconomy && isStructureAnchor && structure?.type === "shack" ? (
-                                  <span className="plot-tile__earnings">+{plotEconomy.income.toFixed(6)} SOL/min</span>
+                                  <span className="plot-tile__earnings">+{plotEconomy.income.toFixed(6)} mints/min</span>
                                 ) : null}
                               </button>
                             );
@@ -6420,6 +7528,18 @@ function App() {
                               </div>
                             );
                           })}
+                        {plot.owner?.me ? (
+                          <button
+                            type="button"
+                            className="plot-zone__town-portal"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              warpToTown();
+                            }}
+                          >
+                            Return to Town
+                          </button>
+                        ) : null}
                       </div>
 
                       {plot.chest ? (
@@ -6458,10 +7578,190 @@ function App() {
                         })()
                       ) : null}
 
-                      <div className="plot-zone__badge">Lifetime: {plot.totalCollectedSol.toFixed(6)} SOL</div>
+                      <div className="plot-zone__badge">
+                        Lifetime: {plot.totalCollectedSol.toFixed(6)} SOL • {plot.totalCollectedMints.toFixed(2)} mints
+                      </div>
                     </div>
                   );
                 })}
+
+                {townPlot ? (
+                  <div
+                    className={`plot-zone plot-zone--town-scene ${game.selectedPlotId === townPlot.id ? "selected" : ""}`}
+                    style={{
+                      left: `${townPlot.position.x}px`,
+                      top: `${townPlot.position.y}px`,
+                      width: `${TOWN_PLOT_SIZE}px`,
+                      height: `${TOWN_PLOT_SIZE}px`,
+                    }}
+                    onClick={() => selectPlot(townPlot.id)}
+                  >
+                    <div className="plot-zone__aura plot-zone__aura--hub" />
+                    <div className="plot-zone__header">
+                      <strong>{townPlot.name}</strong>
+                      <span>Live town area built from your toolbox layout</span>
+                    </div>
+
+                    <img className="town-scene__background" src="/assets/town/Background.png" alt="" aria-hidden="true" />
+                    {townPlacements.map((placement) => {
+                      const asset = TOWN_ASSET_BY_ID[placement.assetId];
+                      const npcId = TOWN_ASSET_TO_NPC[placement.assetId];
+                      const width = asset.width * placement.scale;
+                      const height = asset.height * placement.scale;
+                      const isInteractive = Boolean(npcId);
+                      return (
+                        <button
+                          key={`town-live-${placement.id}`}
+                          type="button"
+                          className={`town-scene__placement ${isInteractive ? "town-scene__placement--interactive" : ""} town-scene__placement--${asset.category}`}
+                          style={{
+                            left: `${placement.x}%`,
+                            top: `${placement.y}%`,
+                            width: `${width}%`,
+                            height: `${height}%`,
+                            zIndex: placement.zIndex,
+                          }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (!npcId) return;
+                            selectPlot(townPlot.id);
+                            openNpcDialogue(npcId);
+                          }}
+                          aria-label={isInteractive ? `Talk to ${asset.label}` : asset.label}
+                        >
+                          <img src={asset.src} alt="" aria-hidden="true" />
+                          {isInteractive ? <span className="town-scene__speech">{asset.label}</span> : null}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      className="town-scene__portal town-scene__portal--mine"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectPlot(mineAreaPlot?.id ?? townPlot.id);
+                      }}
+                    >
+                      Mining Area
+                    </button>
+
+                    {game.claimedPlotId ? (
+                      <button
+                        type="button"
+                        className="town-scene__portal town-scene__portal--home"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          warpToClaimedPlot();
+                        }}
+                      >
+                        Home Portal
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="town-scene__portal town-scene__portal--home"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          buyStarterPlot();
+                        }}
+                      >
+                        Buy Plot
+                      </button>
+                    )}
+
+                    {townPlacements.length === 0 ? (
+                      <div className="town-scene__empty">Drop town assets in the editor below to build the town.</div>
+                    ) : null}
+
+                    <div className="plot-zone__badge">Town hub • your saved layout is now the live town</div>
+                  </div>
+                ) : null}
+
+                {mineAreaPlot ? (
+                  <div
+                    className={`plot-zone plot-zone--hub plot-zone--mine ${game.selectedPlotId === mineAreaPlot.id ? "selected" : ""}`}
+                    style={{
+                      left: `${mineAreaPlot.position.x}px`,
+                      top: `${mineAreaPlot.position.y}px`,
+                      width: `${PLOT_SIZE}px`,
+                      height: `${PLOT_SIZE}px`,
+                    }}
+                    onClick={() => selectPlot(mineAreaPlot.id)}
+                  >
+                    <div className="plot-zone__aura plot-zone__aura--hub" />
+                    <div className="plot-zone__header">
+                      <strong>{mineAreaPlot.name}</strong>
+                      <span>Shared ore field • no plots, just mining</span>
+                    </div>
+
+                    <div className="plot-zone__grid plot-zone__grid--hub plot-zone__grid--mine">
+                      {Array.from({ length: TILE_COUNT }).map((_, y) =>
+                        Array.from({ length: TILE_COUNT }).map((__, x) => (
+                          <span
+                            key={`mine-tile-${x}-${y}`}
+                            className={`public-hub__tile public-hub__tile--${(x + y) % 2 === 0 ? "a" : "b"}`}
+                            style={{
+                              left: `${((x + 0.5) / TILE_COUNT) * 100}%`,
+                              top: `${((y + 0.5) / TILE_COUNT) * 100}%`,
+                            }}
+                            aria-hidden="true"
+                          />
+                        )),
+                      )}
+
+                      <span className="public-hub__ring public-hub__ring--mine" aria-hidden="true" />
+                      <span className="public-hub__path public-hub__path--left" aria-hidden="true" />
+                      <span className="public-hub__path public-hub__path--right" aria-hidden="true" />
+                      <span className="public-hub__stage public-hub__stage--mine" aria-hidden="true" />
+
+                      {mineOreNodes
+                        .filter((node) => node.despawnAt > Date.now())
+                        .map((node) => {
+                          const tileX = Number(node.tile.split(":")[0]) || 0;
+                          const tileY = Number(node.tile.split(":")[1]) || 0;
+                          const isMining = node.miningUntil !== null && node.miningUntil > Date.now();
+                          const scale = node.rarity === "large" ? 0.95 : node.rarity === "medium" ? 0.78 : 0.62;
+                          return (
+                            <button
+                              key={`mine-${node.id}`}
+                              type="button"
+                              className={`plot-zone__ore plot-zone__ore--${node.rarity} public-hub__ore ${isMining ? "mining" : ""}`}
+                              style={{
+                                left: `${((tileX + 0.5) / TILE_COUNT) * 100}%`,
+                                top: `${((tileY + 0.5) / TILE_COUNT) * 100}%`,
+                                ["--ore-scale" as string]: scale.toString(),
+                              }}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                startMiningOre(mineAreaPlot.id, node.id);
+                              }}
+                              aria-label={`${isMining ? "Mining" : "Mine"} ${oreNodeDisplayLabel(node.rarity)}`}
+                            >
+                              <span className="plot-zone__ore-glow" />
+                              {isMining ? (
+                                <span className="plot-zone__ore-impact" aria-hidden="true">
+                                  <i />
+                                  <i />
+                                  <i />
+                                </span>
+                              ) : null}
+                              <img
+                                src={ORE_ART[node.rarity]}
+                                alt=""
+                                className="plot-zone__ore-image"
+                                draggable={false}
+                              />
+                              <strong>{oreNodeDisplayLabel(node.rarity)}</strong>
+                              <small>{isMining ? "Mining..." : `Tap to mine +${node.reward.toFixed(6)} SOL`}</small>
+                            </button>
+                          );
+                        })}
+                    </div>
+
+                    <div className="plot-zone__badge">Shared ore field • no plots here</div>
+                  </div>
+                ) : null}
 
                 {!hideCharacter ? (
                   <div
@@ -6488,30 +7788,38 @@ function App() {
                 ) : null}
 
                 {Object.values(remotePlayers).map((player) => (
-                  <div
-                    key={player.id}
-                    className="remote-avatar-anchor"
-                    style={{
-                      left: `${player.x}px`,
+                <div
+                  key={player.id}
+                  className="remote-avatar-anchor"
+                  style={{
+                    left: `${player.x}px`,
                       top: `${player.y}px`,
-                      transform: `translate(calc(-50% + ${remoteAvatarOffset(player.id).x}px), calc(-50% + ${remoteAvatarOffset(player.id).y}px))`,
-                    }}
-                  >
-                    <AvatarSprite moving={false} variant="remote" />
+                    transform: `translate(calc(-50% + ${remoteAvatarOffset(player.id).x}px), calc(-50% + ${remoteAvatarOffset(player.id).y}px))`,
+                  }}
+                >
+                    <AvatarSprite
+                      moving={false}
+                      variant="remote"
+                      avatarStyle={player.avatarStyle ?? AVATAR_STYLE_DEFAULT}
+                      pickaxeSkin={player.equippedPickaxeSkin}
+                      clothesSkin={player.equippedClothesSkin}
+                    />
                     <span className="remote-avatar__name">{player.name}</span>
                   </div>
                 ))}
 
-                {plotUnderAvatar && !plotUnderAvatar.owner?.me ? (
+                {buildablePlotUnderAvatar && !buildablePlotUnderAvatar.owner?.me ? (
                   <div
                     className="plot-prompt"
                     style={{
-                      left: `${plotUnderAvatar.position.x + PLOT_SIZE / 2}px`,
-                      top: `${plotUnderAvatar.position.y + PLOT_HEADER_HEIGHT + 28}px`,
+                      left: `${buildablePlotUnderAvatar.position.x + PLOT_SIZE / 2}px`,
+                      top: `${buildablePlotUnderAvatar.position.y + PLOT_HEADER_HEIGHT + 28}px`,
                     }}
                   >
-                    <span>{plotUnderAvatar.owner ? `${plotUnderAvatar.owner.label}'s plot` : "Unclaimed plot"}</span>
-                    {!plotUnderAvatar.owner && !game.claimedPlotId ? (
+                    <span>
+                      {buildablePlotUnderAvatar.owner ? `${buildablePlotUnderAvatar.owner.label}'s plot` : "Unclaimed plot"}
+                    </span>
+                    {!buildablePlotUnderAvatar.owner && !game.claimedPlotId ? (
                       <button type="button" className="primary" onClick={claimSelectedPlot}>
                         Claim plot
                       </button>
@@ -6532,6 +7840,11 @@ function App() {
                   </span>
                   <span className="world-hud__objective">{worldObjective}</span>
                 </div>
+                <div className="world-hud__meta">
+                  <span>Mining Lv. {game.miningLevel}</span>
+                  <span>{game.miningXp.toFixed(0)} XP</span>
+                  <span>{game.claimedPlotId ? "Plot claimed" : "No plot yet"}</span>
+                </div>
                 {activeMiningOre ? (
                   <div
                     className={`world-hud__mining world-hud__mining--${activeMiningOre.node.rarity}`}
@@ -6547,33 +7860,81 @@ function App() {
                   </div>
                 ) : null}
                 <strong>{game.message}</strong>
+                <div className="world-hud__minimap">
+                  <div className="world-hud__minimap-head">
+                    <span>Minimap</span>
+                    <small>{selectedPlotLabel}</small>
+                  </div>
+                  <div className="world-hud__minimap-map" aria-label="World minimap">
+                    {minimapEntries.map((entry) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        className={`world-hud__minimap-zone world-hud__minimap-zone--${entry.kind} ${
+                          entry.selected ? "selected" : ""
+                        } ${entry.owned ? "owned" : ""}`}
+                        style={{
+                          left: `${entry.left}%`,
+                          top: `${entry.top}%`,
+                          width: `${Math.max(3, entry.width)}%`,
+                          height: `${Math.max(3, entry.height)}%`,
+                        }}
+                        onClick={() => selectPlot(entry.id)}
+                        aria-label={`Select ${entry.label}`}
+                      />
+                    ))}
+                    <span
+                      className="world-hud__minimap-player"
+                      style={{
+                        left: `${(game.avatar.x / Math.max(1, WORLD_WIDTH)) * 100}%`,
+                        top: `${(game.avatar.y / Math.max(1, WORLD_HEIGHT)) * 100}%`,
+                      }}
+                      aria-hidden="true"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="world-inspector">
                 <div className="world-inspector__row">
-                  <span>Plot</span>
-                  <strong>{selectedPlot.name}</strong>
+                  <span>{selectedPlot.kind === "plot" ? "Plot" : "Area"}</span>
+                  <strong>{selectedPlotLabel}</strong>
                 </div>
                 <div className="world-inspector__row">
                   <span>Owner</span>
                   <strong>
-                    {selectedPlot.owner ? (selectedPlot.owner.me ? "You" : selectedPlot.owner.label) : "Unclaimed"}
+                    {selectedPlot.kind === "town"
+                      ? "Starter town"
+                      : selectedPlot.kind === "mine"
+                        ? "Shared mining field"
+                      : selectedPlot.owner
+                        ? selectedPlot.owner.me
+                          ? "You"
+                          : selectedPlot.owner.label
+                        : "Unclaimed"}
                   </strong>
                 </div>
                 <div className="world-inspector__row">
                   <span>Tile</span>
-                  <strong>{game.selectedTile ?? "None"}</strong>
+                  <strong>{selectedPlot.kind === "plot" ? game.selectedTile ?? "None" : "Area map"}</strong>
                 </div>
                 <div className="world-inspector__row">
                   <span>Tool</span>
                   <strong>{structureLabel({ type: game.activeTool, level: 1 })}</strong>
                 </div>
-                {selectedChest ? (
+                {selectedPlot.kind !== "plot" ? (
+                  <div className="world-inspector__note">
+                    {selectedPlot.kind === "town"
+                      ? "This is the starter town. Talk to NPCs here to buy a plot, check your bank, or go home."
+                      : "This is the shared mining field. Ore spawns here for everyone and no plots can be claimed."}
+                  </div>
+                ) : null}
+                {selectedChest && selectedPlot.kind === "plot" ? (
                   <div className="world-inspector__note">
                     Huge chest ready. Click it to reveal the reward.
                   </div>
                 ) : null}
-                {selectedStructure ? (
+                {selectedStructure && selectedPlot.kind === "plot" ? (
                   <div className="world-inspector__upgrade">
                     <span>
                       {selectedStructure.level >= (selectedStructureMax ?? 0)
@@ -6895,6 +8256,25 @@ function App() {
                   )}
                 </div>
               </div>
+
+              {npcDialogueState ? (
+                <div className="npc-dialogue">
+                  <div className="npc-dialogue__panel">
+                    <span className="overlay-panel__eyebrow">Town talk</span>
+                    <strong>{npcDialogueState.title}</strong>
+                    <small>{npcDialogueState.subtitle}</small>
+                    <p>{npcDialogueState.text}</p>
+                    <div className="npc-dialogue__actions">
+                      <button type="button" className="ghost" onClick={npcDialogueState.secondaryAction}>
+                        {npcDialogueState.secondaryLabel}
+                      </button>
+                      <button type="button" className="primary" onClick={npcDialogueState.primaryAction}>
+                        {npcDialogueState.primaryLabel}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {game.shopOpen ? (
                 <div className="shop-overlay open">
@@ -7414,6 +8794,18 @@ function getSelectedPlotId(
 
 function getPlotByPoint(point: { x: number; y: number }, plots: Record<string, Plot>) {
   return Object.values(plots).find((plot) =>
+    pointInRect(point.x, point.y, {
+      x: plot.position.x,
+      y: plot.position.y,
+      width: PLOT_SIZE,
+      height: PLOT_SIZE,
+    }),
+  ) ?? null;
+}
+
+function getBuildablePlotByPoint(point: { x: number; y: number }, plots: Record<string, Plot>) {
+  return Object.values(plots).find((plot) =>
+    plot.kind === "plot" &&
     pointInRect(point.x, point.y, {
       x: plot.position.x,
       y: plot.position.y,
