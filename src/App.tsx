@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { DragEvent, WheelEvent } from "react";
+import type { WheelEvent } from "react";
 import type { PublicKey, Transaction } from "@solana/web3.js";
 
 type StructureType =
@@ -3714,9 +3714,7 @@ function App() {
   const [marketFilter, setMarketFilter] = useState<"all" | "skins" | "pickaxes" | "clothes" | "pets">("all");
   const [marketSort, setMarketSort] = useState<"low" | "high" | "newest">("low");
   const [cameraZoom, setCameraZoom] = useState(1);
-  const [townEditorOpen, setTownEditorOpen] = useState(true);
-  const [townPlacements, setTownPlacements] = useState<TownPlacement[]>(() => loadTownPlacements());
-  const [selectedTownPlacementId, setSelectedTownPlacementId] = useState<string | null>(null);
+  const [townPlacements] = useState<TownPlacement[]>(() => loadTownPlacements());
   const [tutorialOpen, setTutorialOpen] = useState(() => {
     return page === "game" && window.localStorage.getItem("ore-acres-tutorial-complete") !== "1";
   });
@@ -3731,7 +3729,6 @@ function App() {
   const devMode = new URLSearchParams(window.location.search).get("dev") === "1";
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gamePanelRef = useRef<HTMLElement | null>(null);
-  const townCanvasRef = useRef<HTMLDivElement | null>(null);
   const tutorialAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicEngineRef = useRef<{
     context: AudioContext;
@@ -3784,13 +3781,6 @@ function App() {
   }
 
   const tutorialStep = TUTORIAL_STEPS[tutorialStepIndex] ?? TUTORIAL_STEPS[0];
-
-  const townPlacementById = useMemo(() => {
-    return new Map(townPlacements.map((placement) => [placement.id, placement] as const));
-  }, [townPlacements]);
-  const selectedTownPlacement = selectedTownPlacementId
-    ? townPlacementById.get(selectedTownPlacementId) ?? null
-    : null;
 
   function focusTutorialPanel(panel: TutorialPanel) {
     setGame((current) => ({
@@ -3909,57 +3899,6 @@ function App() {
     });
   }
 
-  function persistTownPlacements(nextPlacements: TownPlacement[]) {
-    setTownPlacements(nextPlacements);
-    setSelectedTownPlacementId((current) =>
-      current && nextPlacements.some((placement) => placement.id === current) ? current : null,
-    );
-    window.localStorage.setItem(TOWN_LAYOUT_STORAGE_KEY, JSON.stringify(nextPlacements));
-  }
-
-  function townDropPoint(event: DragEvent<HTMLDivElement>) {
-    const canvas = townCanvasRef.current;
-    if (!canvas) return null;
-    const rect = canvas.getBoundingClientRect();
-    const x = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
-    const y = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
-    return { x, y };
-  }
-
-  function placeTownAsset(assetId: TownAssetId, x: number, y: number, placementId?: string) {
-    const asset = TOWN_ASSET_BY_ID[assetId];
-    const nextPlacement: TownPlacement = {
-      id: placementId ?? `town-place-${Date.now()}-${Math.round(Math.random() * 9999)}`,
-      assetId,
-      x,
-      y,
-      scale: 1,
-      zIndex: asset.zIndex,
-    };
-
-    const nextPlacements = placementId
-      ? townPlacements.map((placement) => (placement.id === placementId ? { ...placement, ...nextPlacement } : placement))
-      : [...townPlacements, nextPlacement];
-
-    persistTownPlacements(nextPlacements);
-    setSelectedTownPlacementId(nextPlacement.id);
-  }
-
-  function removeTownPlacement(placementId: string) {
-    persistTownPlacements(townPlacements.filter((placement) => placement.id !== placementId));
-  }
-
-  function nudgeTownScale(delta: number) {
-    if (!selectedTownPlacementId) return;
-    const placement = townPlacementById.get(selectedTownPlacementId);
-    if (!placement) return;
-
-    const nextPlacements = townPlacements.map((entry) =>
-      entry.id === placement.id ? { ...entry, scale: clamp(entry.scale + delta, 0.4, 2.5) } : entry,
-    );
-    persistTownPlacements(nextPlacements);
-  }
-
   useEffect(() => {
     const syncWallet = () => {
       setWalletPublicKey(window.solana?.publicKey ?? null);
@@ -4030,10 +3969,6 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem("ore-acres-playtest", game.playtestMode ? "1" : "0");
   }, [game.playtestMode]);
-
-  useEffect(() => {
-    window.localStorage.setItem(TOWN_LAYOUT_STORAGE_KEY, JSON.stringify(townPlacements));
-  }, [townPlacements]);
 
   useEffect(() => {
     const saveState = { ...game, chestReveal: null, mineReveal: null, lastUpdatedAt: Date.now() };
@@ -6974,13 +6909,6 @@ function finishMiningOre(plotId: string, oreId: string) {
             >
               Upgrade
             </button>
-            <button
-              type="button"
-              className={`ghost ${townEditorOpen ? "active" : ""}`}
-              onClick={() => setTownEditorOpen((current) => !current)}
-            >
-              Town Tools
-            </button>
             <div className="world-action-bar__spacer" />
             <button
               type="button"
@@ -7026,166 +6954,6 @@ function finishMiningOre(plotId: string, oreId: string) {
               </button>
             </div>
           </div>
-
-          {townEditorOpen ? (
-            <section className="town-editor-shell" aria-label="Town builder">
-              <div className="town-editor-shell__header">
-                <div>
-                  <strong>Town Toolbox</strong>
-                  <span>Drag assets into the open canvas below. Drag placed items again to move them.</span>
-                </div>
-                <div className="town-editor-shell__actions">
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      selectPlot(mineAreaPlot?.id ?? TOWN_ID);
-                    }}
-                  >
-                    Mine Gate
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      warpToClaimedPlot();
-                    }}
-                    disabled={!game.claimedPlotId}
-                  >
-                    Home Portal
-                  </button>
-                </div>
-              </div>
-
-              <div className="town-editor-shell__body">
-                <aside className="town-builder__toolbox">
-                  <div className="town-builder__toolbox-head">
-                    <strong>Asset Toolbox</strong>
-                    <span>Click to place in the center, or drag items into the canvas.</span>
-                  </div>
-
-                  <div className="town-builder__asset-list">
-                    {TOWN_ASSET_DEFS.map((asset) => (
-                      <button
-                        key={asset.id}
-                        type="button"
-                        className="town-builder__asset"
-                        draggable
-                        onDragStart={(event) => {
-                          event.dataTransfer.effectAllowed = "copy";
-                          event.dataTransfer.setData("application/x-town-asset", asset.id);
-                        }}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          placeTownAsset(asset.id, 50, 50);
-                        }}
-                      >
-                        <img src={asset.src} alt="" aria-hidden="true" />
-                        <span>{asset.label}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="town-builder__inspector">
-                    <strong>
-                      {selectedTownPlacement
-                        ? `${TOWN_ASSET_BY_ID[selectedTownPlacement.assetId].label} selected`
-                        : "No placement selected"}
-                    </strong>
-                    <p>
-                      {selectedTownPlacement
-                        ? `Scale: ${Math.round(selectedTownPlacement.scale * 100)}%`
-                        : "Drop an asset, then click it to resize or remove it."}
-                    </p>
-                    <div className="town-builder__inspector-actions">
-                      <button type="button" className="ghost" onClick={() => nudgeTownScale(-0.1)} disabled={!selectedTownPlacement}>
-                        Smaller
-                      </button>
-                      <button type="button" className="ghost" onClick={() => nudgeTownScale(0.1)} disabled={!selectedTownPlacement}>
-                        Bigger
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => selectedTownPlacement && removeTownPlacement(selectedTownPlacement.id)}
-                        disabled={!selectedTownPlacement}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                </aside>
-
-                <div
-                  ref={townCanvasRef}
-                  className="town-editor-shell__canvas"
-                  onClick={() => setSelectedTownPlacementId(null)}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    const point = townDropPoint(event);
-                    if (!point) return;
-
-                    const placementId = event.dataTransfer.getData("application/x-town-placement");
-                    const assetId = event.dataTransfer.getData("application/x-town-asset");
-                    if (placementId) {
-                      const placement = townPlacementById.get(placementId);
-                      if (placement) {
-                        placeTownAsset(placement.assetId, point.x, point.y, placement.id);
-                      }
-                      return;
-                    }
-
-                    if (assetId && assetId in TOWN_ASSET_BY_ID) {
-                      placeTownAsset(assetId as TownAssetId, point.x, point.y);
-                    }
-                  }}
-                >
-                  <img className="town-editor-shell__background" src="/assets/town/Background.png" alt="" aria-hidden="true" />
-                  <div className="town-editor-shell__drop-hint">Drop town assets here.</div>
-                  {townPlacements.map((placement) => {
-                    const asset = TOWN_ASSET_BY_ID[placement.assetId];
-                    const selected = placement.id === selectedTownPlacementId;
-                    const width = asset.width * placement.scale;
-                    const height = asset.height * placement.scale;
-                    return (
-                      <button
-                        key={placement.id}
-                        type="button"
-                        className={`town-builder__placement ${selected ? "selected" : ""}`}
-                        draggable
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedTownPlacementId(placement.id);
-                        }}
-                        onDragStart={(event) => {
-                          event.dataTransfer.effectAllowed = "move";
-                          event.dataTransfer.setData("application/x-town-placement", placement.id);
-                          setSelectedTownPlacementId(placement.id);
-                        }}
-                        style={{
-                          left: `${placement.x}%`,
-                          top: `${placement.y}%`,
-                          width: `${width}%`,
-                          height: "auto",
-                          zIndex: placement.zIndex,
-                        }}
-                        aria-label={`Placed ${asset.label}`}
-                      >
-                        <img src={asset.src} alt="" aria-hidden="true" />
-                        <span className="town-builder__placement-label">{asset.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </section>
-          ) : null}
 
           <div className="layout">
               <div
