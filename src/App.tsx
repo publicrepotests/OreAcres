@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { WheelEvent } from "react";
+import type { CSSProperties, WheelEvent } from "react";
 import type { PublicKey, Transaction } from "@solana/web3.js";
 
 type StructureType =
@@ -3109,6 +3109,49 @@ function AstronautSkinSprite({
   return <SheetSkinSprite src={ASTRONAUT_SKIN_SHEET} facing={facing} moving={moving} mining={mining} />;
 }
 
+function AvatarFallbackRig({
+  avatarStyle,
+  className = "",
+}: {
+  avatarStyle: AvatarStyle;
+  className?: string;
+}) {
+  const tone = AVATAR_SKIN_TONES[avatarStyle.skinTone];
+  const hair = AVATAR_HAIR_COLORS[avatarStyle.hairColor];
+  const outfit = AVATAR_BASE_OUTFITS[avatarStyle.baseOutfit];
+  const avatarVars: CSSProperties = {
+    ["--avatar-skin" as string]: tone.base,
+    ["--avatar-skin-shade" as string]: tone.shade,
+    ["--avatar-hair" as string]: hair.base,
+    ["--avatar-hair-shade" as string]: hair.shade,
+    ["--avatar-outfit" as string]: outfit.base,
+    ["--avatar-outfit-shade" as string]: outfit.shade,
+  };
+
+  return (
+    <div className={`avatar__fallback-rig ${className}`.trim()} style={avatarVars} aria-hidden="true">
+      <div className="avatar__shadow" style={rigStyle("shadow")} />
+      <div className="avatar__legs" style={rigStyle("legs")}>
+        <span className="avatar__leg avatar__leg--left" />
+        <span className="avatar__leg avatar__leg--right" />
+      </div>
+      <div className="avatar__body" style={rigStyle("body")}>
+        <span className="avatar__shirt-detail" />
+        <span className="avatar__arm avatar__arm--left" />
+        <span className="avatar__arm avatar__arm--right" />
+      </div>
+      <div className="avatar__head" style={rigStyle("head")}>
+        <span className="avatar__hair" />
+        <span className="avatar__face">
+          <i className="avatar__eye avatar__eye--left" />
+          <i className="avatar__eye avatar__eye--right" />
+          <i className="avatar__mouth" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function AvatarSprite({
   moving,
   mining = false,
@@ -3147,6 +3190,7 @@ function AvatarSprite({
           .join(" ")}
       >
         <div className="avatar__shadow" />
+        <AvatarFallbackRig avatarStyle={avatarStyle} className="avatar__fallback-rig--sheet" />
         <AstronautSkinSprite facing={facing} moving={moving} mining={mining} />
         <div className="avatar__tool" />
         <div className="avatar__aura" />
@@ -3170,6 +3214,7 @@ function AvatarSprite({
           .join(" ")}
       >
         <div className="avatar__shadow" />
+        <AvatarFallbackRig avatarStyle={avatarStyle} className="avatar__fallback-rig--sheet" />
         <SheetSkinSprite src={PURPLESPACE_SKIN_SHEET} facing={facing} moving={moving} mining={mining} />
         <div className="avatar__tool" />
         <div className="avatar__aura" />

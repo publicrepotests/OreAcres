@@ -6375,6 +6375,24 @@ h1 {
   animation: avatarShadow 1.8s ease-in-out infinite;
 }
 
+.avatar__fallback-rig {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.avatar__fallback-rig--sheet {
+  opacity: 0.92;
+}
+
+.avatar__fallback-rig .avatar__head,
+.avatar__fallback-rig .avatar__body,
+.avatar__fallback-rig .avatar__legs,
+.avatar__fallback-rig .avatar__aura {
+  opacity: 1 !important;
+}
+
 .avatar__head,
 .avatar__body,
 .avatar__legs,
