@@ -757,7 +757,22 @@ const TOWN_ASSET_TO_NPC: Partial<Record<TownAssetId, NpcId>> = {
 
 const TOWN_LAYOUT_STORAGE_KEY = "ore-acres-town-builder-layout";
 
-const DEFAULT_TOWN_PLACEMENTS: TownPlacement[] = [];
+const DEFAULT_TOWN_PLACEMENTS: TownPlacement[] = [
+  { id: "town-bank", assetId: "bank", x: 27, y: 52, scale: 1.08, zIndex: 8 },
+  { id: "town-market", assetId: "market", x: 73, y: 45, scale: 1.04, zIndex: 8 },
+  { id: "town-quest-hall", assetId: "castle", x: 50, y: 30, scale: 1.06, zIndex: 8 },
+  { id: "town-pickaxe-cave", assetId: "cave", x: 20, y: 24, scale: 0.9, zIndex: 8 },
+  { id: "town-plot-seller", assetId: "purple", x: 74, y: 72, scale: 0.92, zIndex: 8 },
+  { id: "town-pond", assetId: "pond", x: 26, y: 75, scale: 0.9, zIndex: 2 },
+  { id: "town-farm", assetId: "farm", x: 73, y: 29, scale: 0.9, zIndex: 3 },
+  { id: "town-market-barrels", assetId: "barrels", x: 66, y: 46, scale: 0.9, zIndex: 9 },
+  { id: "town-bank-crates-a", assetId: "crates-a", x: 21, y: 49, scale: 0.82, zIndex: 7 },
+  { id: "town-bank-crates-b", assetId: "crates-b", x: 31, y: 50, scale: 0.78, zIndex: 7 },
+  { id: "town-bank-rocks", assetId: "rocks-bank", x: 23, y: 60, scale: 0.72, zIndex: 10 },
+  { id: "town-top-rocks", assetId: "rocks-top", x: 82, y: 21, scale: 0.8, zIndex: 10 },
+  { id: "town-farm-bush-left", assetId: "bush-left", x: 62, y: 27, scale: 0.8, zIndex: 2 },
+  { id: "town-farm-bush-right", assetId: "bush-right", x: 85, y: 31, scale: 0.8, zIndex: 2 },
+];
 
 function normalizeTownPlacements(raw: unknown): TownPlacement[] {
   if (!Array.isArray(raw)) return [];
@@ -1368,6 +1383,10 @@ function normalizeAvatarStyle(raw: unknown): AvatarStyle {
 
 function isPickaxeSkinId(value: SkinId): value is "troll_pick" | "laser_pick" | "banana_pick" {
   return value === "troll_pick" || value === "laser_pick" || value === "banana_pick";
+}
+
+function isClothesSkinId(value: unknown): value is Exclude<SkinId, "troll_pick" | "laser_pick" | "banana_pick"> {
+  return isSkinId(value) && !isPickaxeSkinId(value);
 }
 
 function structurePaintedArt(type: StructureType, level: number) {
@@ -2562,8 +2581,11 @@ function loadGameState(saveKey: string): GameState {
       missions: { ...DEFAULT_MISSIONS, ...(parsed.missions ?? {}) },
       stats: { ...DEFAULT_STATS, ...(parsed.stats ?? {}) },
       skinInventory: { ...DEFAULT_SKIN_INVENTORY, ...(parsed.skinInventory ?? {}) },
-      equippedPickaxeSkin: isSkinId(parsed.equippedPickaxeSkin) ? parsed.equippedPickaxeSkin : null,
-      equippedClothesSkin: isSkinId(parsed.equippedClothesSkin) ? parsed.equippedClothesSkin : "astronaut_fit",
+      equippedPickaxeSkin:
+        isSkinId(parsed.equippedPickaxeSkin) && isPickaxeSkinId(parsed.equippedPickaxeSkin)
+          ? parsed.equippedPickaxeSkin
+          : null,
+      equippedClothesSkin: isClothesSkinId(parsed.equippedClothesSkin) ? parsed.equippedClothesSkin : "astronaut_fit",
       marketListings: Array.isArray(parsed.marketListings)
         ? parsed.marketListings.map(normalizeMarketplaceListing).filter((entry): entry is MarketplaceListing => Boolean(entry))
         : seededMarketListings(),
