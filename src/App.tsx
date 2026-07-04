@@ -7387,7 +7387,6 @@ function finishMiningOre(plotId: string, oreId: string) {
                     <div className="plot-zone__aura plot-zone__aura--hub" />
                     <div className="plot-zone__header">
                       <strong>{townPlot.name}</strong>
-                      <span>Live town area built from your toolbox layout</span>
                     </div>
 
                     <img className="town-scene__background" src="/assets/town/Background.png" alt="" aria-hidden="true" />
@@ -7458,11 +7457,6 @@ function finishMiningOre(plotId: string, oreId: string) {
                       </button>
                     )}
 
-                    {townPlacements.length === 0 ? (
-                      <div className="town-scene__empty">Drop town assets in the editor below to build the town.</div>
-                    ) : null}
-
-                    <div className="plot-zone__badge">Town hub • your saved layout is now the live town</div>
                   </div>
                 ) : null}
 
