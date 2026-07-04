@@ -1294,7 +1294,7 @@ const ECONOMY_STRESS_TESTS = [
   },
 ];
 
-const PUMP_FUN_COIN_URL = "https://pump.fun/coin/CSEu4M7ZHRthoYNrijLWnLJvqEqm3vs6bmxXhZ6tpump";
+const PUMP_FUN_COIN_URL = "https://pump.fun/coin/Crfc1ZiazkbLtfVWqVBjzv1NwD64KVuaQfSSKYWL81N8";
 
 const PAYMENT_STRUCTURE = [
   {
