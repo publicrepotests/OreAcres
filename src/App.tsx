@@ -1294,6 +1294,8 @@ const ECONOMY_STRESS_TESTS = [
   },
 ];
 
+const PUMP_FUN_COIN_URL = "https://pump.fun/coin/CSEu4M7ZHRthoYNrijLWnLJvqEqm3vs6bmxXhZ6tpump";
+
 const PAYMENT_STRUCTURE = [
   {
     label: "Payment mint",
@@ -6300,6 +6302,9 @@ function finishMiningOre(plotId: string, oreId: string) {
           <button type="button" className="site-nav__link" onClick={openMarketplace}>
             Marketplace
           </button>
+          <a className="site-nav__link site-nav__link--pump" href={PUMP_FUN_COIN_URL} target="_blank" rel="noreferrer">
+            Pump.fun
+          </a>
         </nav>
 
         <div className="site-nav__wallet">
@@ -6331,6 +6336,9 @@ function finishMiningOre(plotId: string, oreId: string) {
                 >
                   View roadmap
                 </button>
+                <a className="ghost hero__pump-link" href={PUMP_FUN_COIN_URL} target="_blank" rel="noreferrer">
+                  View coin on Pump.fun
+                </a>
               </div>
             </div>
 
