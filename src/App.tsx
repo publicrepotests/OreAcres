@@ -3745,9 +3745,7 @@ function App() {
   const [musicEnabled, setMusicEnabled] = useState(() => {
     return window.localStorage.getItem("ore-acres-music-enabled") === "1";
   });
-  const [hideCharacter, setHideCharacter] = useState(() => {
-    return window.localStorage.getItem("ore-acres-hide-character") === "1";
-  });
+  const [hideCharacter, setHideCharacter] = useState(false);
   const devMode = new URLSearchParams(window.location.search).get("dev") === "1";
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gamePanelRef = useRef<HTMLElement | null>(null);
