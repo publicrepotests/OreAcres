@@ -37,6 +37,48 @@ type AvatarStyle = {
   baseOutfit: AvatarBaseOutfit;
 };
 
+type SkillId =
+  | "attack"
+  | "hitpoints"
+  | "range"
+  | "magic"
+  | "mining"
+  | "smelting"
+  | "woodcutting"
+  | "fishing"
+  | "defense"
+  | "crafting";
+
+type SkillProgress = {
+  level: number;
+  xp: number;
+};
+
+type HostileNpcKind = "goblin" | "wolf" | "boar";
+
+type HostileNpcDef = {
+  id: string;
+  kind: HostileNpcKind;
+  name: string;
+  level: number;
+  maxHp: number;
+  goldReward: [number, number];
+  xpReward: Partial<Record<SkillId, number>>;
+  position: { x: number; y: number };
+  aggroRadius: number;
+};
+
+type HostileNpcState = {
+  hp: number;
+  defeatedUntil: number;
+};
+
+type CombatState = {
+  npcId: string;
+  startedAt: number;
+  resolvesAt: number;
+} | null;
+
 type ChestRarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
 
 type ChestReward = {
@@ -220,6 +262,7 @@ type GameStats = {
   chestsOpened: number;
   totalEarned: number;
   questBoxesOpened: number;
+  combatKills: number;
 };
 
 type OreNodeRarity = "small" | "medium" | "large";
@@ -239,10 +282,15 @@ type OreNode = {
 type GameState = {
   sol: number;
   mints: number;
+  gold: number;
   playtestMode: boolean;
   rewardReserveSol: number;
   miningXp: number;
   miningLevel: number;
+  skills: Record<SkillId, SkillProgress>;
+  hostiles: Record<string, HostileNpcState>;
+  combat: CombatState;
+  starterQuestStep: number;
   plots: Record<string, Plot>;
   claimedPlotId: string | null;
   selectedPlotId: string;
@@ -356,6 +404,11 @@ const MINE_TOP = TOWN_TOP + TOWN_PLOT_SIZE + 240;
 const WORLD_WIDTH = PLOT_WORLD_WIDTH;
 const WORLD_HEIGHT = MINE_TOP + PLOT_SIZE + WORLD_PADDING;
 const MINING_LEVEL_CAP = 99;
+const SKILL_LEVEL_CAP = 99;
+const STARTING_GOLD = 75;
+const HOSTILE_RESPAWN_MS = 22_000;
+const COMBAT_SWING_MS = 2_200;
+const COMBAT_INTERACTION_RANGE = 150;
 const MIN_CAMERA_ZOOM = 0.7;
 const MAX_CAMERA_ZOOM = 1.55;
 const PLOT_HEADER_HEIGHT = 50;
@@ -418,6 +471,72 @@ const AVATAR_BASE_OUTFITS: Record<AvatarBaseOutfit, { label: string; base: strin
   ember: { label: "Ember", base: "#ffd166", shade: "#d96a27" },
   denim: { label: "Denim", base: "#7aa7ff", shade: "#243a78" },
 };
+const SKILL_DEFS: Array<{ id: SkillId; label: string; description: string }> = [
+  { id: "attack", label: "Attack", description: "Melee accuracy and weapon confidence." },
+  { id: "hitpoints", label: "Hitpoints", description: "Your survivability and toughness." },
+  { id: "range", label: "Range", description: "Future bows, thrown tools, and ranged training." },
+  { id: "magic", label: "Magic", description: "Future utility spells and combat casting." },
+  { id: "mining", label: "Mining", description: "Ore gathering and node efficiency." },
+  { id: "smelting", label: "Smelting", description: "Future bar making and resource refining." },
+  { id: "woodcutting", label: "Woodcutting", description: "Future logs, axes, and construction loops." },
+  { id: "fishing", label: "Fishing", description: "Future food, bait, and skilling income." },
+  { id: "defense", label: "Defense", description: "Future armor, shields, and damage reduction." },
+  { id: "crafting", label: "Crafting", description: "Future gear, cosmetics, and item creation." },
+];
+const HOSTILE_NPCS: HostileNpcDef[] = [
+  {
+    id: "goblin-path-1",
+    kind: "goblin",
+    name: "Town Gate Goblin",
+    level: 2,
+    maxHp: 14,
+    goldReward: [8, 14],
+    xpReward: { attack: 16, hitpoints: 8, defense: 5 },
+    position: { x: WORLD_WIDTH / 2 - 220, y: TOWN_TOP + TOWN_PLOT_SIZE + 92 },
+    aggroRadius: 190,
+  },
+  {
+    id: "goblin-path-2",
+    kind: "goblin",
+    name: "Rock Goblin",
+    level: 4,
+    maxHp: 22,
+    goldReward: [14, 24],
+    xpReward: { attack: 25, hitpoints: 12, defense: 8 },
+    position: { x: WORLD_WIDTH / 2 + 250, y: TOWN_TOP + TOWN_PLOT_SIZE + 210 },
+    aggroRadius: 210,
+  },
+  {
+    id: "boar-woods-1",
+    kind: "boar",
+    name: "Scrub Boar",
+    level: 3,
+    maxHp: 18,
+    goldReward: [10, 18],
+    xpReward: { attack: 18, hitpoints: 10, woodcutting: 4 },
+    position: { x: WORLD_WIDTH / 2 - 420, y: MINE_TOP - 110 },
+    aggroRadius: 180,
+  },
+  {
+    id: "wolf-mine-1",
+    kind: "wolf",
+    name: "Dust Wolf",
+    level: 6,
+    maxHp: 34,
+    goldReward: [24, 38],
+    xpReward: { attack: 36, hitpoints: 18, range: 7 },
+    position: { x: WORLD_WIDTH / 2 + 420, y: MINE_TOP + 75 },
+    aggroRadius: 240,
+  },
+];
+const HOSTILE_BY_ID = Object.fromEntries(HOSTILE_NPCS.map((npc) => [npc.id, npc] as const)) as Record<string, HostileNpcDef>;
+const STARTER_QUEST_STEPS = [
+  "Talk to the Quest Giver in town.",
+  "Leave town through the south path.",
+  "Defeat your first hostile NPC.",
+  "Earn 100 gold.",
+  "Train any combat skill to level 2.",
+];
 const PURPLESPACE_SKIN_ART = {
   down: "/assets/cosmetics/skins/purplespace/front.png",
   up: "/assets/cosmetics/skins/purplespace/back.png",
@@ -1199,7 +1318,107 @@ const DEFAULT_STATS: GameStats = {
   chestsOpened: 0,
   totalEarned: 0,
   questBoxesOpened: 0,
+  combatKills: 0,
 };
+
+function xpForLevel(level: number) {
+  const safeLevel = clamp(Math.floor(level), 1, SKILL_LEVEL_CAP);
+  return Math.floor((safeLevel - 1) ** 2.18 * 42);
+}
+
+function levelFromXp(xp: number) {
+  const safeXp = Math.max(0, Math.floor(xp));
+  let level = 1;
+  for (let nextLevel = 2; nextLevel <= SKILL_LEVEL_CAP; nextLevel += 1) {
+    if (safeXp < xpForLevel(nextLevel)) break;
+    level = nextLevel;
+  }
+  return level;
+}
+
+function defaultSkills(): Record<SkillId, SkillProgress> {
+  return Object.fromEntries(
+    SKILL_DEFS.map(({ id }) => [id, { level: 1, xp: 0 }] as const),
+  ) as Record<SkillId, SkillProgress>;
+}
+
+function normalizeSkills(raw: unknown) {
+  const next = defaultSkills();
+  if (!raw || typeof raw !== "object") return next;
+
+  for (const { id } of SKILL_DEFS) {
+    const candidate = (raw as Partial<Record<SkillId, Partial<SkillProgress>>>)[id];
+    const xp = typeof candidate?.xp === "number" ? Math.max(0, candidate.xp) : 0;
+    next[id] = {
+      xp,
+      level: levelFromXp(xp),
+    };
+  }
+  return next;
+}
+
+function defaultHostiles(): Record<string, HostileNpcState> {
+  return Object.fromEntries(
+    HOSTILE_NPCS.map((npc) => [npc.id, { hp: npc.maxHp, defeatedUntil: 0 }] as const),
+  ) as Record<string, HostileNpcState>;
+}
+
+function normalizeHostiles(raw: unknown) {
+  const next = defaultHostiles();
+  if (!raw || typeof raw !== "object") return next;
+
+  for (const npc of HOSTILE_NPCS) {
+    const candidate = (raw as Partial<Record<string, Partial<HostileNpcState>>>)[npc.id];
+    if (!candidate) continue;
+    next[npc.id] = {
+      hp: typeof candidate.hp === "number" ? clamp(candidate.hp, 0, npc.maxHp) : npc.maxHp,
+      defeatedUntil: typeof candidate.defeatedUntil === "number" ? Math.max(0, candidate.defeatedUntil) : 0,
+    };
+  }
+  return next;
+}
+
+function addSkillXp(
+  skills: Record<SkillId, SkillProgress>,
+  xpRewards: Partial<Record<SkillId, number>>,
+) {
+  let leveled: string[] = [];
+  const next = { ...skills };
+
+  for (const [skillId, xpGain] of Object.entries(xpRewards) as Array<[SkillId, number]>) {
+    const current = next[skillId] ?? { level: 1, xp: 0 };
+    const nextXp = Math.max(0, current.xp + xpGain);
+    const nextLevel = levelFromXp(nextXp);
+    if (nextLevel > current.level) {
+      leveled = [...leveled, `${skillLabel(skillId)} Lv.${nextLevel}`];
+    }
+    next[skillId] = {
+      xp: nextXp,
+      level: nextLevel,
+    };
+  }
+
+  return { skills: next, leveled };
+}
+
+function skillLabel(skillId: SkillId) {
+  return SKILL_DEFS.find((skill) => skill.id === skillId)?.label ?? skillId;
+}
+
+function skillXpProgress(skill: SkillProgress) {
+  const currentLevelXp = xpForLevel(skill.level);
+  const nextLevelXp = xpForLevel(Math.min(SKILL_LEVEL_CAP, skill.level + 1));
+  if (nextLevelXp <= currentLevelXp) return 1;
+  return clamp((skill.xp - currentLevelXp) / (nextLevelXp - currentLevelXp), 0, 1);
+}
+
+function randomGoldReward([min, max]: [number, number]) {
+  return Math.floor(min + Math.random() * (max - min + 1));
+}
+
+function isAvatarNearHostile(avatar: { x: number; y: number }, npc: HostileNpcDef) {
+  return Math.hypot(avatar.x - npc.position.x, avatar.y - npc.position.y) <= COMBAT_INTERACTION_RANGE;
+}
 
 const DEFAULT_SKIN_INVENTORY: Record<SkinId, number> = {
   troll_pick: 0,
@@ -2344,14 +2563,19 @@ function createInitialState(): GameState {
   plots[TOWN_ID] = makeTown();
   plots[MINE_ID] = makeMineArea();
 
-  return {
-    sol: STARTING_SOL,
-    mints: STARTING_MINTS,
-    playtestMode: defaultPlaytestMode(),
-    rewardReserveSol: STARTING_REWARD_RESERVE_SOL,
-    miningXp: 0,
-    miningLevel: 1,
-    plots,
+	  return {
+	    sol: STARTING_SOL,
+	    mints: STARTING_MINTS,
+	    gold: STARTING_GOLD,
+	    playtestMode: defaultPlaytestMode(),
+	    rewardReserveSol: STARTING_REWARD_RESERVE_SOL,
+	    miningXp: 0,
+	    miningLevel: 1,
+	    skills: defaultSkills(),
+	    hostiles: defaultHostiles(),
+	    combat: null,
+	    starterQuestStep: 0,
+	    plots,
     claimedPlotId: null,
     selectedPlotId: TOWN_ID,
     selectedTile: null,
@@ -2604,9 +2828,14 @@ function loadGameState(saveKey: string): GameState {
       questsOpen: false,
       mineReveal: null,
       questReveal: null,
-      sol: typeof parsed.sol === "number" ? parsed.sol : fallback.sol,
-      mints: typeof parsed.mints === "number" ? parsed.mints : fallback.mints,
-      playtestMode: typeof parsed.playtestMode === "boolean" ? parsed.playtestMode : fallback.playtestMode,
+	      sol: typeof parsed.sol === "number" ? parsed.sol : fallback.sol,
+	      mints: typeof parsed.mints === "number" ? parsed.mints : fallback.mints,
+	      gold: typeof parsed.gold === "number" ? Math.max(0, Math.floor(parsed.gold)) : fallback.gold,
+	      skills: normalizeSkills(parsed.skills),
+	      hostiles: normalizeHostiles(parsed.hostiles),
+	      combat: null,
+	      starterQuestStep: typeof parsed.starterQuestStep === "number" ? clamp(Math.floor(parsed.starterQuestStep), 0, STARTER_QUEST_STEPS.length - 1) : 0,
+	      playtestMode: typeof parsed.playtestMode === "boolean" ? parsed.playtestMode : fallback.playtestMode,
       rewardReserveSol:
         typeof parsed.rewardReserveSol === "number"
           ? Math.max(0, parsed.rewardReserveSol)
@@ -2660,12 +2889,16 @@ function bytesToHex(bytes: Uint8Array) {
 
 function gameDigest(state: GameState, wallet: PublicKey | null) {
   return JSON.stringify({
-    wallet: wallet?.toBase58() ?? "guest",
-    sol: round(state.sol),
-    mints: round(state.mints),
-    playtestMode: state.playtestMode,
-    rewardReserveSol: round(state.rewardReserveSol),
-    claimedPlotId: state.claimedPlotId,
+	    wallet: wallet?.toBase58() ?? "guest",
+	    sol: round(state.sol),
+	    mints: round(state.mints),
+	    gold: state.gold,
+	    playtestMode: state.playtestMode,
+	    rewardReserveSol: round(state.rewardReserveSol),
+	    skills: state.skills,
+	    hostiles: state.hostiles,
+	    starterQuestStep: state.starterQuestStep,
+	    claimedPlotId: state.claimedPlotId,
     activePet: state.activePet,
     avatarStyle: state.avatarStyle,
     petInventory: state.petInventory,
@@ -3993,7 +4226,7 @@ function App() {
   }, [game.playtestMode]);
 
   useEffect(() => {
-    const saveState = { ...game, chestReveal: null, mineReveal: null, lastUpdatedAt: Date.now() };
+	    const saveState = { ...game, chestReveal: null, mineReveal: null, combat: null, lastUpdatedAt: Date.now() };
     const timeout = window.setTimeout(() => {
       window.localStorage.setItem(saveKey, JSON.stringify(saveState));
     }, 250);
@@ -4110,6 +4343,80 @@ function App() {
 
     return () => window.clearInterval(interval);
   }, [page]);
+
+  useEffect(() => {
+    if (page !== "game" || !game.combat) return;
+
+    const remainingMs = Math.max(0, game.combat.resolvesAt - Date.now());
+    const timer = window.setTimeout(() => {
+      setGame((current) => {
+        const combat = current.combat;
+        if (!combat) return current;
+        const npc = HOSTILE_BY_ID[combat.npcId];
+        if (!npc) return { ...current, combat: null };
+
+        const hostile = current.hostiles[npc.id] ?? { hp: npc.maxHp, defeatedUntil: 0 };
+        if (hostile.defeatedUntil > Date.now()) {
+          return { ...current, combat: null, message: `${npc.name} is already defeated.` };
+        }
+
+        const attackLevel = current.skills.attack?.level ?? 1;
+        const damage = Math.max(4, Math.floor(5 + attackLevel * 1.35 + Math.random() * 7));
+        const nextHp = Math.max(0, hostile.hp - damage);
+        if (nextHp > 0) {
+          return {
+            ...current,
+            combat: null,
+            hostiles: {
+              ...current.hostiles,
+              [npc.id]: { ...hostile, hp: nextHp },
+            },
+            message: `You hit ${npc.name} for ${damage}. ${nextHp}/${npc.maxHp} HP left.`,
+          };
+        }
+
+        const gold = randomGoldReward(npc.goldReward);
+        const xpResult = addSkillXp(current.skills, npc.xpReward);
+        const levelCopy = xpResult.leveled.length > 0 ? ` Level up: ${xpResult.leveled.join(", ")}.` : "";
+        return {
+          ...current,
+          gold: current.gold + gold,
+          skills: xpResult.skills,
+          starterQuestStep: Math.max(current.starterQuestStep, 3),
+          combat: null,
+          hostiles: {
+            ...current.hostiles,
+            [npc.id]: { hp: npc.maxHp, defeatedUntil: Date.now() + HOSTILE_RESPAWN_MS },
+          },
+          stats: {
+            ...current.stats,
+            combatKills: current.stats.combatKills + 1,
+          },
+          message: `Defeated ${npc.name}. +${gold} gold.${levelCopy}`,
+        };
+      });
+    }, remainingMs);
+
+    return () => window.clearTimeout(timer);
+  }, [game.combat, page]);
+
+  useEffect(() => {
+    if (page !== "game") return;
+
+    const now = Date.now();
+    setGame((current) => {
+      let changed = false;
+      const hostiles = { ...current.hostiles };
+      for (const npc of HOSTILE_NPCS) {
+        const state = hostiles[npc.id] ?? { hp: npc.maxHp, defeatedUntil: 0 };
+        if (state.defeatedUntil > 0 && state.defeatedUntil <= now) {
+          hostiles[npc.id] = { hp: npc.maxHp, defeatedUntil: 0 };
+          changed = true;
+        }
+      }
+      return changed ? { ...current, hostiles } : current;
+    });
+  }, [nowMs, page]);
 
   useEffect(() => {
     if (page !== "game") return;
@@ -4793,9 +5100,26 @@ function App() {
   const activeMiningDurationMs = activeMiningOre
     ? oreNodeMiningMs(activeMiningOre.node.rarity)
     : 0;
-  const activeMiningProgress = activeMiningOre && activeMiningDurationMs > 0
-    ? clamp(1 - activeMiningRemainingMs / activeMiningDurationMs, 0, 1)
+  const activeMiningProgress =
+    activeMiningOre && activeMiningDurationMs > 0
+      ? clamp(1 - activeMiningRemainingMs / activeMiningDurationMs, 0, 1)
+      : 0;
+  const activeCombatNpc = game.combat ? HOSTILE_BY_ID[game.combat.npcId] : null;
+  const activeCombatRemainingMs = game.combat ? Math.max(0, game.combat.resolvesAt - nowMs) : 0;
+  const activeCombatProgress = game.combat
+    ? clamp(1 - activeCombatRemainingMs / Math.max(1, game.combat.resolvesAt - game.combat.startedAt), 0, 1)
     : 0;
+  const starterQuestProgress = [
+    game.starterQuestStep > 0,
+    game.avatar.y > TOWN_TOP + TOWN_PLOT_SIZE,
+    game.stats.combatKills > 0,
+    game.gold >= 100,
+    Object.values(game.skills).some((skill) => skill.level >= 2),
+  ];
+  const starterQuestComplete = starterQuestProgress.every(Boolean);
+  const starterQuestActiveIndex = starterQuestProgress.findIndex((complete) => !complete);
+  const starterQuestText =
+    STARTER_QUEST_STEPS[starterQuestActiveIndex === -1 ? STARTER_QUEST_STEPS.length - 1 : starterQuestActiveIndex];
   const miningFacing: AvatarFacing = activeMiningOre
     ? (() => {
         const orePosition = oreNodeWorldPosition(activeMiningOre.plot, activeMiningOre.node);
@@ -4808,11 +5132,15 @@ function App() {
     claimedPlot && Object.values(claimedPlot.structures).some((structure) => structure.type === "drill"),
   );
   const inPublicTown = selectedPlot.kind === "town";
-  const worldObjective = !game.claimedPlotId
-    ? inPublicTown
-      ? "Use town to buy your first plot, bank loot, and meet other miners."
-      : "Claim an open plot to begin your mine."
-    : !hasPlacedDrill && (game.inventory.drill ?? 0) > 0
+  const worldObjective = activeCombatNpc
+    ? `Fighting ${activeCombatNpc.name}...`
+    : !starterQuestComplete
+      ? `Starter quest: ${starterQuestText}`
+      : !game.claimedPlotId
+        ? inPublicTown
+          ? "Use town to buy your first plot, bank loot, and meet other adventurers."
+          : "Claim an open plot to begin your homestead."
+        : !hasPlacedDrill && (game.inventory.drill ?? 0) > 0
       ? "Place your starter drill on an empty tile."
       : selectedStructure && nextStructureCost
         ? `Upgrade ${selectedStructureName ?? "this structure"} for ${purchaseDisplayLabel(
@@ -4821,7 +5149,7 @@ function App() {
           )}.`
         : game.questBoxes > 0
           ? "Open a quest box for a bonus reward."
-          : "Expand your plot and optimize production.";
+          : "Explore the wilderness, train skills, and grow your homestead.";
 
   const camera = useMemo(() => {
     const center = avatarCenter(game.avatar);
@@ -4852,6 +5180,35 @@ function App() {
 
   function setMessage(message: string) {
     setGame((current) => ({ ...current, message }));
+  }
+
+  function attackHostile(npcId: string) {
+    const npc = HOSTILE_BY_ID[npcId];
+    if (!npc) return;
+    const now = Date.now();
+
+    setGame((current) => {
+      const hostile = current.hostiles[npcId] ?? { hp: npc.maxHp, defeatedUntil: 0 };
+      if (current.combat) {
+        return { ...current, message: "You are already in combat." };
+      }
+      if (hostile.defeatedUntil > now) {
+        return { ...current, message: `${npc.name} is respawning.` };
+      }
+      if (!isAvatarNearHostile(current.avatar, npc)) {
+        return { ...current, message: `Walk closer to ${npc.name} before attacking.` };
+      }
+
+      return {
+        ...current,
+        combat: {
+          npcId,
+          startedAt: now,
+          resolvesAt: now + COMBAT_SWING_MS,
+        },
+        message: `Attacking ${npc.name}...`,
+      };
+    });
   }
 
   function scrollToGame() {
@@ -5127,11 +5484,12 @@ function App() {
       ...current,
       selectedPlotId: TOWN_ID,
       npcDialogue: { npcId, step: 0 },
+      starterQuestStep: npcId === "quest" ? Math.max(current.starterQuestStep, 1) : current.starterQuestStep,
       inventoryOpen: false,
       shopOpen: false,
       marketOpen: false,
       questsOpen: false,
-      message: "Talking to an NPC...",
+      message: npcId === "quest" ? "Quest started: leave town and train a combat skill." : "Talking to an NPC...",
     }));
   }
 
@@ -6191,11 +6549,11 @@ function finishMiningOre(plotId: string, oreId: string) {
           case "quest":
             return {
               title: "Quest Giver",
-              subtitle: "Live missions and reward boxes",
+              subtitle: "Starter path and reward board",
               text:
                 game.npcDialogue.step === 0
-                  ? "I hand out the errands that keep the town moving. Mine, build, return, repeat."
-                  : "Complete quests for reward boxes, small mint bumps, and a reason to keep checking back in.",
+                  ? "Welcome to town. First path: leave by the south road, defeat a goblin or animal, earn gold, and train a combat skill."
+                  : "After that, use the quest board for milestone boxes while you build skilling, combat, and your plot.",
               primaryLabel: "Open quests",
               primaryAction: () => {
                 setGame((current) => ({ ...current, questsOpen: true, shopOpen: false, marketOpen: false, inventoryOpen: false }));
@@ -6728,6 +7086,10 @@ function finishMiningOre(plotId: string, oreId: string) {
             <strong>{game.mints.toFixed(2)}</strong>
           </div>
           <div>
+            <span>Gold</span>
+            <strong>{game.gold.toLocaleString()}</strong>
+          </div>
+          <div>
             <span>Checkout mode</span>
             <strong>{game.playtestMode ? "Playtest" : "Live"}</strong>
           </div>
@@ -6754,6 +7116,14 @@ function finishMiningOre(plotId: string, oreId: string) {
           <div>
             <span>Mining level</span>
             <strong>Lv. {game.miningLevel}</strong>
+          </div>
+          <div>
+            <span>Attack level</span>
+            <strong>Lv. {game.skills.attack.level}</strong>
+          </div>
+          <div>
+            <span>Combat kills</span>
+            <strong>{game.stats.combatKills}</strong>
           </div>
           <div>
             <span>Mining XP</span>
@@ -7553,6 +7923,43 @@ function finishMiningOre(plotId: string, oreId: string) {
                   </div>
                 ) : null}
 
+                {HOSTILE_NPCS.map((npc) => {
+                  const state = game.hostiles[npc.id] ?? { hp: npc.maxHp, defeatedUntil: 0 };
+                  const defeated = state.defeatedUntil > nowMs;
+                  const hpPct = defeated ? 0 : clamp(state.hp / npc.maxHp, 0, 1);
+                  const near = isAvatarNearHostile(game.avatar, npc);
+                  const fighting = game.combat?.npcId === npc.id;
+
+                  return (
+                    <button
+                      key={npc.id}
+                      type="button"
+                      className={`hostile-npc hostile-npc--${npc.kind} ${defeated ? "defeated" : ""} ${
+                        near ? "near" : ""
+                      } ${fighting ? "fighting" : ""}`}
+                      style={{
+                        left: `${npc.position.x}px`,
+                        top: `${npc.position.y}px`,
+                        ["--hostile-hp" as string]: hpPct.toString(),
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        attackHostile(npc.id);
+                      }}
+                      disabled={defeated}
+                      aria-label={`${defeated ? "Respawning" : "Attack"} ${npc.name}`}
+                    >
+                      <span className="hostile-npc__sprite" />
+                      <span className="hostile-npc__name">{npc.name}</span>
+                      <span className="hostile-npc__level">Lv.{npc.level}</span>
+                      <span className="hostile-npc__hp" aria-hidden="true">
+                        <span />
+                      </span>
+                      <small>{defeated ? "Respawning" : near ? "Click to attack" : "Walk closer"}</small>
+                    </button>
+                  );
+                })}
+
                 {!hideCharacter ? (
                   <div
                     className="avatar-anchor"
@@ -7631,8 +8038,10 @@ function finishMiningOre(plotId: string, oreId: string) {
                   <span className="world-hud__objective">{worldObjective}</span>
                 </div>
                 <div className="world-hud__meta">
+                  <span>{game.gold.toLocaleString()} gold</span>
+                  <span>Atk Lv. {game.skills.attack.level}</span>
+                  <span>HP Lv. {game.skills.hitpoints.level}</span>
                   <span>Mining Lv. {game.miningLevel}</span>
-                  <span>{game.miningXp.toFixed(0)} XP</span>
                   <span>{game.claimedPlotId ? "Plot claimed" : "No plot yet"}</span>
                 </div>
                 {activeMiningOre ? (
@@ -7643,6 +8052,20 @@ function finishMiningOre(plotId: string, oreId: string) {
                     <div className="world-hud__mining-meta">
                       <span>Mining {oreNodeDisplayLabel(activeMiningOre.node.rarity)}</span>
                       <strong>{formatMiningTime(activeMiningRemainingMs)} left</strong>
+                    </div>
+                    <div className="world-hud__mining-track" aria-hidden="true">
+                      <span />
+                    </div>
+                  </div>
+                ) : null}
+                {activeCombatNpc ? (
+                  <div
+                    className={`world-hud__mining world-hud__combat world-hud__combat--${activeCombatNpc.kind}`}
+                    style={{ ["--mining-progress" as string]: activeCombatProgress.toString() }}
+                  >
+                    <div className="world-hud__mining-meta">
+                      <span>Combat: {activeCombatNpc.name}</span>
+                      <strong>{Math.ceil(activeCombatRemainingMs / 1000)}s</strong>
                     </div>
                     <div className="world-hud__mining-track" aria-hidden="true">
                       <span />
@@ -7673,6 +8096,21 @@ function finishMiningOre(plotId: string, oreId: string) {
                         aria-label={`Select ${entry.label}`}
                       />
                     ))}
+                    {HOSTILE_NPCS.map((npc) => {
+                      const state = game.hostiles[npc.id] ?? { hp: npc.maxHp, defeatedUntil: 0 };
+                      if (state.defeatedUntil > nowMs) return null;
+                      return (
+                        <span
+                          key={`hostile-map-${npc.id}`}
+                          className={`world-hud__minimap-hostile world-hud__minimap-hostile--${npc.kind}`}
+                          style={{
+                            left: `${(npc.position.x / Math.max(1, WORLD_WIDTH)) * 100}%`,
+                            top: `${(npc.position.y / Math.max(1, WORLD_HEIGHT)) * 100}%`,
+                          }}
+                          aria-hidden="true"
+                        />
+                      );
+                    })}
                     <span
                       className="world-hud__minimap-player"
                       style={{
@@ -8372,6 +8810,45 @@ function finishMiningOre(plotId: string, oreId: string) {
                       >
                         Close
                       </button>
+                    </div>
+                    <div className="starter-quest-card">
+                      <div className="starter-quest-card__head">
+                        <span className="overlay-panel__eyebrow">Starter quest</span>
+                        <strong>{starterQuestComplete ? "Town path complete" : starterQuestText}</strong>
+                      </div>
+                      <div className="starter-quest-list">
+                        {STARTER_QUEST_STEPS.map((step, index) => (
+                          <span
+                            key={step}
+                            className={
+                              starterQuestProgress[index]
+                                ? "complete"
+                                : index === starterQuestActiveIndex
+                                  ? "active"
+                                  : ""
+                            }
+                          >
+                            {starterQuestProgress[index] ? "Done" : `${index + 1}.`} {step}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="skill-book">
+                      {SKILL_DEFS.map(({ id, label, description }) => {
+                        const skill = game.skills[id];
+                        return (
+                          <article key={id} className="skill-card">
+                            <div>
+                              <strong>{label}</strong>
+                              <span>Lv. {skill.level}</span>
+                            </div>
+                            <small>{description}</small>
+                            <div className="skill-card__bar" aria-hidden="true">
+                              <span style={{ width: `${Math.round(skillXpProgress(skill) * 100)}%` }} />
+                            </div>
+                          </article>
+                        );
+                      })}
                     </div>
                     <div className="mission-board mission-board--overlay">
                       {missionCards.map((mission) => (
