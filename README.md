@@ -1,6 +1,6 @@
 # Ore Acres
 
-A Solana-themed idle miner prototype with plots, shops, cosmetics, rewards, and a multiplayer-friendly world layout.
+A browser-based fantasy MMO playtest with a Solana-themed optional economy. Players explore Orehaven and Briarwild together, complete quests, fight roaming creatures, gather resources, craft equipment, customize layered characters, participate in cooperative rare-spawn events, and chase permanent collection-log discoveries.
 
 ## What to deploy where
 
@@ -30,7 +30,7 @@ If you connect the repo through GitHub, Cloudflare will handle deploys automatic
 
 ## Fly.io
 
-The `server/` folder contains a lightweight websocket starter for multiplayer.
+The `server/` folder contains the authoritative WebSocket runtime for shared movement, enemies, gathering nodes, quests, rewards, and persisted player profiles.
 
 ```bash
 cd server
@@ -46,13 +46,20 @@ fly launch
 fly deploy
 ```
 
-The current server is intentionally minimal:
+The server exposes `/healthz` for deployment checks and can use Supabase for authenticated profile persistence. See [SUPABASE-SETUP.md](/mnt/c/Users/shane/Documents/Codex/2026-06-23/can/docs/SUPABASE-SETUP.md) before enabling account-backed progression.
 
-- Keeps player state in memory
-- Broadcasts joins, leaves, and movement updates
-- Exposes a `/healthz` endpoint for load checks
+Local realm administration is available at `http://localhost:5173/admin.html`. The console can inspect live sessions, safely edit player progression, recover world state, and browse Supabase-backed profiles. See [ADMIN-CONSOLE.md](/mnt/c/Users/shane/Documents/Codex/2026-06-23/can/docs/ADMIN-CONSOLE.md) for local startup and production security.
 
-That is enough to wire the client to realtime multiplayer next, without changing the hosting plan again.
+## Game verification
+
+Run the production build and complete deterministic RPG suite before deployment:
+
+```bash
+npm run build
+npm run test:rpg
+```
+
+The deterministic suite covers world connectivity, quest rules, daily activities, weighted loot parity, profile persistence, authenticated combat, chat, hostile AI, and cooperative events. See [MMO-PLAYTEST.md](/mnt/c/Users/shane/Documents/Codex/2026-06-23/can/docs/MMO-PLAYTEST.md) for controls, multiplayer checks, and the manual collision route.
 
 ## Suggested environment variables
 
@@ -64,6 +71,8 @@ Server:
 
 - `PORT` - runtime port used by Fly
 - `ALLOWED_ORIGIN` - optional client origin allowlist
+- `ADMIN_API_TOKEN` - required secret for non-local realm-console access
+- `ADMIN_AUDIT_FILE` - optional persistent JSONL audit-log path
 - `PAYMENT_MINT_ADDRESS` - the pump.fun token mint used for item pricing
 - `PAYMENT_RESERVE_OWNER_WALLET` - main treasury/reward reserve owner wallet
 - `PAYMENT_REWARD_RESERVE_OWNER_WALLET` - reward-reserve sink owner wallet
@@ -91,6 +100,7 @@ Client can optionally also use:
 
 - `VITE_PAYMENT_API_URL` - base URL for the Fly server if it differs from the websocket URL
 - `VITE_SOLANA_RPC_URL` - RPC URL used to submit token payments, defaults to mainnet-beta
+- `VITE_ADMIN_API_URL` - HTTPS origin for the protected realm admin API
 
 ## Notes
 

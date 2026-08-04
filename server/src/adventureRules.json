@@ -1,0 +1,62 @@
+[
+  {
+    "id": "warden-in-training",
+    "chapter": "Orehaven Chronicle",
+    "title": "Warden in Training",
+    "description": "Defeat 12 hostile creatures anywhere in Orehaven Province.",
+    "metric": "enemiesDefeated",
+    "target": 12,
+    "rewardGold": 260,
+    "rewardItems": [{ "itemId": "healing-potion", "quantity": 2 }]
+  },
+  {
+    "id": "hands-of-the-province",
+    "chapter": "Orehaven Chronicle",
+    "title": "Hands of the Province",
+    "description": "Gather 18 ore, timber, fish, or relic nodes across the province.",
+    "metric": "resourcesGathered",
+    "target": 18,
+    "rewardGold": 240,
+    "rewardItems": [{ "itemId": "iron-ore", "quantity": 4 }, { "itemId": "oak-log", "quantity": 4 }]
+  },
+  {
+    "id": "korra-seal",
+    "chapter": "Artisan Chronicle",
+    "title": "Korra's Seal",
+    "description": "Complete 6 recipes at the Orehaven workshop.",
+    "metric": "itemsCrafted",
+    "target": 6,
+    "rewardGold": 420,
+    "rewardItems": [{ "itemId": "treasure-scroll", "quantity": 1 }]
+  },
+  {
+    "id": "province-walker",
+    "chapter": "Explorer Chronicle",
+    "title": "Province Walker",
+    "description": "Discover 7 named regions and attune their paths to your journal.",
+    "metric": "discoveries",
+    "target": 7,
+    "rewardGold": 520,
+    "rewardItems": [{ "itemId": "healing-potion", "quantity": 3 }]
+  },
+  {
+    "id": "beneath-the-fallen-sun",
+    "chapter": "Sunstone Chronicle",
+    "title": "Beneath the Fallen Sun",
+    "description": "Descend through the Old Sun Shrine and defeat Aurex, the Sunstone Revenant.",
+    "metric": "target:sunstone-revenant",
+    "target": 1,
+    "rewardGold": 900,
+    "rewardItems": [{ "itemId": "aurex-sunblade", "quantity": 1 }]
+  },
+  {
+    "id": "embers-below",
+    "chapter": "Sunstone Chronicle",
+    "title": "Embers Below",
+    "description": "Mine 8 Sunstone Veins from the forgotten forge wing beneath Sunstone Hill.",
+    "metric": "target:resource-sunstone-ore",
+    "target": 8,
+    "rewardGold": 650,
+    "rewardItems": [{ "itemId": "sunstone-shard", "quantity": 1 }]
+  }
+]

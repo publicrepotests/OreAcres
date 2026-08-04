@@ -1,0 +1,145 @@
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap");
+
+:root {
+  color: #e9e4ce;
+  background: #09110f;
+  font-family: "Manrope", sans-serif;
+  font-synthesis: none;
+  --ink: #09110f;
+  --panel: #101b18;
+  --panel-raised: #15231f;
+  --line: rgba(210, 190, 123, 0.19);
+  --gold: #d4b968;
+  --gold-bright: #f0d98e;
+  --mint: #70c7a0;
+  --rust: #cc775c;
+  --muted: #8d9d94;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 75% 10%, rgba(39, 90, 66, 0.2), transparent 33%), linear-gradient(135deg, #08110e 0%, #0b1512 50%, #080d0c 100%); }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.52; }
+
+.realm-console { min-height: 100vh; display: grid; grid-template: 88px 1fr / 246px minmax(0, 1fr); background-image: linear-gradient(rgba(239, 217, 142, 0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(239, 217, 142, 0.025) 1px, transparent 1px); background-size: 34px 34px; }
+.realm-console__masthead { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding: 0 28px; border-bottom: 1px solid var(--line); background: rgba(8, 16, 14, 0.92); backdrop-filter: blur(18px); }
+.realm-console__sigil { width: 51px; height: 51px; display: grid; place-items: center; transform: rotate(45deg); border: 1px solid rgba(240, 217, 142, 0.55); background: linear-gradient(145deg, #263a2f, #101b18); box-shadow: inset 0 0 0 4px #0c1512, 0 0 30px rgba(205, 180, 99, 0.12); }
+.realm-console__sigil span { transform: rotate(-45deg); color: var(--gold-bright); font: 700 13px "Cinzel", serif; }
+.realm-console__masthead p, .console-panel__title p, .console-hero p { margin: 0 0 3px; color: var(--gold); font: 600 9px "IBM Plex Mono", monospace; letter-spacing: 0.2em; text-transform: uppercase; }
+.realm-console__masthead h1 { margin: 0; color: #f4efdc; font: 700 24px "Cinzel", serif; letter-spacing: 0.04em; }
+.realm-console__connection { margin-left: auto; min-width: 210px; display: grid; grid-template: auto 1fr; column-gap: 10px; align-items: center; }
+.realm-console__connection i { grid-row: 1 / 3; width: 9px; height: 9px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 13px var(--mint); }
+.realm-console__connection.is-offline i { background: var(--rust); box-shadow: 0 0 13px var(--rust); }
+.realm-console__connection span { color: #dbe8df; font-size: 12px; font-weight: 700; }
+.realm-console__connection small { color: var(--muted); font: 10px "IBM Plex Mono", monospace; }
+
+.realm-console__rail { display: flex; flex-direction: column; min-height: calc(100vh - 88px); padding: 25px 16px 20px; border-right: 1px solid var(--line); background: rgba(9, 17, 15, 0.78); }
+.realm-console__rail nav { display: grid; gap: 5px; }
+.realm-console__rail nav button { position: relative; display: grid; grid-template-columns: 31px 1fr auto; align-items: center; gap: 10px; padding: 13px 12px; color: #9eaaa3; border: 1px solid transparent; background: transparent; text-align: left; text-transform: capitalize; }
+.realm-console__rail nav button span { color: #596a61; font: 10px "IBM Plex Mono", monospace; }
+.realm-console__rail nav button b { min-width: 22px; padding: 3px 6px; border-radius: 12px; color: #132019; background: var(--gold); font: 700 9px "IBM Plex Mono", monospace; text-align: center; }
+.realm-console__rail nav button:hover { color: #eee8d3; background: rgba(255,255,255,0.025); }
+.realm-console__rail nav button.is-active { color: var(--gold-bright); border-color: rgba(213, 187, 105, 0.22); background: linear-gradient(90deg, rgba(213, 187, 105, 0.14), rgba(213, 187, 105, 0.025)); }
+.realm-console__rail nav button.is-active::before { content: ""; position: absolute; inset: 8px auto 8px -17px; width: 2px; background: var(--gold); box-shadow: 0 0 10px var(--gold); }
+.realm-console__credentials { margin-top: auto; padding: 15px 12px; border-top: 1px solid var(--line); }
+.realm-console label, .realm-console__credentials label { display: grid; gap: 7px; color: #aebbb3; font-size: 11px; font-weight: 700; }
+.realm-console__credentials small, .console-json-label small { color: #66776e; font: 9px "IBM Plex Mono", monospace; }
+.realm-console input, .realm-console textarea { width: 100%; border: 1px solid rgba(207, 191, 139, 0.19); border-radius: 3px; outline: none; color: #e8e5d8; background: #0a1311; }
+.realm-console input { height: 38px; padding: 0 11px; }
+.realm-console textarea { min-height: 112px; padding: 11px; resize: vertical; }
+.realm-console input:focus, .realm-console textarea:focus { border-color: rgba(232, 207, 127, 0.6); box-shadow: 0 0 0 2px rgba(213, 187, 105, 0.08); }
+.realm-console__return { margin: 12px; padding: 11px; border: 1px solid rgba(108, 194, 153, 0.24); color: #93d3b4; text-align: center; text-decoration: none; font-size: 11px; }
+
+.realm-console__workspace { min-width: 0; padding: 22px 28px 42px; }
+.realm-console__statusline { min-height: 34px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 17px; color: #82948a; font: 10px "IBM Plex Mono", monospace; }
+.realm-console__statusline button, .console-search-row button { border: 1px solid var(--line); color: #b9c4be; background: #111d19; padding: 8px 12px; }
+.console-hero { min-height: 218px; display: flex; justify-content: space-between; align-items: center; overflow: hidden; padding: 36px 42px; border: 1px solid var(--line); background: radial-gradient(circle at 85% 50%, rgba(107, 192, 148, 0.18), transparent 24%), linear-gradient(120deg, rgba(26, 46, 38, 0.96), rgba(11, 20, 17, 0.96)); box-shadow: 0 26px 90px rgba(0,0,0,0.22); }
+.console-hero h2 { max-width: 680px; margin: 5px 0 10px; color: #f4edd4; font: 700 clamp(31px, 4vw, 57px)/1.04 "Cinzel", serif; }
+.console-hero span { display: block; max-width: 620px; color: #9baba2; font-size: 13px; line-height: 1.7; }
+.console-hero__rune { position: relative; width: 170px; height: 170px; flex: 0 0 auto; border: 1px solid rgba(229, 207, 138, 0.22); border-radius: 50%; animation: rune-turn 28s linear infinite; }
+.console-hero__rune::before, .console-hero__rune::after, .console-hero__rune i { content: ""; position: absolute; inset: 24px; border: 1px solid rgba(110, 201, 157, 0.28); transform: rotate(45deg); }
+.console-hero__rune::after { inset: 50px; border-color: rgba(229, 207, 138, 0.45); }
+.console-hero__rune i:nth-child(1) { inset: 68px; background: var(--gold); box-shadow: 0 0 28px rgba(228, 205, 128, 0.45); }
+.console-hero__rune i:nth-child(2) { inset: 10px 78px; transform: none; }
+.console-hero__rune i:nth-child(3) { inset: 78px 10px; transform: none; }
+@keyframes rune-turn { to { transform: rotate(360deg); } }
+.console-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.console-metrics article { min-height: 124px; display: grid; align-content: center; padding: 19px 21px; border: 1px solid var(--line); background: rgba(16, 27, 24, 0.88); }
+.console-metrics span { color: #84968c; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; }
+.console-metrics strong { margin: 4px 0; color: #efe7cc; font: 700 30px "Cinzel", serif; }
+.console-metrics small { overflow: hidden; color: #62736a; font: 9px "IBM Plex Mono", monospace; text-overflow: ellipsis; white-space: nowrap; }
+
+.console-panel { min-width: 0; padding: 20px; border: 1px solid var(--line); background: rgba(15, 26, 22, 0.91); box-shadow: 0 16px 55px rgba(0,0,0,0.16); }
+.console-panel__title { min-height: 44px; display: flex; justify-content: space-between; align-items: start; gap: 15px; margin-bottom: 16px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+.console-panel__title h3 { margin: 0; color: #eee8d5; font: 700 20px "Cinzel", serif; }
+.console-panel__title input { max-width: 220px; }
+.console-pill { padding: 5px 8px; border: 1px solid rgba(108, 199, 157, 0.24); color: #83cda9; font: 9px "IBM Plex Mono", monospace; text-transform: uppercase; }
+.console-room-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 9px; }
+.console-room-grid article { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; padding: 14px; border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.018); }
+.console-room-grid i { width: 8px; height: 8px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 12px var(--mint); }
+.console-room-grid div { display: grid; }
+.console-room-grid strong { color: #ddd9c9; font-size: 12px; }
+.console-room-grid span, .console-room-grid small { color: #74857b; font: 9px "IBM Plex Mono", monospace; }
+
+.console-split { display: grid; grid-template-columns: minmax(275px, 0.72fr) minmax(520px, 1.55fr); gap: 13px; min-height: calc(100vh - 162px); }
+.console-directory, .console-editor { max-height: calc(100vh - 162px); overflow: auto; }
+.console-player-list { display: grid; gap: 5px; }
+.console-player-list button { width: 100%; display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid transparent; color: inherit; background: rgba(255,255,255,0.018); text-align: left; }
+.console-player-list button:hover, .console-player-list button.is-active { border-color: rgba(213, 188, 107, 0.25); background: rgba(213, 188, 107, 0.075); }
+.console-player-list i { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #654f31; border-radius: 50%; color: #e4c579; background: #271e13; font: normal 700 10px "Cinzel", serif; }
+.console-player-list i.is-saved { border-color: #376d54; color: #84d1aa; background: #13271f; }
+.console-player-list span { min-width: 0; display: grid; }
+.console-player-list strong { overflow: hidden; color: #dddacd; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.console-player-list small, .console-player-list em { color: #64766c; font: normal 9px "IBM Plex Mono", monospace; }
+.console-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.console-quick-actions, .console-world-actions { display: flex; flex-wrap: wrap; gap: 7px; margin: 15px 0; }
+.console-quick-actions button, .console-world-actions button { padding: 8px 11px; border: 1px solid rgba(112, 199, 160, 0.2); color: #9ed7bd; background: rgba(37, 82, 61, 0.2); font-size: 10px; }
+.realm-console .is-danger { border-color: rgba(204, 119, 92, 0.34); color: #e49a82; background: rgba(108, 39, 25, 0.18); }
+.console-json-label { margin-top: 13px; }
+.console-json-label > span { display: flex; justify-content: space-between; align-items: center; }
+.console-json-label textarea { min-height: 300px; color: #b8d8c8; font: 11px/1.58 "IBM Plex Mono", monospace; tab-size: 2; }
+.console-skill-chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0 15px; }
+.console-skill-chips span { padding: 4px 7px; border: 1px solid rgba(255,255,255,0.06); color: #697b71; font: 8px "IBM Plex Mono", monospace; text-transform: uppercase; }
+.console-editor__footer { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-top: 16px; padding-top: 15px; border-top: 1px solid var(--line); }
+.console-editor__footer > span { overflow: hidden; color: #607068; font: 9px "IBM Plex Mono", monospace; text-overflow: ellipsis; }
+.console-primary { padding: 11px 17px; border: 1px solid #d5ba69; color: #17170f; background: linear-gradient(#e3ca7f, #b89a4b); font-weight: 800; box-shadow: 0 7px 24px rgba(190, 158, 72, 0.14); }
+.console-search-row { display: grid; grid-template-columns: 1fr auto; gap: 7px; margin-bottom: 12px; }
+.console-world-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+.console-textarea--short { min-height: 130px !important; }
+.console-warning { padding: 13px; border-left: 2px solid var(--rust); color: #9f978e; background: rgba(129, 63, 42, 0.1); font-size: 11px; line-height: 1.65; }
+.console-audit__rows { display: grid; }
+.console-audit__rows article { display: grid; grid-template-columns: 150px 150px minmax(120px, 0.5fr) 1fr 100px; gap: 11px; align-items: center; min-height: 45px; border-bottom: 1px solid rgba(255,255,255,0.045); font-size: 10px; }
+.console-audit time, .console-audit small { color: #61736a; font: 9px "IBM Plex Mono", monospace; }
+.console-audit strong { color: #e0c778; font: 10px "IBM Plex Mono", monospace; }
+.console-audit code { overflow: hidden; color: #81978b; text-overflow: ellipsis; white-space: nowrap; }
+.console-empty { padding: 24px 12px; color: #66786e; font-size: 11px; text-align: center; }
+.console-empty--large { min-height: 420px; display: grid; place-content: center; gap: 7px; }
+.console-empty--large b { color: #c9c9ba; font: 700 18px "Cinzel", serif; }
+.console-empty--large span { color: #66786e; }
+
+@media (max-width: 980px) {
+  .realm-console { grid-template: 76px auto 1fr / 1fr; }
+  .realm-console__masthead { padding: 0 16px; }
+  .realm-console__rail { min-height: auto; flex-direction: row; gap: 9px; overflow-x: auto; padding: 9px 12px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .realm-console__rail nav { display: flex; }
+  .realm-console__rail nav button { min-width: 110px; grid-template-columns: 1fr auto; }
+  .realm-console__rail nav button span, .realm-console__credentials, .realm-console__return { display: none; }
+  .realm-console__workspace { padding: 14px; }
+  .console-metrics { grid-template-columns: 1fr 1fr; }
+  .console-split, .console-world-grid { grid-template-columns: 1fr; }
+  .console-directory, .console-editor { max-height: none; }
+}
+
+@media (max-width: 620px) {
+  .realm-console__connection { min-width: 0; }
+  .realm-console__connection span, .realm-console__connection small { display: none; }
+  .console-hero { min-height: 180px; padding: 24px; }
+  .console-hero__rune { display: none; }
+  .console-metrics { grid-template-columns: 1fr; }
+  .console-form-grid { grid-template-columns: 1fr; }
+  .console-audit__rows article { grid-template-columns: 1fr 1fr; padding: 10px 0; }
+  .console-audit code { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) { .console-hero__rune { animation: none; } }

@@ -1,0 +1,1304 @@
+{
+  "version": 1,
+  "npcs": [
+    {
+      "id": "guide",
+      "name": "Mira",
+      "role": "Guild Guide",
+      "frame": 0,
+      "x": 704,
+      "y": 515,
+      "dialogue": [
+        "Orehaven is safe inside the walls. Beyond them, every trail teaches a different skill.",
+        "Start with copper in the eastern quarry. Your pickaxe will do the rest once you begin.",
+        "The goblins to the southeast have been stealing ore. Drive one away and return to me.",
+        "You handled the camp well. There is stranger trouble beneath the western pines.",
+        "The old oak has begun shedding silver bark. Bring me a log so I can inspect it.",
+        "That timber bears claw marks. Find the Pine Wolf on the northern trail.",
+        "The wolf was guarding something near Moonwater. Catch a trout from the pond.",
+        "Return when you have sampled the water. Orehaven may need a new warden.",
+        "The woods recognize you now. Wear this Sentinel Mail as proof of your service.",
+        "You are a Warden of Orehaven. Korra can now teach you the ranged, arcane, and artisan paths.",
+        "Korra is waiting outside the eastern forge. Tell her I sent you."
+      ]
+    },
+    {
+      "id": "banker",
+      "name": "Grent",
+      "role": "Banker",
+      "frame": 1,
+      "x": 1065,
+      "y": 595,
+      "dialogue": [
+        "Your bank will protect equipment, materials, gold, and rare drops between sessions."
+      ],
+      "service": "bank"
+    },
+    {
+      "id": "smith",
+      "name": "Korra",
+      "role": "Blacksmith",
+      "frame": 2,
+      "x": 925,
+      "y": 455,
+      "dialogue": [
+        "A better blade hits harder. A better pick shortens every mining job."
+      ],
+      "shop": "weapons",
+      "service": "workshop"
+    },
+    {
+      "id": "market",
+      "name": "Pip",
+      "role": "Merchant",
+      "frame": 3,
+      "x": 610,
+      "y": 445,
+      "dialogue": [
+        "Gold buys everyday gear. I also pay fair coin for creature trophies, duplicate rare gear, and other field discoveries."
+      ],
+      "shop": "tools"
+    },
+    {
+      "id": "plots",
+      "name": "Acre Clerk",
+      "role": "Homestead Registrar",
+      "frame": 3,
+      "x": 689,
+      "y": 597,
+      "dialogue": [
+        "Homesteads are private build spaces. Finish your town training before purchasing an acre."
+      ]
+    },
+    {
+      "id": "marshal",
+      "name": "Marshal Rowan",
+      "role": "Bounty Marshal",
+      "frame": 5,
+      "x": 846,
+      "y": 690,
+      "dialogue": [
+        "The Adventurer Board refreshes each UTC day. General contracts reward any useful work, but marked bounties only count the creature family named on the notice.",
+        "Goblin notices lead east. Marshscale contracts lead through Briarwild Crossing into Moonfen. Claim completed work before the board resets."
+      ],
+      "service": "activities"
+    },
+    {
+      "id": "captain",
+      "name": "Captain Thorne",
+      "role": "Expedition Captain",
+      "frame": 6,
+      "x": 800,
+      "y": 640,
+      "dialogue": [
+        "The Moonfen roads are too dangerous for lone glory. Form a party, then I can authorize a timed expedition against the Marshscale patrols.",
+        "Every expedition needs two contributors in the field. Standing together matters, but only adventurers present at the hunt receive the final reward."
+      ],
+      "service": "social"
+    },
+    {
+      "id": "ranger",
+      "name": "Lyra Thorn",
+      "role": "Ranger-Captain",
+      "frame": 4,
+      "x": 246,
+      "y": 1640,
+      "dialogue": [
+        "Mira's signal reached us. Something in Moonfen is waking the old Sunstone wards.",
+        "The Briar Stalker circles the crossing. Clear it before we move deeper into the wilds.",
+        "The trail is open. Attune the seal inside the Old Sun Shrine and bring back its light.",
+        "The seal points east, but an Orc Pathfinder has been tracking our camp. Stop the scout.",
+        "Moonfen answers to a marshscale mystic. Break the channel before the wardens arrive.",
+        "One final foe remains: the Marshscale Warden in the raider caverns.",
+        "The signal burns gold again. You have earned the mantle of a Briarwild Warden.",
+        "The signal exposed graves beneath Sunstone Hill. If you are ready, hunt the bones walking below the shrine.",
+        "A Sunbone Wanderer carries the first mark. Shatter it on the shrine road.",
+        "The lesser shade is gone. Its Guardian waits closer to the old stones.",
+        "A Moonfen Hexer feeds the curse. Arcane force is the only clean way to unravel that spell.",
+        "One of our fallen scouts still walks with her bow. Give her a ranger's ending from a distance.",
+        "The Briar Bonecaller is exposed. End the ritual before dawn.",
+        "The dead are quiet. Return to me and we will seal the hill together.",
+        "Sunstone Hill is still. Wear this mail as the first Sunforged Warden of Orehaven."
+      ]
+    }
+  ],
+  "enemies": [
+    {
+      "id": "rat-west",
+      "name": "Field Rat",
+      "kind": "rat",
+      "frame": 6,
+      "level": 1,
+      "x": 250,
+      "y": 590,
+      "maxHp": 18,
+      "gold": [
+        4,
+        8
+      ],
+      "attackXp": 16
+    },
+    {
+      "id": "goblin-camp-1",
+      "name": "Camp Goblin",
+      "kind": "goblin",
+      "frame": 4,
+      "level": 2,
+      "x": 1280,
+      "y": 880,
+      "maxHp": 30,
+      "gold": [
+        10,
+        18
+      ],
+      "attackXp": 28
+    },
+    {
+      "id": "goblin-camp-2",
+      "name": "Goblin Scavenger",
+      "kind": "goblin",
+      "frame": 4,
+      "level": 4,
+      "x": 1400,
+      "y": 940,
+      "maxHp": 46,
+      "gold": [
+        18,
+        30
+      ],
+      "attackXp": 46,
+      "aggroRange": 110
+    },
+    {
+      "id": "goblin-camp-sentry",
+      "name": "Goblin Sentry",
+      "kind": "goblin",
+      "frame": 4,
+      "level": 3,
+      "x": 1200,
+      "y": 816,
+      "maxHp": 38,
+      "gold": [
+        13,
+        22
+      ],
+      "attackXp": 36,
+      "attackStyle": "range",
+      "aggroRange": 230,
+      "speed": 56
+    },
+    {
+      "id": "goblin-camp-bruiser",
+      "name": "Goblin Bruiser",
+      "kind": "goblin",
+      "frame": 4,
+      "level": 5,
+      "x": 1392,
+      "y": 816,
+      "maxHp": 58,
+      "gold": [
+        22,
+        34
+      ],
+      "attackXp": 56,
+      "aggroRange": 205,
+      "speed": 54
+    },
+    {
+      "id": "goblin-firestarter",
+      "name": "Rikka the Firestarter",
+      "kind": "goblin",
+      "frame": 4,
+      "level": 7,
+      "x": 1312,
+      "y": 1088,
+      "maxHp": 82,
+      "gold": [
+        46,
+        72
+      ],
+      "attackXp": 105,
+      "rare": true,
+      "respawnMs": 420000,
+      "attackStyle": "range",
+      "aggroRange": 285,
+      "speed": 62,
+      "visual": {
+        "weapon": "iron-bow",
+        "armor": "",
+        "scale": 0.94,
+        "auraColor": 16747330
+      }
+    },
+    {
+      "id": "wolf-forest",
+      "name": "Pine Wolf",
+      "kind": "wolf",
+      "frame": 5,
+      "level": 6,
+      "x": 225,
+      "y": 330,
+      "maxHp": 62,
+      "gold": [
+        26,
+        42
+      ],
+      "attackXp": 68
+    },
+    {
+      "id": "wolf-forest-2",
+      "name": "Pine Wolf",
+      "kind": "wolf",
+      "frame": 5,
+      "level": 5,
+      "x": 286,
+      "y": 197,
+      "maxHp": 54,
+      "gold": [
+        22,
+        36
+      ],
+      "attackXp": 58,
+      "aggroRange": 210,
+      "speed": 68
+    },
+    {
+      "id": "rat-east-road",
+      "name": "Roadside Rat",
+      "kind": "rat",
+      "frame": 6,
+      "level": 2,
+      "x": 1120,
+      "y": 713,
+      "maxHp": 24,
+      "gold": [
+        6,
+        11
+      ],
+      "attackXp": 22,
+      "aggroRange": 130,
+      "speed": 44
+    },
+    {
+      "id": "slime-mine",
+      "name": "Crystal Slime",
+      "kind": "slime",
+      "frame": 7,
+      "level": 5,
+      "x": 1328,
+      "y": 448,
+      "maxHp": 54,
+      "gold": [
+        22,
+        38
+      ],
+      "attackXp": 58
+    },
+    {
+      "id": "auric-slime",
+      "name": "Auric Slime",
+      "kind": "slime",
+      "frame": 7,
+      "level": 12,
+      "x": 1167,
+      "y": 1047,
+      "maxHp": 160,
+      "gold": [
+        120,
+        200
+      ],
+      "attackXp": 180,
+      "rare": true,
+      "passive": true,
+      "respawnMs": 180000
+    },
+    {
+      "id": "briar-wolf-1",
+      "name": "Briar Wolf",
+      "kind": "wolf",
+      "frame": 5,
+      "level": 7,
+      "x": 680,
+      "y": 1380,
+      "maxHp": 74,
+      "gold": [
+        30,
+        48
+      ],
+      "attackXp": 78,
+      "aggroRange": 230,
+      "speed": 68
+    },
+    {
+      "id": "briar-wolf-2",
+      "name": "Briar Stalker",
+      "kind": "wolf",
+      "frame": 5,
+      "level": 9,
+      "x": 820,
+      "y": 1510,
+      "maxHp": 92,
+      "gold": [
+        40,
+        62
+      ],
+      "attackXp": 98,
+      "aggroRange": 250,
+      "speed": 74
+    },
+    {
+      "id": "briar-wolf-3",
+      "name": "Briar Prowler",
+      "kind": "wolf",
+      "frame": 5,
+      "level": 8,
+      "x": 460,
+      "y": 1440,
+      "maxHp": 82,
+      "gold": [
+        34,
+        54
+      ],
+      "attackXp": 88,
+      "aggroRange": 235,
+      "speed": 72
+    },
+    {
+      "id": "bog-slime-1",
+      "name": "Bog Slime",
+      "kind": "slime",
+      "frame": 7,
+      "level": 6,
+      "x": 1030,
+      "y": 1345,
+      "maxHp": 66,
+      "gold": [
+        25,
+        40
+      ],
+      "attackXp": 68,
+      "aggroRange": 175,
+      "speed": 38
+    },
+    {
+      "id": "bog-slime-2",
+      "name": "Mire Slime",
+      "kind": "slime",
+      "frame": 7,
+      "level": 8,
+      "x": 1320,
+      "y": 1320,
+      "maxHp": 84,
+      "gold": [
+        34,
+        52
+      ],
+      "attackXp": 88,
+      "aggroRange": 185,
+      "speed": 42
+    },
+    {
+      "id": "bog-slime-3",
+      "name": "Fen Slime",
+      "kind": "slime",
+      "frame": 7,
+      "level": 7,
+      "x": 912,
+      "y": 1200,
+      "maxHp": 74,
+      "gold": [
+        29,
+        46
+      ],
+      "attackXp": 78,
+      "aggroRange": 180,
+      "speed": 40
+    },
+    {
+      "id": "orc-raider-1",
+      "name": "Orc Raider",
+      "kind": "orc",
+      "frame": 4,
+      "level": 8,
+      "x": 470,
+      "y": 1640,
+      "maxHp": 88,
+      "gold": [
+        38,
+        58
+      ],
+      "attackXp": 92,
+      "aggroRange": 220,
+      "speed": 58
+    },
+    {
+      "id": "orc-raider-2",
+      "name": "Orc Pathfinder",
+      "kind": "orc",
+      "frame": 4,
+      "level": 10,
+      "x": 520,
+      "y": 1540,
+      "maxHp": 108,
+      "gold": [
+        48,
+        72
+      ],
+      "attackXp": 116,
+      "aggroRange": 240,
+      "speed": 64
+    },
+    {
+      "id": "orc-raider-3",
+      "name": "Orc Campguard",
+      "kind": "orc",
+      "frame": 4,
+      "level": 9,
+      "x": 1050,
+      "y": 1700,
+      "maxHp": 98,
+      "gold": [
+        42,
+        64
+      ],
+      "attackXp": 104,
+      "aggroRange": 230,
+      "speed": 60
+    },
+    {
+      "id": "orc-raider-4",
+      "name": "Orc Marauder",
+      "kind": "orc",
+      "frame": 4,
+      "level": 11,
+      "x": 1344,
+      "y": 1664,
+      "maxHp": 120,
+      "gold": [
+        54,
+        80
+      ],
+      "attackXp": 128,
+      "aggroRange": 250,
+      "speed": 64
+    },
+    {
+      "id": "ironhide-grukk",
+      "name": "Ironhide Grukk",
+      "kind": "orc",
+      "frame": 4,
+      "level": 15,
+      "x": 1080,
+      "y": 1830,
+      "maxHp": 224,
+      "gold": [
+        110,
+        168
+      ],
+      "attackXp": 236,
+      "rare": true,
+      "respawnMs": 600000,
+      "aggroRange": 285,
+      "speed": 64,
+      "visual": {
+        "weapon": "dusk-sabre",
+        "armor": "sunforged-mail",
+        "scale": 1.13,
+        "auraColor": 16763228
+      }
+    },
+    {
+      "id": "lizard-mystic-1",
+      "name": "Marshscale Mystic",
+      "kind": "lizard",
+      "frame": 4,
+      "level": 10,
+      "x": 1088,
+      "y": 1520,
+      "maxHp": 104,
+      "gold": [
+        52,
+        78
+      ],
+      "attackXp": 120,
+      "attackStyle": "magic",
+      "aggroRange": 270,
+      "speed": 50
+    },
+    {
+      "id": "lizard-guard-1",
+      "name": "Marshscale Warden",
+      "kind": "lizard",
+      "frame": 4,
+      "level": 12,
+      "x": 1168,
+      "y": 1600,
+      "maxHp": 132,
+      "gold": [
+        66,
+        94
+      ],
+      "attackXp": 148,
+      "aggroRange": 240,
+      "speed": 56
+    },
+    {
+      "id": "lizard-scout-1",
+      "name": "Marshscale Scout",
+      "kind": "lizard",
+      "frame": 4,
+      "level": 9,
+      "x": 1230,
+      "y": 1765,
+      "maxHp": 88,
+      "gold": [
+        42,
+        64
+      ],
+      "attackXp": 98,
+      "attackStyle": "range",
+      "aggroRange": 260,
+      "speed": 62
+    },
+    {
+      "id": "lizard-scout-2",
+      "name": "Marshscale Hunter",
+      "kind": "lizard",
+      "frame": 4,
+      "level": 11,
+      "x": 1392,
+      "y": 1488,
+      "maxHp": 112,
+      "gold": [
+        54,
+        82
+      ],
+      "attackXp": 124,
+      "attackStyle": "range",
+      "aggroRange": 275,
+      "speed": 62
+    },
+    {
+      "id": "moonfen-oracle",
+      "name": "Ssavra, Moonfen Oracle",
+      "kind": "lizard",
+      "frame": 4,
+      "level": 16,
+      "x": 1360,
+      "y": 1456,
+      "maxHp": 206,
+      "gold": [
+        118,
+        176
+      ],
+      "attackXp": 248,
+      "rare": true,
+      "respawnMs": 540000,
+      "attackStyle": "magic",
+      "aggroRange": 320,
+      "speed": 54,
+      "visual": {
+        "weapon": "frostspire-staff",
+        "armor": "warden-mail",
+        "scale": 1.07,
+        "auraColor": 10323199
+      }
+    },
+    {
+      "id": "sunbone-wanderer",
+      "name": "Sunbone Wanderer",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 7,
+      "x": 540,
+      "y": 1220,
+      "maxHp": 72,
+      "gold": [
+        28,
+        44
+      ],
+      "attackXp": 76,
+      "aggroRange": 210,
+      "speed": 54
+    },
+    {
+      "id": "sunbone-guardian",
+      "name": "Sunbone Guardian",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 10,
+      "x": 535,
+      "y": 1360,
+      "maxHp": 106,
+      "gold": [
+        46,
+        70
+      ],
+      "attackXp": 112,
+      "aggroRange": 230,
+      "speed": 58
+    },
+    {
+      "id": "sunbone-skirmisher",
+      "name": "Sunbone Skirmisher",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 8,
+      "x": 340,
+      "y": 1470,
+      "maxHp": 84,
+      "gold": [
+        35,
+        54
+      ],
+      "attackXp": 90,
+      "aggroRange": 220,
+      "speed": 57
+    },
+    {
+      "id": "fallen-ranger",
+      "name": "Fallen Ranger",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 9,
+      "x": 610,
+      "y": 1720,
+      "maxHp": 94,
+      "gold": [
+        40,
+        62
+      ],
+      "attackXp": 102,
+      "attackStyle": "range",
+      "aggroRange": 270,
+      "speed": 54
+    },
+    {
+      "id": "moonfen-hexer",
+      "name": "Moonfen Hexer",
+      "kind": "witch",
+      "frame": 0,
+      "level": 11,
+      "x": 870,
+      "y": 1390,
+      "maxHp": 110,
+      "gold": [
+        55,
+        82
+      ],
+      "attackXp": 128,
+      "attackStyle": "magic",
+      "aggroRange": 285,
+      "speed": 48
+    },
+    {
+      "id": "briar-bonecaller",
+      "name": "Briar Bonecaller",
+      "kind": "witch",
+      "frame": 0,
+      "level": 13,
+      "x": 860,
+      "y": 1740,
+      "maxHp": 142,
+      "gold": [
+        76,
+        108
+      ],
+      "attackXp": 164,
+      "attackStyle": "magic",
+      "aggroRange": 300,
+      "speed": 52
+    },
+    {
+      "id": "catacomb-sentinel",
+      "name": "Catacomb Sentinel",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 14,
+      "x": 720,
+      "y": 2400,
+      "maxHp": 158,
+      "gold": [
+        72,
+        104
+      ],
+      "attackXp": 172,
+      "aggroRange": 235,
+      "speed": 55
+    },
+    {
+      "id": "drowned-custodian",
+      "name": "Drowned Custodian",
+      "kind": "witch",
+      "frame": 0,
+      "level": 16,
+      "x": 1170,
+      "y": 2390,
+      "maxHp": 184,
+      "gold": [
+        88,
+        126
+      ],
+      "attackXp": 204,
+      "attackStyle": "magic",
+      "aggroRange": 290,
+      "speed": 46
+    },
+    {
+      "id": "emberbone-marksman",
+      "name": "Emberbone Marksman",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 15,
+      "x": 500,
+      "y": 2240,
+      "maxHp": 146,
+      "gold": [
+        70,
+        102
+      ],
+      "attackXp": 180,
+      "attackStyle": "range",
+      "aggroRange": 285,
+      "speed": 52
+    },
+    {
+      "id": "cryptflame-channeler",
+      "name": "Cryptflame Channeler",
+      "kind": "witch",
+      "frame": 0,
+      "level": 17,
+      "x": 1040,
+      "y": 2240,
+      "maxHp": 196,
+      "gold": [
+        94,
+        132
+      ],
+      "attackXp": 218,
+      "attackStyle": "magic",
+      "aggroRange": 305,
+      "speed": 44
+    },
+    {
+      "id": "sunstone-revenant",
+      "name": "Aurex, Sunstone Revenant",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 20,
+      "x": 768,
+      "y": 2690,
+      "maxHp": 310,
+      "gold": [
+        155,
+        230
+      ],
+      "attackXp": 330,
+      "rare": true,
+      "respawnMs": 720000,
+      "attackStyle": "magic",
+      "aggroRange": 330,
+      "speed": 50,
+      "visual": {
+        "weapon": "arcane-staff",
+        "armor": "sunforged-mail",
+        "scale": 1.16,
+        "auraColor": 16762970
+      }
+    }
+  ],
+  "resources": [
+    {
+      "id": "copper-1",
+      "name": "Copper Outcrop",
+      "kind": "ore",
+      "frame": 0,
+      "skill": "mining",
+      "x": 1380,
+      "y": 275,
+      "seconds": 5,
+      "gold": 8,
+      "xp": 28,
+      "scale": 0.17,
+      "requiredLevel": 1,
+      "itemId": "copper-ore"
+    },
+    {
+      "id": "copper-2",
+      "name": "Copper Outcrop",
+      "kind": "ore",
+      "frame": 0,
+      "skill": "mining",
+      "x": 1324,
+      "y": 350,
+      "seconds": 5,
+      "gold": 8,
+      "xp": 28,
+      "scale": 0.17,
+      "requiredLevel": 1,
+      "itemId": "copper-ore"
+    },
+    {
+      "id": "copper-3",
+      "name": "Copper Outcrop",
+      "kind": "ore",
+      "frame": 0,
+      "skill": "mining",
+      "x": 1238,
+      "y": 430,
+      "seconds": 5,
+      "gold": 8,
+      "xp": 28,
+      "scale": 0.17,
+      "requiredLevel": 1,
+      "itemId": "copper-ore"
+    },
+    {
+      "id": "iron-1",
+      "name": "Iron Outcrop",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 1290,
+      "y": 165,
+      "seconds": 8,
+      "gold": 15,
+      "xp": 48,
+      "scale": 0.18,
+      "requiredLevel": 5,
+      "itemId": "iron-ore"
+    },
+    {
+      "id": "iron-2",
+      "name": "Iron Outcrop",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 1405,
+      "y": 220,
+      "seconds": 8,
+      "gold": 15,
+      "xp": 48,
+      "scale": 0.18,
+      "requiredLevel": 5,
+      "itemId": "iron-ore"
+    },
+    {
+      "id": "oak-1",
+      "name": "Ancient Oak",
+      "kind": "tree",
+      "frame": 2,
+      "skill": "woodcutting",
+      "x": 132,
+      "y": 480,
+      "seconds": 6,
+      "gold": 7,
+      "xp": 30,
+      "scale": 0.22,
+      "requiredLevel": 1,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "oak-2",
+      "name": "Ancient Oak",
+      "kind": "tree",
+      "frame": 2,
+      "skill": "woodcutting",
+      "x": 90,
+      "y": 560,
+      "seconds": 6,
+      "gold": 7,
+      "xp": 30,
+      "scale": 0.22,
+      "requiredLevel": 1,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "oak-3",
+      "name": "Briar Oak",
+      "kind": "tree",
+      "frame": 2,
+      "skill": "woodcutting",
+      "x": 350,
+      "y": 1060,
+      "seconds": 7,
+      "gold": 9,
+      "xp": 38,
+      "scale": 0.22,
+      "requiredLevel": 3,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "pine-1",
+      "name": "Pine Tree",
+      "kind": "tree",
+      "frame": 3,
+      "skill": "woodcutting",
+      "x": 220,
+      "y": 175,
+      "seconds": 8,
+      "gold": 11,
+      "xp": 44,
+      "scale": 0.21,
+      "requiredLevel": 5,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "pine-2",
+      "name": "Pine Tree",
+      "kind": "tree",
+      "frame": 3,
+      "skill": "woodcutting",
+      "x": 145,
+      "y": 300,
+      "seconds": 8,
+      "gold": 11,
+      "xp": 44,
+      "scale": 0.21,
+      "requiredLevel": 5,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "oak-4",
+      "name": "Ancient Oak",
+      "kind": "tree",
+      "frame": 2,
+      "skill": "woodcutting",
+      "x": 92,
+      "y": 380,
+      "seconds": 6,
+      "gold": 7,
+      "xp": 30,
+      "scale": 0.22,
+      "requiredLevel": 1,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "oak-5",
+      "name": "Ancient Oak",
+      "kind": "tree",
+      "frame": 2,
+      "skill": "woodcutting",
+      "x": 520,
+      "y": 980,
+      "seconds": 6,
+      "gold": 7,
+      "xp": 30,
+      "scale": 0.22,
+      "requiredLevel": 1,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "pine-3",
+      "name": "Pine Tree",
+      "kind": "tree",
+      "frame": 3,
+      "skill": "woodcutting",
+      "x": 300,
+      "y": 140,
+      "seconds": 8,
+      "gold": 11,
+      "xp": 44,
+      "scale": 0.21,
+      "requiredLevel": 5,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "pine-4",
+      "name": "Pine Tree",
+      "kind": "tree",
+      "frame": 3,
+      "skill": "woodcutting",
+      "x": 1460,
+      "y": 1214,
+      "seconds": 8,
+      "gold": 11,
+      "xp": 44,
+      "scale": 0.21,
+      "requiredLevel": 5,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "briar-oak-1",
+      "name": "Briar Oak",
+      "kind": "tree",
+      "frame": 2,
+      "skill": "woodcutting",
+      "x": 360,
+      "y": 1450,
+      "seconds": 7,
+      "gold": 9,
+      "xp": 38,
+      "scale": 0.22,
+      "requiredLevel": 3,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "briar-oak-2",
+      "name": "Briar Oak",
+      "kind": "tree",
+      "frame": 2,
+      "skill": "woodcutting",
+      "x": 82,
+      "y": 1450,
+      "seconds": 7,
+      "gold": 9,
+      "xp": 38,
+      "scale": 0.22,
+      "requiredLevel": 3,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "briar-oak-3",
+      "name": "Briar Oak",
+      "kind": "tree",
+      "frame": 2,
+      "skill": "woodcutting",
+      "x": 1260,
+      "y": 1400,
+      "seconds": 7,
+      "gold": 9,
+      "xp": 38,
+      "scale": 0.22,
+      "requiredLevel": 3,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "briar-pine-1",
+      "name": "Briar Pine",
+      "kind": "tree",
+      "frame": 3,
+      "skill": "woodcutting",
+      "x": 180,
+      "y": 1460,
+      "seconds": 9,
+      "gold": 13,
+      "xp": 50,
+      "scale": 0.21,
+      "requiredLevel": 7,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "briar-pine-2",
+      "name": "Briar Pine",
+      "kind": "tree",
+      "frame": 3,
+      "skill": "woodcutting",
+      "x": 520,
+      "y": 1540,
+      "seconds": 9,
+      "gold": 13,
+      "xp": 50,
+      "scale": 0.21,
+      "requiredLevel": 7,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "briar-pine-3",
+      "name": "Briar Pine",
+      "kind": "tree",
+      "frame": 3,
+      "skill": "woodcutting",
+      "x": 900,
+      "y": 1840,
+      "seconds": 9,
+      "gold": 13,
+      "xp": 50,
+      "scale": 0.21,
+      "requiredLevel": 7,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "briar-pine-4",
+      "name": "Briar Pine",
+      "kind": "tree",
+      "frame": 3,
+      "skill": "woodcutting",
+      "x": 420,
+      "y": 1880,
+      "seconds": 9,
+      "gold": 13,
+      "xp": 50,
+      "scale": 0.21,
+      "requiredLevel": 7,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "briar-pine-5",
+      "name": "Briar Pine",
+      "kind": "tree",
+      "frame": 3,
+      "skill": "woodcutting",
+      "x": 1340,
+      "y": 1900,
+      "seconds": 9,
+      "gold": 13,
+      "xp": 50,
+      "scale": 0.21,
+      "requiredLevel": 7,
+      "itemId": "oak-log"
+    },
+    {
+      "id": "fish-1",
+      "name": "Fishing Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 245,
+      "y": 785,
+      "seconds": 7,
+      "gold": 10,
+      "xp": 36,
+      "scale": 0.12,
+      "requiredLevel": 1,
+      "itemId": "trout"
+    },
+    {
+      "id": "fish-2",
+      "name": "Fishing Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 185,
+      "y": 842,
+      "seconds": 7,
+      "gold": 10,
+      "xp": 36,
+      "scale": 0.12,
+      "requiredLevel": 1,
+      "itemId": "trout"
+    },
+    {
+      "id": "fish-3",
+      "name": "Moonfen Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 1014,
+      "y": 1230,
+      "seconds": 9,
+      "gold": 14,
+      "xp": 52,
+      "scale": 0.12,
+      "requiredLevel": 6,
+      "itemId": "trout"
+    },
+    {
+      "id": "fish-4",
+      "name": "Moonfen Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 1120,
+      "y": 1181,
+      "seconds": 9,
+      "gold": 14,
+      "xp": 52,
+      "scale": 0.12,
+      "requiredLevel": 6,
+      "itemId": "trout"
+    },
+    {
+      "id": "sunstone-1",
+      "name": "Sunstone Seal",
+      "kind": "relic",
+      "frame": 6,
+      "skill": "magic",
+      "x": 320,
+      "y": 1248,
+      "seconds": 5,
+      "gold": 0,
+      "xp": 85,
+      "scale": 0.11,
+      "requiredLevel": 1,
+      "itemId": "sunstone-shard"
+    },
+    {
+      "id": "sunstone-vein-1",
+      "name": "Sunstone Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 280,
+      "y": 2360,
+      "seconds": 12,
+      "gold": 24,
+      "xp": 92,
+      "scale": 0.18,
+      "requiredLevel": 12,
+      "itemId": "sunstone-ore"
+    },
+    {
+      "id": "sunstone-vein-2",
+      "name": "Sunstone Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 240,
+      "y": 2480,
+      "seconds": 12,
+      "gold": 24,
+      "xp": 92,
+      "scale": 0.18,
+      "requiredLevel": 12,
+      "itemId": "sunstone-ore"
+    },
+    {
+      "id": "sunstone-vein-3",
+      "name": "Sunstone Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 360,
+      "y": 2280,
+      "seconds": 12,
+      "gold": 24,
+      "xp": 92,
+      "scale": 0.18,
+      "requiredLevel": 12,
+      "itemId": "sunstone-ore"
+    }
+  ],
+  "decorations": [
+    {
+      "id": "goblin-campfire",
+      "name": "Goblin Campfire",
+      "kind": "campfire",
+      "frame": 7,
+      "x": 1249,
+      "y": 857,
+      "scale": 0.1,
+      "alpha": 0.82
+    },
+    {
+      "id": "ranger-campfire",
+      "name": "Ranger Campfire",
+      "kind": "campfire",
+      "frame": 7,
+      "x": 244,
+      "y": 1602,
+      "scale": 0.085,
+      "alpha": 0.82
+    },
+    {
+      "id": "raider-campfire",
+      "name": "Raider Campfire",
+      "kind": "campfire",
+      "frame": 7,
+      "x": 1085,
+      "y": 1782,
+      "scale": 0.075,
+      "alpha": 0.82
+    },
+    {
+      "id": "southroad-sign",
+      "name": "Southroad Sign",
+      "kind": "sign",
+      "frame": 6,
+      "x": 651,
+      "y": 816,
+      "scale": 0.13,
+      "alpha": 0.9
+    }
+  ]
+}

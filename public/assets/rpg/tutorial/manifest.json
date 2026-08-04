@@ -1,0 +1,13 @@
+{
+  "enabled": false,
+  "files": {
+    "welcome": "01-welcome.mp3",
+    "move": "02-movement.mp3",
+    "mira": "03-interaction.mp3",
+    "inventory": "04-inventory.mp3",
+    "map": "05-world-map.mp3",
+    "gather": "06-gathering.mp3",
+    "combat": "07-combat.mp3",
+    "complete": "08-complete.mp3"
+  }
+}

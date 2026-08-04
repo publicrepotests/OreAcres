@@ -1,0 +1,166 @@
+{
+  "rat-west": [
+    { "itemId": "rat-tail", "chance": 0.55 },
+    { "itemId": "trout", "chance": 0.06 }
+  ],
+  "goblin-camp-1": [
+    { "itemId": "goblin-insignia", "chance": 0.35 },
+    { "itemId": "healing-potion", "chance": 0.03 }
+  ],
+  "goblin-camp-2": [
+    { "itemId": "goblin-insignia", "chance": 0.55 },
+    { "itemId": "iron-sword", "chance": 0.025 }
+  ],
+  "goblin-camp-sentry": [
+    { "itemId": "goblin-insignia", "chance": 0.42 },
+    { "itemId": "healing-potion", "chance": 0.025 }
+  ],
+  "goblin-camp-bruiser": [
+    { "itemId": "goblin-insignia", "chance": 0.58 },
+    { "itemId": "iron-sword", "chance": 0.018 }
+  ],
+  "goblin-firestarter": [
+    { "itemId": "goblin-insignia", "chance": 0.65 },
+    { "itemId": "iron-bow", "chance": 0.025 },
+    { "itemId": "healing-potion", "chance": 0.05 }
+  ],
+  "wolf-forest": [
+    { "itemId": "pinefang", "chance": 0.45 },
+    { "itemId": "briarhide-cloak", "chance": 0.008 }
+  ],
+  "wolf-forest-2": [
+    { "itemId": "pinefang", "chance": 0.4 },
+    { "itemId": "briarhide-cloak", "chance": 0.006 }
+  ],
+  "rat-east-road": [
+    { "itemId": "rat-tail", "chance": 0.5 },
+    { "itemId": "trout", "chance": 0.04 }
+  ],
+  "slime-mine": [
+    { "itemId": "crystal-residue", "chance": 0.42 },
+    { "itemId": "crystal-pick", "chance": 0.006 }
+  ],
+  "auric-slime": [
+    { "itemId": "auric-core", "chance": 0.14 },
+    { "itemId": "auric-cleaver", "chance": 0.015 },
+    { "itemId": "rune-blade", "chance": 0.05 },
+    { "itemId": "sentinel-mail", "chance": 0.08 },
+    { "itemId": "healing-potion", "chance": 0.22 }
+  ],
+  "briar-wolf-1": [
+    { "itemId": "briar-hide", "chance": 0.35 },
+    { "itemId": "briarhide-cloak", "chance": 0.01 }
+  ],
+  "briar-wolf-2": [
+    { "itemId": "briar-hide", "chance": 0.5 },
+    { "itemId": "briarhide-cloak", "chance": 0.02 }
+  ],
+  "briar-wolf-3": [
+    { "itemId": "briar-hide", "chance": 0.44 },
+    { "itemId": "briarhide-cloak", "chance": 0.014 }
+  ],
+  "bog-slime-1": [
+    { "itemId": "mire-essence", "chance": 0.4 },
+    { "itemId": "healing-potion", "chance": 0.025 }
+  ],
+  "bog-slime-2": [
+    { "itemId": "mire-essence", "chance": 0.55 },
+    { "itemId": "healing-potion", "chance": 0.05 }
+  ],
+  "bog-slime-3": [
+    { "itemId": "mire-essence", "chance": 0.48 },
+    { "itemId": "healing-potion", "chance": 0.035 }
+  ],
+  "orc-raider-1": [
+    { "itemId": "orc-totem", "chance": 0.4 },
+    { "itemId": "iron-sword", "chance": 0.02 }
+  ],
+  "orc-raider-2": [
+    { "itemId": "orc-totem", "chance": 0.55 },
+    { "itemId": "iron-sword", "chance": 0.04 }
+  ],
+  "orc-raider-3": [
+    { "itemId": "orc-totem", "chance": 0.48 },
+    { "itemId": "iron-sword", "chance": 0.025 }
+  ],
+  "orc-raider-4": [
+    { "itemId": "orc-totem", "chance": 0.6 },
+    { "itemId": "iron-sword", "chance": 0.045 }
+  ],
+  "ironhide-grukk": [
+    { "itemId": "orc-totem", "chance": 0.7 },
+    { "itemId": "dusk-sabre", "chance": 0.015 },
+    { "itemId": "sunforged-mail", "chance": 0.004 },
+    { "itemId": "healing-potion", "chance": 0.1 }
+  ],
+  "lizard-mystic-1": [
+    { "itemId": "marshscale", "chance": 0.45 },
+    { "itemId": "arcane-staff", "chance": 0.01 }
+  ],
+  "lizard-guard-1": [
+    { "itemId": "marshscale", "chance": 0.6 },
+    { "itemId": "warden-mail", "chance": 0.012 }
+  ],
+  "lizard-scout-1": [
+    { "itemId": "marshscale", "chance": 0.42 },
+    { "itemId": "fallen-recurve", "chance": 0.008 }
+  ],
+  "lizard-scout-2": [
+    { "itemId": "marshscale", "chance": 0.5 },
+    { "itemId": "fallen-recurve", "chance": 0.01 }
+  ],
+  "moonfen-oracle": [
+    { "itemId": "marshscale", "chance": 0.65 },
+    { "itemId": "frostspire-staff", "chance": 0.018 },
+    { "itemId": "warden-mail", "chance": 0.01 },
+    { "itemId": "healing-potion", "chance": 0.08 }
+  ],
+  "sunbone-wanderer": [
+    { "itemId": "sunbone-fragment", "chance": 0.4 },
+    { "itemId": "healing-potion", "chance": 0.02 }
+  ],
+  "sunbone-guardian": [
+    { "itemId": "sunbone-fragment", "chance": 0.58 },
+    { "itemId": "sentinel-mail", "chance": 0.015 }
+  ],
+  "sunbone-skirmisher": [
+    { "itemId": "sunbone-fragment", "chance": 0.48 },
+    { "itemId": "healing-potion", "chance": 0.025 }
+  ],
+  "fallen-ranger": [
+    { "itemId": "sunbone-fragment", "chance": 0.42 },
+    { "itemId": "fallen-recurve", "chance": 0.025 }
+  ],
+  "moonfen-hexer": [
+    { "itemId": "witch-thread", "chance": 0.48 },
+    { "itemId": "bonecaller-focus", "chance": 0.012 }
+  ],
+  "briar-bonecaller": [
+    { "itemId": "witch-thread", "chance": 0.65 },
+    { "itemId": "bonecaller-focus", "chance": 0.035 }
+  ],
+  "catacomb-sentinel": [
+    { "itemId": "sunbone-fragment", "chance": 0.62 },
+    { "itemId": "healing-potion", "chance": 0.05 }
+  ],
+  "drowned-custodian": [
+    { "itemId": "witch-thread", "chance": 0.68 },
+    { "itemId": "bonecaller-focus", "chance": 0.02 }
+  ],
+  "emberbone-marksman": [
+    { "itemId": "sunbone-fragment", "chance": 0.58 },
+    { "itemId": "sunstone-ore", "chance": 0.08 },
+    { "itemId": "fallen-recurve", "chance": 0.012 }
+  ],
+  "cryptflame-channeler": [
+    { "itemId": "witch-thread", "chance": 0.6 },
+    { "itemId": "sunstone-ore", "chance": 0.12 },
+    { "itemId": "bonecaller-focus", "chance": 0.018 }
+  ],
+  "sunstone-revenant": [
+    { "itemId": "sunstone-shard", "chance": 0.72 },
+    { "itemId": "sunforged-mail", "chance": 0.035 },
+    { "itemId": "arcane-staff", "chance": 0.025 },
+    { "itemId": "healing-potion", "chance": 0.12 }
+  ]
+}

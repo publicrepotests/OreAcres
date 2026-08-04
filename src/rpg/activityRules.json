@@ -1,0 +1,74 @@
+{
+  "contracts": [
+    {
+      "id": "trail-clearance",
+      "title": "Trail Clearance",
+      "description": "Defeat 5 hostile creatures anywhere in Orehaven Province.",
+      "kind": "combat",
+      "targetKey": null,
+      "target": 5,
+      "rewardGold": 180,
+      "rewardItems": [{ "itemId": "healing-potion", "quantity": 1 }]
+    },
+    {
+      "id": "guild-supplies",
+      "title": "Guild Supplies",
+      "description": "Gather 6 mining, woodcutting, fishing, or relic nodes.",
+      "kind": "gather",
+      "targetKey": null,
+      "target": 6,
+      "rewardGold": 150,
+      "rewardItems": [{ "itemId": "trout", "quantity": 2 }]
+    },
+    {
+      "id": "artisan-order",
+      "title": "Artisan Order",
+      "description": "Complete 1 recipe at Korra's workshop.",
+      "kind": "craft",
+      "targetKey": null,
+      "target": 1,
+      "rewardGold": 240,
+      "rewardItems": [{ "itemId": "healing-potion", "quantity": 1 }]
+    },
+    {
+      "id": "public-duty",
+      "title": "Public Duty",
+      "description": "Earn credit for defeating the Auric Slime public event.",
+      "kind": "event",
+      "targetKey": null,
+      "target": 1,
+      "rewardGold": 300,
+      "rewardItems": [{ "itemId": "treasure-scroll", "quantity": 1 }]
+    },
+    {
+      "id": "goblin-incursion",
+      "title": "Goblin Incursion",
+      "description": "Defeat 4 goblins at the eastern camp or along Southroad.",
+      "kind": "combat",
+      "targetKey": "goblin",
+      "target": 4,
+      "rewardGold": 220,
+      "rewardItems": [{ "itemId": "healing-potion", "quantity": 1 }]
+    },
+    {
+      "id": "moonfen-ward",
+      "title": "Moonfen Ward",
+      "description": "Defeat 3 Marshscale lizards within Moonfen and the raider dens.",
+      "kind": "combat",
+      "targetKey": "lizard",
+      "target": 3,
+      "rewardGold": 320,
+      "rewardItems": [{ "itemId": "trout", "quantity": 3 }]
+    }
+  ],
+  "milestones": [
+    { "id": "first-blood", "title": "First Blood", "description": "Defeat your first hostile creature.", "kind": "enemiesDefeated", "target": 1 },
+    { "id": "trail-warden", "title": "Trail Warden", "description": "Defeat 25 hostile creatures.", "kind": "enemiesDefeated", "target": 25 },
+    { "id": "orehaven-veteran", "title": "Orehaven Veteran", "description": "Defeat 100 hostile creatures.", "kind": "enemiesDefeated", "target": 100 },
+    { "id": "working-hands", "title": "Working Hands", "description": "Gather 25 resource nodes.", "kind": "resourcesGathered", "target": 25 },
+    { "id": "master-harvester", "title": "Master Harvester", "description": "Gather 100 resource nodes.", "kind": "resourcesGathered", "target": 100 },
+    { "id": "apprentice-artisan", "title": "Apprentice Artisan", "description": "Craft 5 items.", "kind": "itemsCrafted", "target": 5 },
+    { "id": "guild-artisan", "title": "Guild Artisan", "description": "Craft 25 items.", "kind": "itemsCrafted", "target": 25 },
+    { "id": "event-warden", "title": "Event Warden", "description": "Earn credit in 5 public events.", "kind": "worldEvents", "target": 5 }
+  ]
+}

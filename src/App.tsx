@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { WheelEvent } from "react";
 import type { PublicKey, Transaction } from "@solana/web3.js";
+
+const PhaserRpgGame = lazy(() =>
+  import("./PhaserRpgGame").then((module) => ({ default: module.PhaserRpgGame })),
+);
 
 type StructureType =
   | "shack"
@@ -1265,32 +1269,32 @@ const EARNINGS_SCENARIOS: EarningsScenario[] = [
 const ROADMAP: RoadmapItem[] = [
   {
     phase: "Phase 1",
-    title: "Launch world + plots",
-    copy: "Shared multiplayer plots, building placement, idle mining, and live mint tracking.",
+    title: "Orehaven opens",
+    copy: "A shared multiplayer town, three combat styles, gathering skills, animated equipment, and the first story chapter.",
     status: "Live",
   },
   {
     phase: "Phase 2",
-    title: "Marketplace and cosmetics",
-    copy: "Skin listings, meme pickaxes, pets, and stronger visual progression loops.",
+    title: "The Briarwild frontier",
+    copy: "A second connected region with Moonfen, ranger camps, raider dens, rare enemies, and two more story chapters.",
     status: "Live",
   },
   {
     phase: "Phase 3",
-    title: "Economy governance",
-    copy: "Reserve runway monitoring, reward tuning, payout caps, and event-backed emissions.",
-    status: "In progress",
+    title: "Persistent adventuring",
+    copy: "Server-authoritative profiles, banking, crafting, collection logs, daily contracts, targeted bounties, and public events.",
+    status: "Live",
   },
   {
     phase: "Phase 4",
-    title: "Seasonal raids and on-chain rewards",
-    copy: "Timed world events, rare ore surges, seasonal land cosmetics, and collectible rewards.",
+    title: "Guilds and group expeditions",
+    copy: "Player guilds, shared objectives, social progression, instanced expeditions, and larger cooperative encounters.",
     status: "Next",
   },
   {
     phase: "Phase 5",
-    title: "Mobile polish and scaling",
-    copy: "Responsive controls, performance passes, and a smoother multiplayer experience.",
+    title: "Living-world seasons",
+    copy: "New regions, seasonal questlines, mobile polish, optional on-chain cosmetics, and carefully capped community rewards.",
     status: "Planned",
   },
 ];
@@ -6631,13 +6635,13 @@ function finishMiningOre(plotId: string, oreId: string) {
   const mineOreNodes = mineAreaPlot?.oreNodes ?? [];
 
   return (
-    <main className="shell">
+    <main className={`shell ${page === "game" ? "shell--game" : ""}`.trim()}>
       <header className="site-nav">
         <button type="button" className="site-nav__brand" onClick={() => goToPage("home")}>
           <span className="site-nav__icon">⛏</span>
           <span className="site-nav__text">
             <strong>Ore Acres</strong>
-            <small>Pixel idle miner</small>
+            <small>Pixel online RPG</small>
           </span>
         </button>
 
@@ -6676,12 +6680,13 @@ function finishMiningOre(plotId: string, oreId: string) {
         <>
           <section className="hero">
             <div>
-              <p className="eyebrow">Idle Solana miner</p>
+              <p className="eyebrow">Shared-world pixel MMORPG</p>
               <h1>Ore Acres</h1>
               <p className="lede">
-                Walk a big shared map, claim an open acre, and turn it into a
-                mining empire. Everyone can see how much SOL each plot has
-                collected, so the good land stands out immediately.
+                Enter Orehaven with other real adventurers, follow a growing story,
+                master melee, ranged, or magic combat, and build ten skills across
+                a dangerous frontier. Mining is one path through the world, not the
+                whole game.
               </p>
               <div className="hero__actions">
                 <button type="button" className="primary" onClick={() => goToPage("game")}>
@@ -6729,23 +6734,23 @@ function finishMiningOre(plotId: string, oreId: string) {
 
           <section className="landing-grid">
             <article className="landing-card landing-card--feature">
-              <span className="landing-card__eyebrow">Why it feels alive</span>
-              <h2>One world. Real players. Visible value.</h2>
+              <span className="landing-card__eyebrow">A world worth exploring</span>
+              <h2>Quest together. Fight your way forward. Build a real adventurer.</h2>
               <p>
-                Ore Acres is built around a shared multiplayer map where every plot
-                can be claimed, customized, and judged at a glance. The deeper you
-                build, the more your acre stands out.
+                Orehaven and Briarwild form one connected multiplayer province filled
+                with NPC services, hostile camps, skill nodes, rare drops, daily
+                bounties, story chapters, and cooperative world events.
               </p>
               <div className="landing-card__pills">
-                <span>Idle mining</span>
-                <span>Shared plots</span>
-                <span>Marketplace</span>
-                <span>Reserve-backed SOL payouts</span>
+                <span>31-step story</span>
+                <span>10 trainable skills</span>
+                <span>3 combat paths</span>
+                <span>Live multiplayer events</span>
               </div>
             </article>
 
             <article className="landing-card landing-card--stats">
-              <span className="landing-card__eyebrow">Earnings examples</span>
+              <span className="landing-card__eyebrow">Optional homestead playtest model</span>
               <h2>{earningsScenario.label}</h2>
               <p>{earningsScenario.description}</p>
               <div className="landing-card__stats-row">
@@ -6771,7 +6776,7 @@ function finishMiningOre(plotId: string, oreId: string) {
 
             <article className="landing-card landing-card--chart">
               <div className="landing-card__header">
-                <span className="landing-card__eyebrow">Interactive earnings graph</span>
+                <span className="landing-card__eyebrow">Interactive test-mint model</span>
                 <div className="scenario-tabs">
                   {EARNINGS_SCENARIOS.map((scenario) => (
                     <button
@@ -6792,7 +6797,7 @@ function finishMiningOre(plotId: string, oreId: string) {
                 <svg
                   viewBox={`0 0 ${chartWidth} ${chartHeight}`}
                   role="img"
-                  aria-label="Interactive earnings chart"
+                  aria-label="Interactive playtest mint-output chart"
                   onMouseMove={(event) => {
                     const rect = event.currentTarget.getBoundingClientRect();
                     const x = event.clientX - rect.left;
@@ -6856,11 +6861,11 @@ function finishMiningOre(plotId: string, oreId: string) {
                   }}
                 >
                   <strong>Day {chartPointIndex + 1}</strong>
-                  <span>{chartPointValue.toFixed(6)} SOL/day</span>
+                  <span>{chartPointValue.toFixed(6)} test MINT/day</span>
                 </div>
               </div>
               <div className="landing-card__meta">
-                <span>Hover the chart and swap scenarios to compare how an acre scales.</span>
+                <span>Illustrative playtest values only. Hover and swap scenarios to compare optional homestead tiers.</span>
               </div>
             </article>
           </section>
@@ -6868,11 +6873,11 @@ function finishMiningOre(plotId: string, oreId: string) {
           <section className="whitepaper" id="whitepaper">
             <div className="section-heading">
               <span className="eyebrow">Whitepaper</span>
-              <h2>What this game is supposed to be</h2>
+              <h2>A social RPG first. A Web3 economy second.</h2>
               <p>
-                A social idle miner where land ownership, cosmetics, and live
-                rewards create a loop that is fun to watch even when you are not
-                actively grinding.
+                Ore Acres combines the readable skilling and player freedom of a
+                classic sandbox RPG with the shared quests, gear chase, combat roles,
+                and world events of a modern online adventure.
               </p>
             </div>
 
@@ -6880,30 +6885,33 @@ function finishMiningOre(plotId: string, oreId: string) {
               <article className="whitepaper-card">
                 <h3>Core loop</h3>
                 <p>
-                  Claim a plot, place drills, upgrade your shack into a mansion,
-                  and stack tiny mint earnings over time.
+                  Explore new regions, complete story and bounty objectives, train
+                  skills, defeat increasingly dangerous creatures, craft equipment,
+                  and build a loadout that visibly changes your character.
                 </p>
               </article>
               <article className="whitepaper-card">
                 <h3>Economy</h3>
                 <p>
-                  Item purchases are priced in the Pump.fun mint, while ore
-                  rewards are primarily minted tokens and SOL stays reserved for
-                  marketplace settlement and bonuses.
+                  Gold is the everyday game currency. The Pump.fun mint is an
+                  optional alternative for selected goods and future cosmetics;
+                  gameplay progression never depends on a guaranteed token yield.
                 </p>
               </article>
               <article className="whitepaper-card">
                 <h3>Social layer</h3>
                 <p>
-                  Players can walk past each other, inspect each plot, show off
-                  skins, and compare total collected SOL and mints publicly.
+                  Players share the same towns and roads, see each other's animated
+                  equipment, talk in world chat, track public events, and cooperate
+                  against threats without forced PvP.
                 </p>
               </article>
               <article className="whitepaper-card">
                 <h3>Marketplace</h3>
                 <p>
-                  Cosmetics can be listed for SOL, creating a simple sink and a
-                  secondary play-to-trade loop.
+                  Tradeable cosmetics and rare visual rewards are a secondary layer.
+                  They are designed around identity and collection rather than
+                  replacing quests, combat, skilling, or crafting.
                 </p>
               </article>
             </div>
@@ -6914,8 +6922,9 @@ function finishMiningOre(plotId: string, oreId: string) {
               <span className="eyebrow">Roadmap</span>
               <h2>Launch plan</h2>
               <p>
-                The first version is already playable. The roadmap focuses on making
-                the economy safer, the visuals richer, and the social systems deeper.
+                The playable foundation now covers the first province. The roadmap
+                grows outward through social systems, cooperative expeditions, new
+                regions, stronger seasonal storytelling, and continued visual polish.
               </p>
             </div>
 
@@ -7059,7 +7068,7 @@ function finishMiningOre(plotId: string, oreId: string) {
           <section className="game-topbar">
             <div>
               <p className="eyebrow">Game page</p>
-              <h2>Ore Acres Online</h2>
+              <h2>Ore Acres RPG</h2>
               <p>{multiplayerStatus === "online" ? "Live shared world" : "Local preview mode"}</p>
             </div>
             <div className="game-topbar__actions">
@@ -7075,7 +7084,13 @@ function finishMiningOre(plotId: string, oreId: string) {
       ) : null}
 
       {page === "game" ? (
-        <section className="game-panel" ref={gamePanelRef}>
+        <Suspense fallback={<div className="rpg-route-loading"><strong>Entering Orehaven...</strong><span>Loading world and adventurers</span></div>}>
+          <PhaserRpgGame onExit={() => goToPage("home")} />
+        </Suspense>
+      ) : null}
+
+      {page === "game" ? (
+        <section className="game-panel legacy-game-panel" ref={gamePanelRef}>
         <div className="stats">
           <div>
             <span>Idle SOL</span>

@@ -9,3 +9,29 @@ tsconfig.tsbuildinfo
 .DS_Store
 .env
 .env.*
+
+# Local runtime state and administrative audit data
+ore-acres-state.json
+server/ore-acres-state.json
+server/ore-acres-admin-audit.jsonl
+
+# Local asset-working directories and transfer bundles
+.venv-img/
+assets-source/
+tmp/
+skin-preview-transfer/
+skin-preview-transfer.zip
+public/assets/recovered/
+public/assets/characters/tests/
+public/assets/maps/
+public/assets/shop/clothing.png
+public/assets/structures/town-homes/
+
+# Superseded prototypes and unused map composites kept locally for reference
+src/MmoRpgGame.tsx
+src/mmoRpgGame.css
+public/assets/rpg/world/briarwild-south-seam-fixed.png
+public/assets/rpg/world/orehaven-briarwild-transition.png
+
+# Local browser QA captures
+/*.png

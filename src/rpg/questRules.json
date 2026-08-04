@@ -1,0 +1,28 @@
+{
+  "maxStep": 30,
+  "turnInSteps": [3, 8, 14, 22, 29],
+  "combat": [
+    { "from": 2, "enemyId": "goblin-camp-1", "to": 3 },
+    { "from": 6, "enemyId": "wolf-forest", "to": 7 },
+    { "from": 11, "enemyId": "rat-west", "combatStyle": "range", "to": 12 },
+    { "from": 12, "enemyId": "slime-mine", "combatStyle": "magic", "to": 13 },
+    { "from": 17, "enemyId": "briar-wolf-2", "to": 18 },
+    { "from": 19, "enemyId": "orc-raider-2", "to": 20 },
+    { "from": 20, "enemyId": "lizard-mystic-1", "to": 21 },
+    { "from": 21, "enemyId": "lizard-guard-1", "to": 22 },
+    { "from": 24, "enemyId": "sunbone-wanderer", "to": 25 },
+    { "from": 25, "enemyId": "sunbone-guardian", "to": 26 },
+    { "from": 26, "enemyId": "moonfen-hexer", "combatStyle": "magic", "to": 27 },
+    { "from": 27, "enemyId": "fallen-ranger", "combatStyle": "range", "to": 28 },
+    { "from": 28, "enemyId": "briar-bonecaller", "to": 29 }
+  ],
+  "gather": [
+    { "from": 1, "resourcePrefix": "copper", "to": 2 },
+    { "from": 5, "resourceKind": "tree", "to": 6 },
+    { "from": 7, "resourceKind": "fish", "to": 8 },
+    { "from": 18, "resourceKind": "relic", "to": 19 }
+  ],
+  "craft": [
+    { "from": 13, "recipeId": "forge-iron-pick", "to": 14 }
+  ]
+}
