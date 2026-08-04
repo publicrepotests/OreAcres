@@ -87,7 +87,7 @@ rewarded.treasureTrail = { step: 1 };
 rewarded.waystones = ["orehaven-gate", "eastern-quarry", "ranger-camp", "sunstone-catacombs"];
 rewarded.discoveries = ["orehaven", "western-woods", "moonfen-marsh", "sunstone-catacombs"];
 rewarded.position = { x: 768, y: 2192 };
-rewarded.skillTree = { unlocked: ["whirlwind", "arrow-rain"] };
+rewarded.skillTree = { unlocked: ["whirlwind", "tempered-body", "arrow-rain", "steady-hands", "sunfire-sigil", "mana-weave"] };
 rewarded.adventureClaims = ["warden-in-training", "province-walker"];
 const saved = await store.save({ ...created, progress: rewarded });
 assert.equal(saved.revision, 1);
@@ -105,7 +105,7 @@ assert.equal(saved.progress.treasureTrail?.step, 1);
 assert.deepEqual(saved.progress.waystones, ["orehaven-gate", "eastern-quarry", "ranger-camp", "sunstone-catacombs"]);
 assert.deepEqual(saved.progress.discoveries, ["orehaven", "western-woods", "moonfen-marsh", "sunstone-catacombs"]);
 assert.deepEqual(saved.progress.position, { x: 768, y: 2192 });
-assert.deepEqual(saved.progress.skillTree.unlocked, ["whirlwind", "arrow-rain"]);
+assert.deepEqual(saved.progress.skillTree.unlocked, ["whirlwind", "tempered-body", "arrow-rain", "steady-hands", "sunfire-sigil", "mana-weave"]);
 assert.deepEqual(saved.progress.adventureClaims, ["warden-in-training", "province-walker"]);
 
 await assert.rejects(
@@ -170,6 +170,7 @@ assert.deepEqual(
   ["orehaven-gate", "eastern-quarry"],
 );
 assert.deepEqual(normalizeRpgProgress({ skillTree: { unlocked: ["whirlwind", "../../hack", "whirlwind"] } }).skillTree.unlocked, ["whirlwind"]);
+assert.deepEqual(normalizeRpgProgress({ skillTree: { unlocked: ["unyielding", "windrunner", "archmage"] } }).skillTree.unlocked, ["unyielding", "windrunner", "archmage"]);
 assert.deepEqual(normalizeRpgProgress({ adventureClaims: ["warden-in-training", "../../hack", "warden-in-training"] }).adventureClaims, ["warden-in-training"]);
 assert.deepEqual(
   normalizeRpgProgress({ discoveries: ["../../void", "western-woods", "western-woods"] }).discoveries,

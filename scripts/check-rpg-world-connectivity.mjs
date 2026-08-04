@@ -210,7 +210,7 @@ const approachPoints = [
 ];
 
 const waystones = [
-  ["Orehaven Waystone", 748, 720, 724, 720],
+  ["Orehaven Waystone", 650, 820, 698, 820],
   ["Moonwater Waystone", 282, 872, 302, 872],
   ["Quarry Waystone", 1248, 172, 1248, 204],
   ["Briarwild Waystone", 760, 1250, 760, 1290],

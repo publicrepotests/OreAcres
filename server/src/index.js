@@ -41,7 +41,7 @@ const ADMIN_API_TOKEN = (process.env.ADMIN_API_TOKEN || "").trim();
 const ADMIN_AUDIT_FILE = process.env.ADMIN_AUDIT_FILE || path.join(process.cwd(), "ore-acres-admin-audit.jsonl");
 const ADMIN_AUDIT_LIMIT = 200;
 const adminAudit = [];
-const DEFAULT_PAYMENT_MINT_ADDRESS = "7eTsoXT3HA2rCu1vF61CkvTJbA5bnh9pDgnB2vqMpump";
+const DEFAULT_PAYMENT_MINT_ADDRESS = "Crfc1ZiazkbLtfVWqVBjzv1NwD64KVuaQfSSKYWL81N8";
 const DEFAULT_RESERVE_OWNER_WALLET = "B3VZNSnWYGCZ1ZcydfSKvzjrL1UsYXWG5HTbgHAKaVjX";
 const DEFAULT_REWARD_RESERVE_OWNER_WALLET = "39DYX1oRUHCuQg9zFhB5HW8pJ3WhBeNXmZYyzVWf9Cao";
 const DEFAULT_OPS_OWNER_WALLET = "GrKAPcrb45WoxdxEwxoXyhbZmLWGoADwNsGGpWNmA4XC";
@@ -61,7 +61,7 @@ const PAYMENT_OPS_OWNER_WALLET = process.env.PAYMENT_OPS_OWNER_WALLET || DEFAULT
 const PAYMENT_RESERVE_BPS = Number(process.env.PAYMENT_RESERVE_BPS || "8000");
 const PAYMENT_REWARD_RESERVE_BPS = Number(process.env.PAYMENT_REWARD_RESERVE_BPS || "1000");
 const PAYMENT_OPS_BPS = Number(process.env.PAYMENT_OPS_BPS || "1000");
-const PAYMENT_TOKEN_PRICE_USD_OVERRIDE = Number(process.env.PAYMENT_TOKEN_PRICE_USD_OVERRIDE || "0.0001");
+const PAYMENT_TOKEN_PRICE_USD_OVERRIDE = Number(process.env.PAYMENT_TOKEN_PRICE_USD_OVERRIDE || "0");
 const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY || "";
 const BIRDEYE_PRICE_URL = process.env.BIRDEYE_PRICE_URL || "https://public-api.birdeye.so/defi/price";
 const WORLD_COLUMNS = 5;
@@ -101,7 +101,7 @@ const RPG_PLAYER_START = { x: 748, y: 505 };
 const RPG_SANCTUARY = { id: "founders-fountain", name: "Founders' Fountain", x: 688, y: 468 };
 const RPG_WAYSTONE_RANGE = 112;
 const RPG_WAYSTONES = Object.fromEntries([
-  { id: "orehaven-gate", name: "Orehaven Waystone", region: "Orehaven", x: 748, y: 720, arrivalX: 724, arrivalY: 720 },
+  { id: "orehaven-gate", name: "Orehaven Waystone", region: "Orehaven", x: 650, y: 820, arrivalX: 698, arrivalY: 820 },
   { id: "moonwater-dock", name: "Moonwater Waystone", region: "Western Woods", x: 282, y: 872, arrivalX: 302, arrivalY: 872 },
   { id: "eastern-quarry", name: "Quarry Waystone", region: "Eastern Quarry", x: 1248, y: 172, arrivalX: 1248, arrivalY: 204 },
   { id: "briarwild-crossing", name: "Briarwild Waystone", region: "Briarwild Crossing", x: 760, y: 1250, arrivalX: 760, arrivalY: 1290 },
@@ -154,12 +154,30 @@ const RPG_WEAPON_ABILITIES = {
   "bonecaller-focus": { id: "moonbind", name: "Moonbind", multiplier: 1.9, cooldownMs: 7_300, status: { kind: "root", label: "Moonbound", durationMs: 3_000 } },
 };
 const RPG_SKILL_TREE = {
-  whirlwind: { id: "whirlwind", branch: "melee", name: "Whirlwind", requiredLevel: 1, multiplier: 1.05, cooldownMs: 9_000, areaRadius: 112 },
-  bloodletter: { id: "bloodletter", branch: "melee", name: "Bloodletter", requiredLevel: 5, prerequisite: "whirlwind", multiplier: 0.82, cooldownMs: 11_000, dot: { ticks: 4, intervalMs: 1_000, multiplier: 0.28 } },
-  "arrow-rain": { id: "arrow-rain", branch: "range", name: "Arrow Rain", requiredLevel: 1, multiplier: 0.92, cooldownMs: 10_000, areaRadius: 144 },
-  "venom-shot": { id: "venom-shot", branch: "range", name: "Venom Shot", requiredLevel: 5, prerequisite: "arrow-rain", multiplier: 0.72, cooldownMs: 12_000, dot: { ticks: 5, intervalMs: 900, multiplier: 0.24 } },
-  "sunfire-sigil": { id: "sunfire-sigil", branch: "magic", name: "Sunfire Sigil", requiredLevel: 1, multiplier: 1, cooldownMs: 10_500, areaRadius: 120 },
-  "arcane-burn": { id: "arcane-burn", branch: "magic", name: "Arcane Burn", requiredLevel: 5, prerequisite: "sunfire-sigil", multiplier: 0.68, cooldownMs: 12_500, dot: { ticks: 5, intervalMs: 850, multiplier: 0.27 } },
+  whirlwind: { id: "whirlwind", branch: "melee", kind: "active", name: "Whirlwind", requiredLevel: 1, multiplier: 1.05, cooldownMs: 9_000, areaRadius: 112 },
+  "tempered-body": { id: "tempered-body", branch: "melee", kind: "passive", name: "Tempered Body", requiredLevel: 3, prerequisite: "whirlwind", passive: { damageReduction: 0.04 } },
+  bloodletter: { id: "bloodletter", branch: "melee", kind: "active", name: "Bloodletter", requiredLevel: 5, prerequisite: "tempered-body", multiplier: 0.82, cooldownMs: 11_000, dot: { ticks: 4, intervalMs: 1_000, multiplier: 0.28 } },
+  "blade-discipline": { id: "blade-discipline", branch: "melee", kind: "passive", name: "Blade Discipline", requiredLevel: 10, prerequisite: "bloodletter", passive: { damageMultiplier: 1.08 } },
+  relentless: { id: "relentless", branch: "melee", kind: "passive", name: "Relentless", requiredLevel: 16, prerequisite: "blade-discipline", passive: { cooldownMultiplier: 0.88 } },
+  "wide-arc": { id: "wide-arc", branch: "melee", kind: "passive", name: "Wide Arc", requiredLevel: 23, prerequisite: "relentless", passive: { areaMultiplier: 1.22 } },
+  executioner: { id: "executioner", branch: "melee", kind: "passive", name: "Executioner", requiredLevel: 31, prerequisite: "wide-arc", passive: { executeThreshold: 0.3, executeMultiplier: 1.22 } },
+  unyielding: { id: "unyielding", branch: "melee", kind: "passive", name: "Unyielding", requiredLevel: 40, prerequisite: "executioner", passive: { damageMultiplier: 1.07, damageReduction: 0.05 } },
+  "arrow-rain": { id: "arrow-rain", branch: "range", kind: "active", name: "Arrow Rain", requiredLevel: 1, multiplier: 0.92, cooldownMs: 10_000, areaRadius: 144 },
+  "steady-hands": { id: "steady-hands", branch: "range", kind: "passive", name: "Steady Hands", requiredLevel: 3, prerequisite: "arrow-rain", passive: { damageMultiplier: 1.06 } },
+  "venom-shot": { id: "venom-shot", branch: "range", kind: "active", name: "Venom Shot", requiredLevel: 5, prerequisite: "steady-hands", multiplier: 0.72, cooldownMs: 12_000, dot: { ticks: 5, intervalMs: 900, multiplier: 0.24 } },
+  "toxin-lore": { id: "toxin-lore", branch: "range", kind: "passive", name: "Toxin Lore", requiredLevel: 10, prerequisite: "venom-shot", passive: { dotMultiplier: 1.25 } },
+  "rapid-nocking": { id: "rapid-nocking", branch: "range", kind: "passive", name: "Rapid Nocking", requiredLevel: 16, prerequisite: "toxin-lore", passive: { cooldownMultiplier: 0.86 } },
+  "storm-quiver": { id: "storm-quiver", branch: "range", kind: "passive", name: "Storm Quiver", requiredLevel: 23, prerequisite: "rapid-nocking", passive: { areaMultiplier: 1.28 } },
+  "predators-focus": { id: "predators-focus", branch: "range", kind: "passive", name: "Predator's Focus", requiredLevel: 31, prerequisite: "storm-quiver", passive: { executeThreshold: 0.35, executeMultiplier: 1.18 } },
+  windrunner: { id: "windrunner", branch: "range", kind: "passive", name: "Windrunner", requiredLevel: 40, prerequisite: "predators-focus", passive: { damageMultiplier: 1.1, damageReduction: 0.03 } },
+  "sunfire-sigil": { id: "sunfire-sigil", branch: "magic", kind: "active", name: "Sunfire Sigil", requiredLevel: 1, multiplier: 1, cooldownMs: 10_500, areaRadius: 120 },
+  "mana-weave": { id: "mana-weave", branch: "magic", kind: "passive", name: "Mana Weave", requiredLevel: 3, prerequisite: "sunfire-sigil", passive: { cooldownMultiplier: 0.92 } },
+  "arcane-burn": { id: "arcane-burn", branch: "magic", kind: "active", name: "Arcane Burn", requiredLevel: 5, prerequisite: "mana-weave", multiplier: 0.68, cooldownMs: 12_500, dot: { ticks: 5, intervalMs: 850, multiplier: 0.27 } },
+  "runic-intensity": { id: "runic-intensity", branch: "magic", kind: "passive", name: "Runic Intensity", requiredLevel: 10, prerequisite: "arcane-burn", passive: { damageMultiplier: 1.09 } },
+  "unstable-echo": { id: "unstable-echo", branch: "magic", kind: "passive", name: "Unstable Echo", requiredLevel: 16, prerequisite: "runic-intensity", passive: { dotMultiplier: 1.3 } },
+  "greater-sigils": { id: "greater-sigils", branch: "magic", kind: "passive", name: "Greater Sigils", requiredLevel: 23, prerequisite: "unstable-echo", passive: { areaMultiplier: 1.3 } },
+  "soul-fracture": { id: "soul-fracture", branch: "magic", kind: "passive", name: "Soul Fracture", requiredLevel: 31, prerequisite: "greater-sigils", passive: { executeThreshold: 0.32, executeMultiplier: 1.2 } },
+  archmage: { id: "archmage", branch: "magic", kind: "passive", name: "Archmage", requiredLevel: 40, prerequisite: "soul-fracture", passive: { damageMultiplier: 1.08, cooldownMultiplier: 0.9 } },
 };
 const RPG_SECOND_WIND_COOLDOWN_MS = 18_000;
 const RPG_PARTY_MAX_MEMBERS = 5;
@@ -766,15 +784,19 @@ function enemyAttackDamage(definition, status = null) {
 function playerDefenseStats(player) {
   const progress = player.profile?.progress;
   const armorId = progress?.equipped?.armor || player.equipped?.armor || "";
+  const treeDefense = progress
+    ? ["melee", "range", "magic"].reduce((remaining, branch) => remaining * (1 - rpgSkillTreeBonuses(progress, branch).damageReduction), 1)
+    : 1;
   return {
     level: Math.max(1, progress?.skills?.defense?.level || 1),
     armorPower: Math.max(0, RPG_ITEM_RULES[armorId]?.power || 0),
+    treeReduction: 1 - treeDefense,
   };
 }
 
 function mitigateEnemyDamage(rawDamage, defense) {
   const reduction = Math.floor(defense.armorPower / 8) + Math.floor(Math.max(0, defense.level - 1) / 8);
-  return Math.max(1, rawDamage - reduction);
+  return Math.max(1, Math.floor((rawDamage - reduction) * (1 - Math.max(0, Math.min(0.35, defense.treeReduction || 0)))));
 }
 
 function enemySpecialAbility(definition, enemy) {
@@ -1036,8 +1058,12 @@ async function mutateAuthenticatedProfile(player, reason, mutator, notify = true
   const operation = (player.profileSaveQueue || Promise.resolve()).then(async () => {
     const mutation = mutator(player.profile.progress);
     const nextProgress = normalizeRpgProgress(mutation?.progress || mutation);
-    const saved = await rpgProfileStore.save({ ...player.profile, progress: nextProgress });
+    const nextDisplayName = typeof mutation?.displayName === "string"
+      ? sanitizePlayerName(mutation.displayName)
+      : player.profile.displayName;
+    const saved = await rpgProfileStore.save({ ...player.profile, displayName: nextDisplayName, progress: nextProgress });
     player.profile = saved;
+    player.name = sanitizePlayerName(saved.displayName);
     player.appearance = saved.progress.appearance;
     player.customization = { ...saved.progress.customization };
     player.equipped = { ...saved.progress.equipped };
@@ -1435,6 +1461,29 @@ function rpgSkillTreePointTotal(progress) {
   return 3 + Math.floor(Math.max(0, combatLevels - 5) / 3);
 }
 
+function rpgSkillTreeBonuses(progress, branch) {
+  const unlocked = new Set(progress?.skillTree?.unlocked || []);
+  return Object.values(RPG_SKILL_TREE).reduce((bonuses, node) => {
+    if (node.branch !== branch || node.kind !== "passive" || !unlocked.has(node.id) || !node.passive) return bonuses;
+    bonuses.damageMultiplier *= node.passive.damageMultiplier || 1;
+    bonuses.cooldownMultiplier *= node.passive.cooldownMultiplier || 1;
+    bonuses.areaMultiplier *= node.passive.areaMultiplier || 1;
+    bonuses.dotMultiplier *= node.passive.dotMultiplier || 1;
+    bonuses.damageReduction = 1 - (1 - bonuses.damageReduction) * (1 - (node.passive.damageReduction || 0));
+    if ((node.passive.executeThreshold || 0) > bonuses.executeThreshold) {
+      bonuses.executeThreshold = node.passive.executeThreshold;
+      bonuses.executeMultiplier = node.passive.executeMultiplier || 1;
+    }
+    return bonuses;
+  }, { damageMultiplier: 1, cooldownMultiplier: 1, areaMultiplier: 1, dotMultiplier: 1, executeThreshold: 0, executeMultiplier: 1, damageReduction: 0 });
+}
+
+function rpgSkillTreeDamage(baseDamage, bonuses, enemy) {
+  const healthRatio = enemy.maxHp > 0 ? enemy.hp / enemy.maxHp : 1;
+  const executeMultiplier = bonuses.executeThreshold > 0 && healthRatio <= bonuses.executeThreshold ? bonuses.executeMultiplier : 1;
+  return Math.max(1, Math.ceil(baseDamage * bonuses.damageMultiplier * executeMultiplier));
+}
+
 function applyProfileAction(progress, message) {
   let next = normalizeRpgProgress(progress);
   const itemId = typeof message.itemId === "string" ? message.itemId.slice(0, 48) : "";
@@ -1451,6 +1500,12 @@ function applyProfileAction(progress, message) {
     if (unlocked.size >= rpgSkillTreePointTotal(next)) throw profileActionError("Earn more combat levels to gain another skill point.");
     next.skillTree = { unlocked: [...unlocked, node.id] };
     return { progress: next, message: `${node.name} unlocked.` };
+  }
+
+  if (message.action === "respec_skills") {
+    if (!next.skillTree.unlocked.length) return { progress: next, message: "Your skill tree is already clear." };
+    next.skillTree = { unlocked: [] };
+    return { progress: next, message: "Skill points refunded. Rebuild your combat specializations at no cost during playtesting." };
   }
 
   if (message.action === "equip") {
@@ -2854,6 +2909,23 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && (req.url === "/health" || req.url === "/api/health")) {
+    const hasLivePriceSource = Boolean(BIRDEYE_API_KEY) || PAYMENT_TOKEN_PRICE_USD_OVERRIDE > 0;
+    sendJson(res, 200, {
+      ok: true,
+      service: "ore-acres-realtime",
+      uptimeSeconds: Math.floor((Date.now() - SERVER_STARTED_AT) / 1_000),
+      persistence: supabaseAdmin ? "supabase" : "guest-only",
+      requireAuth: REQUIRE_RPG_AUTH,
+      payments: {
+        mintAddress: PAYMENT_MINT_ADDRESS,
+        quoteReady: Boolean(PAYMENT_MINT_ADDRESS && paymentAllocations() && hasLivePriceSource),
+        priceSource: PAYMENT_TOKEN_PRICE_USD_OVERRIDE > 0 ? "manual-override" : BIRDEYE_API_KEY ? "birdeye" : "missing",
+      },
+    });
+    return;
+  }
+
   if (req.url?.startsWith("/api/admin")) {
     const authorization = adminRequestAuthorized(req);
     if (!authorization.ok) {
@@ -3569,7 +3641,7 @@ wss.on("connection", async (ws) => {
       const primary = room.rpg.enemies[enemyId];
       const primaryDefinition = RPG_ENEMIES[enemyId];
       const now = Date.now();
-      if (!ability || !primary || !primaryDefinition || primary.hp <= 0 || primary.respawnAt > now) {
+      if (!ability || ability.kind !== "active" || !primary || !primaryDefinition || primary.hp <= 0 || primary.respawnAt > now) {
         send(ws, "rpg_action_error", { action: "combat", message: "That skill has no valid target." });
         return;
       }
@@ -3594,9 +3666,11 @@ wss.on("connection", async (ws) => {
         send(ws, "rpg_action_error", { action: "combat", message: "Terrain is blocking that skill.", retryable: true });
         return;
       }
-      const remainingMs = ability.cooldownMs - (now - (player.lastRpgAbilityAt[ability.id] || 0));
+      const treeBonuses = rpgSkillTreeBonuses(player.profile?.progress, combatStyle);
+      const abilityCooldownMs = Math.max(1_000, Math.round(ability.cooldownMs * treeBonuses.cooldownMultiplier));
+      const remainingMs = abilityCooldownMs - (now - (player.lastRpgAbilityAt[ability.id] || 0));
       if (remainingMs > 0) {
-        send(ws, "rpg_action_error", { action: "combat", message: `${ability.name} is ready in ${Math.ceil(remainingMs / 1000)}s.`, retryable: true, abilityId: ability.id, readyAt: (player.lastRpgAbilityAt[ability.id] || 0) + ability.cooldownMs, treeAbility: true });
+        send(ws, "rpg_action_error", { action: "combat", message: `${ability.name} is ready in ${Math.ceil(remainingMs / 1000)}s.`, retryable: true, abilityId: ability.id, readyAt: (player.lastRpgAbilityAt[ability.id] || 0) + abilityCooldownMs, treeAbility: true });
         return;
       }
 
@@ -3607,14 +3681,15 @@ wss.on("connection", async (ws) => {
         : combatStyle === "magic"
           ? randomInteger([3, 6]) + combatLevel + weaponPower
           : randomInteger([2, 5]) + combatLevel + weaponPower;
-      const targets = ability.areaRadius
+      const abilityRadius = ability.areaRadius ? ability.areaRadius * treeBonuses.areaMultiplier : 0;
+      const targets = abilityRadius
         ? Object.entries(room.rpg.enemies)
-            .filter(([id, enemy]) => RPG_ENEMIES[id] && enemy.hp > 0 && enemy.respawnAt <= now && Math.hypot(enemy.x - primary.x, enemy.y - primary.y) <= ability.areaRadius)
+            .filter(([id, enemy]) => RPG_ENEMIES[id] && enemy.hp > 0 && enemy.respawnAt <= now && Math.hypot(enemy.x - primary.x, enemy.y - primary.y) <= abilityRadius)
             .map(([id, enemy]) => ({ enemy, definition: RPG_ENEMIES[id] }))
         : [{ enemy: primary, definition: primaryDefinition }];
       player.lastRpgAbilityAt[ability.id] = now;
       player.lastRpgAttackAt = now;
-      const readyAt = now + ability.cooldownMs;
+      const readyAt = now + abilityCooldownMs;
       for (let index = 0; index < targets.length; index += 1) {
         const target = targets[index];
         await applyTreeAbilityDamage(
@@ -3622,7 +3697,7 @@ wss.on("connection", async (ws) => {
           player,
           target.enemy,
           target.definition,
-          Math.ceil(baseDamage * ability.multiplier * (index === 0 ? 1 : 0.82)),
+          rpgSkillTreeDamage(Math.ceil(baseDamage * ability.multiplier * (index === 0 ? 1 : 0.82)), treeBonuses, target.enemy),
           combatStyle,
           ability,
           { secondary: index > 0, abilityReadyAt: index === 0 ? readyAt : 0 },
@@ -3640,7 +3715,7 @@ wss.on("connection", async (ws) => {
               player,
               primary,
               primaryDefinition,
-              Math.ceil(baseDamage * ability.dot.multiplier),
+              rpgSkillTreeDamage(Math.ceil(baseDamage * ability.dot.multiplier * treeBonuses.dotMultiplier), treeBonuses, primary),
               combatStyle,
               ability,
               { effectTick: true, tickIndex: tick },
@@ -3719,7 +3794,8 @@ wss.on("connection", async (ws) => {
         : combatStyle === "magic"
           ? randomInteger([3, 6]) + combatLevel + weaponPower
           : randomInteger([2, 5]) + combatLevel + weaponPower;
-      const damage = abilityDamage(baseDamage, ability, enemy);
+      const treeBonuses = rpgSkillTreeBonuses(player.profile?.progress, combatStyle);
+      const damage = rpgSkillTreeDamage(abilityDamage(baseDamage, ability, enemy), treeBonuses, enemy);
       const nextEnemyHp = Math.max(0, enemy.hp - damage);
       const defeated = nextEnemyHp <= 0;
       const appliedStatus = ability?.status && !defeated
@@ -4077,6 +4153,41 @@ wss.on("connection", async (ws) => {
           : "Your account update could not be saved. Nothing was consumed.";
         if (error?.code !== "PROFILE_ACTION_INVALID") console.error("Failed to persist profile action", error);
         send(ws, "rpg_action_error", { action: "profile", message: safeMessage });
+      } finally {
+        player.pendingProfileActions = Math.max(0, player.pendingProfileActions - 1);
+      }
+      return;
+    }
+
+    if (message.type === "rpg_identity_update") {
+      const displayName = sanitizePlayerName(message.displayName);
+      const appearance = RPG_APPEARANCES.has(message.appearance) ? message.appearance : null;
+      if (player.pendingProfileActions >= 1) {
+        send(ws, "rpg_action_error", { action: "identity", message: "Your profile is already being updated. Try again in a moment.", retryable: true });
+        return;
+      }
+      player.pendingProfileActions += 1;
+      try {
+        if (player.profile && rpgProfileStore) {
+          await mutateAuthenticatedProfile(player, "profile_identity", (progress) => ({
+            progress: appearance
+              ? { ...progress, appearance, customization: customizationForRpgAppearance(appearance) }
+              : progress,
+            displayName,
+            message: "Adventurer identity saved.",
+          }));
+        } else {
+          player.name = displayName;
+          if (appearance) {
+            player.appearance = appearance;
+            player.customization = customizationForRpgAppearance(appearance);
+          }
+        }
+        send(ws, "rpg_identity_state", { displayName: player.name });
+        broadcast(roomId, { type: "player_renamed", player: publicRpgPlayer(player) }, player.id);
+      } catch (error) {
+        console.error("Failed to update RPG identity", error);
+        send(ws, "rpg_action_error", { action: "identity", message: "Your adventurer name could not be saved." });
       } finally {
         player.pendingProfileActions = Math.max(0, player.pendingProfileActions - 1);
       }

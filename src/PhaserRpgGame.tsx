@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import Phaser from "phaser";
 import {
   APPEARANCES,
@@ -92,6 +92,7 @@ type GameApi = {
   claimAdventure: (adventureId: string) => void;
   setAppearance: (appearance: AppearanceId) => void;
   setCustomization: (customization: CharacterCustomization) => void;
+  setDisplayName: (displayName: string) => void;
   centerCamera: () => void;
   navigateToQuestTarget: () => void;
   adjustCameraZoom: (delta: number) => void;
@@ -111,6 +112,7 @@ type GameApi = {
   useAbility: (slot: CombatAbilitySlot) => void;
   setHotbar: (layout: Array<HotbarEntry | null>) => void;
   unlockSkill: (nodeId: string) => void;
+  respecSkills: () => void;
 };
 
 type ToastEntry = GameToast & { id: number };
@@ -130,7 +132,44 @@ type TutorialVoiceManifest = {
 };
 
 const TUTORIAL_SAVE_KEY = "ore-acres-rpg-tutorial-v1";
+const ONBOARDING_SAVE_KEY = "ore-acres-rpg-onboarding-v1";
 const HOTBAR_SAVE_KEY = "ore-acres-rpg-hotbar-v1";
+const HUD_LAYOUT_SAVE_KEY = "ore-acres-rpg-hud-layout-v1";
+type HudWidgetId = "status" | "objectives" | "chat" | "minimap" | "menu" | "target" | "actionbar";
+type HudWidgetConfig = { x: number; y: number; scale: number; visible: boolean };
+const HUD_WIDGETS: ReadonlyArray<{ id: HudWidgetId; label: string }> = [
+  { id: "status", label: "Player status" },
+  { id: "objectives", label: "Quest tracker" },
+  { id: "chat", label: "World chat" },
+  { id: "minimap", label: "Minimap" },
+  { id: "menu", label: "Menu bar" },
+  { id: "target", label: "Target frame" },
+  { id: "actionbar", label: "Action bar" },
+];
+const DEFAULT_HUD_LAYOUT: Record<HudWidgetId, HudWidgetConfig> = Object.fromEntries(
+  HUD_WIDGETS.map(({ id }) => [id, { x: 0, y: 0, scale: 1, visible: true }]),
+) as Record<HudWidgetId, HudWidgetConfig>;
+
+function normalizeHudLayout(value: unknown): Record<HudWidgetId, HudWidgetConfig> {
+  const candidate = value && typeof value === "object" && !Array.isArray(value) ? value as Partial<Record<HudWidgetId, Partial<HudWidgetConfig>>> : {};
+  return Object.fromEntries(HUD_WIDGETS.map(({ id }) => {
+    const saved = candidate[id];
+    return [id, {
+      x: Math.max(-900, Math.min(900, Number(saved?.x) || 0)),
+      y: Math.max(-600, Math.min(600, Number(saved?.y) || 0)),
+      scale: Math.max(0.65, Math.min(1.4, Number(saved?.scale) || 1)),
+      visible: saved?.visible !== false,
+    }];
+  })) as Record<HudWidgetId, HudWidgetConfig>;
+}
+
+function loadHudLayout() {
+  try {
+    return normalizeHudLayout(JSON.parse(window.localStorage.getItem(HUD_LAYOUT_SAVE_KEY) ?? "null"));
+  } catch {
+    return normalizeHudLayout(null);
+  }
+}
 const DEFAULT_HOTBAR_LAYOUT: Array<HotbarEntry | null> = [
   { kind: "ability", slot: "signature" },
   { kind: "ability", slot: "second-wind" },
@@ -729,9 +768,19 @@ function EquipmentComparison({ item, progress }: { item: ItemDefinition; progres
 
 type PhaserRpgGameProps = {
   onExit?: () => void;
+  walletAddress?: string | null;
+  walletMessage?: string;
+  onConnectWallet?: () => void;
+  onDisconnectWallet?: () => void;
 };
 
-export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
+export function PhaserRpgGame({
+  onExit,
+  walletAddress = null,
+  walletMessage = "",
+  onConnectWallet,
+  onDisconnectWallet,
+}: PhaserRpgGameProps) {
   const shellRef = useRef<HTMLElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const tutorialAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -745,6 +794,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
   const audioRef = useRef<GameAudioEngine | null>(null);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const hudDragRef = useRef<{ id: HudWidgetId; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const initialProgressRef = useRef(loadPlayerProgress());
   const readyContractIdsRef = useRef(new Set(
     DAILY_CONTRACTS
@@ -752,6 +802,11 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
       .map((contract) => contract.id),
   ));
   const playerNameRef = useRef(playerDisplayName());
+  const [identityReady, setIdentityReady] = useState(() => window.localStorage.getItem(ONBOARDING_SAVE_KEY) === "complete");
+  const [identityOpen, setIdentityOpen] = useState(() => window.localStorage.getItem(ONBOARDING_SAVE_KEY) !== "complete");
+  const [identityName, setIdentityName] = useState(playerNameRef.current);
+  const [identityAppearance, setIdentityAppearance] = useState<AppearanceId>(initialProgressRef.current.appearance);
+  const [identityError, setIdentityError] = useState("");
   const [panel, setPanel] = useState<Panel>(null);
   const [dialogue, setDialogue] = useState<DialogueState | null>(null);
   const [dialoguePage, setDialoguePage] = useState(0);
@@ -779,6 +834,9 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
   const [hotbarLayout, setHotbarLayout] = useState<Array<HotbarEntry | null>>(loadHotbarLayout);
   const [hotbarEditing, setHotbarEditing] = useState(false);
   const [selectedHotbarSlot, setSelectedHotbarSlot] = useState(0);
+  const [selectedTreeBranch, setSelectedTreeBranch] = useState<CombatStyle>("melee");
+  const [hudEditing, setHudEditing] = useState(false);
+  const [hudLayout, setHudLayout] = useState<Record<HudWidgetId, HudWidgetConfig>>(loadHudLayout);
   const [hud, setHud] = useState<HudState>({
     progress: initialProgressRef.current,
     players: 1,
@@ -802,6 +860,10 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
     document.addEventListener("fullscreenchange", syncFullscreen);
     return () => document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(HUD_LAYOUT_SAVE_KEY, JSON.stringify(hudLayout));
+  }, [hudLayout]);
 
   useEffect(() => {
     let active = true;
@@ -859,7 +921,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
   }, [soundOn, tutorialOpen, tutorialStep, tutorialVoice]);
 
   useEffect(() => {
-    if (!hostRef.current || gameRef.current) return;
+    if (!identityReady || !hostRef.current || gameRef.current) return;
     const host = hostRef.current;
     let cancelled = false;
     const frame = window.requestAnimationFrame(() => {
@@ -920,6 +982,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
         claimAdventure: (adventureId) => scene.claimAdventure(adventureId),
         setAppearance: (appearance) => scene.setAppearance(appearance),
         setCustomization: (customization) => scene.setCustomization(customization),
+        setDisplayName: (displayName) => scene.setDisplayName(displayName),
         centerCamera: () => scene.centerCamera(),
         navigateToQuestTarget: () => scene.navigateToQuestTarget(),
         adjustCameraZoom: (delta) => scene.adjustCameraZoom(delta),
@@ -939,6 +1002,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
         useAbility: (slot) => scene.useCombatAbility(slot),
         setHotbar: (layout) => scene.setHotbarLayout(layout),
         unlockSkill: (nodeId) => scene.unlockSkillNode(nodeId),
+        respecSkills: () => scene.respecSkillTree(),
       };
       scene.setHotbarLayout(hotbarLayout);
       gameRef.current = new Phaser.Game({
@@ -964,7 +1028,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
       gameRef.current = null;
       apiRef.current = null;
     };
-  }, []);
+  }, [identityReady]);
 
   useEffect(() => {
     window.localStorage.setItem(HOTBAR_SAVE_KEY, JSON.stringify(hotbarLayout));
@@ -976,8 +1040,8 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
   }, []);
 
   useEffect(() => {
-    apiRef.current?.setInputPaused(Boolean(panel || dialogue || chatFocused || hotbarEditing));
-  }, [chatFocused, dialogue, hotbarEditing, panel]);
+    apiRef.current?.setInputPaused(Boolean(panel || dialogue || chatFocused || hotbarEditing || hudEditing));
+  }, [chatFocused, dialogue, hotbarEditing, hudEditing, panel]);
 
   useEffect(() => {
     if (chatOpen) chatEndRef.current?.scrollIntoView({ block: "nearest" });
@@ -1289,15 +1353,198 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
     setTutorialStep(0);
     setTutorialOpen(true);
   };
+  const hudWidgetProps = (id: HudWidgetId) => {
+    const config = hudLayout[id];
+    return {
+      "data-hud-widget": id,
+      "data-hud-hidden": config.visible ? "false" : "true",
+      style: {
+        "--hud-x": `${config.x}px`,
+        "--hud-y": `${config.y}px`,
+        "--hud-scale": config.scale,
+      } as CSSProperties,
+    };
+  };
+  const beginHudDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!hudEditing || event.button !== 0) return;
+    const widget = (event.target as HTMLElement).closest<HTMLElement>("[data-hud-widget]");
+    if (!widget || (event.target as HTMLElement).closest(".rpg-hud-editor")) return;
+    const id = widget.dataset.hudWidget as HudWidgetId;
+    const config = hudLayout[id];
+    if (!config) return;
+    event.preventDefault();
+    shellRef.current?.setPointerCapture(event.pointerId);
+    hudDragRef.current = { id, startX: event.clientX, startY: event.clientY, originX: config.x, originY: config.y };
+  };
+  const moveHudWidget = (event: ReactPointerEvent<HTMLElement>) => {
+    const drag = hudDragRef.current;
+    if (!drag) return;
+    setHudLayout((current) => ({
+      ...current,
+      [drag.id]: {
+        ...current[drag.id],
+        x: Math.max(-900, Math.min(900, drag.originX + event.clientX - drag.startX)),
+        y: Math.max(-600, Math.min(600, drag.originY + event.clientY - drag.startY)),
+      },
+    }));
+  };
+  const endHudDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    if (!hudDragRef.current) return;
+    hudDragRef.current = null;
+    if (shellRef.current?.hasPointerCapture(event.pointerId)) shellRef.current.releasePointerCapture(event.pointerId);
+  };
+
+  const openIdentityEditor = () => {
+    setIdentityName(playerNameRef.current);
+    setIdentityAppearance(hud.progress.appearance);
+    setIdentityError("");
+    setIdentityOpen(true);
+    apiRef.current?.setInputPaused(true);
+  };
+
+  const saveIdentity = () => {
+    const displayName = identityName
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/[^a-zA-Z0-9 _-]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 24);
+    if (displayName.length < 3) {
+      setIdentityError("Choose a name with at least 3 letters or numbers.");
+      return;
+    }
+
+    const customization = customizationForAppearance(identityAppearance);
+    playerNameRef.current = displayName;
+    window.localStorage.setItem("ore-acres-rpg-name", displayName);
+    window.localStorage.setItem(ONBOARDING_SAVE_KEY, "complete");
+    window.localStorage.setItem("ore-acres-rpg-identity-sync-pending", JSON.stringify({
+      displayName,
+      appearance: identityAppearance,
+    }));
+
+    if (!identityReady) {
+      const nextProgress = {
+        ...initialProgressRef.current,
+        appearance: identityAppearance,
+        customization,
+      };
+      initialProgressRef.current = nextProgress;
+      savePlayerProgress(nextProgress);
+      setHud((current) => ({ ...current, progress: nextProgress }));
+      setIdentityReady(true);
+    } else {
+      apiRef.current?.setDisplayName(displayName);
+      window.localStorage.removeItem("ore-acres-rpg-identity-sync-pending");
+      if (identityAppearance !== hud.progress.appearance) apiRef.current?.setAppearance(identityAppearance);
+      apiRef.current?.setInputPaused(false);
+    }
+
+    setIdentityError("");
+    setIdentityOpen(false);
+  };
 
   return (
     <section
       ref={shellRef}
-      className={`rpg-shell rpg-shell--${worldTime.phase} rpg-region--${regionAtmosphere} ${hud.activeAction ? "rpg-shell--action-active" : ""} ${hud.target ? "rpg-shell--targeted" : ""}`.trim()}
+      className={`rpg-shell rpg-shell--${worldTime.phase} rpg-region--${regionAtmosphere} ${hud.activeAction ? "rpg-shell--action-active" : ""} ${hud.target ? "rpg-shell--targeted" : ""} ${hudEditing ? "rpg-hud-editing" : ""}`.trim()}
       aria-label="Ore Acres RPG game"
+      onPointerDown={beginHudDrag}
+      onPointerMove={moveHudWidget}
+      onPointerUp={endHudDrag}
+      onPointerCancel={endHudDrag}
     >
       <div className="rpg-host" ref={hostRef} />
       <div className="rpg-world-light" aria-hidden="true"><i /><b /></div>
+
+      {identityOpen ? (
+        <div className="rpg-identity-gate" role="dialog" aria-modal="true" aria-labelledby="rpg-identity-title">
+          <section className="rpg-identity-card">
+            <header>
+              <div>
+                <span>{identityReady ? "ADVENTURER PROFILE" : "WELCOME TO OREHAVEN"}</span>
+                <h2 id="rpg-identity-title">Create your adventurer</h2>
+                <p>Your name and look are visible to everyone in the shared world.</p>
+              </div>
+              {identityReady ? (
+                <button type="button" className="rpg-identity-close" onClick={() => {
+                  setIdentityOpen(false);
+                  apiRef.current?.setInputPaused(false);
+                }}>Close</button>
+              ) : null}
+            </header>
+
+            <div className="rpg-identity-body">
+              <div className={`rpg-identity-preview rpg-identity-preview--${identityAppearance}`}>
+                <i aria-hidden="true" />
+                <HeroPortrait
+                  appearance={identityAppearance}
+                  equipped={initialProgressRef.current.equipped}
+                  customization={customizationForAppearance(identityAppearance)}
+                  className="rpg-identity-portrait"
+                />
+                <strong>{identityName.trim() || "Your name"}</strong>
+                <span>{APPEARANCES.find((entry) => entry.id === identityAppearance)?.role}</span>
+              </div>
+
+              <div className="rpg-identity-form">
+                <label htmlFor="rpg-adventurer-name">Adventurer name</label>
+                <input
+                  id="rpg-adventurer-name"
+                  value={identityName}
+                  maxLength={24}
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(event) => {
+                    setIdentityName(event.target.value);
+                    setIdentityError("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") saveIdentity();
+                  }}
+                />
+                <small>3-24 characters. Letters, numbers, spaces, hyphens, and underscores.</small>
+
+                <div className="rpg-identity-choices" aria-label="Choose a starter appearance">
+                  {APPEARANCES.map((appearance) => (
+                    <button
+                      key={appearance.id}
+                      type="button"
+                      className={identityAppearance === appearance.id ? "active" : ""}
+                      onClick={() => setIdentityAppearance(appearance.id)}
+                    >
+                      <HeroPortrait
+                        appearance={appearance.id}
+                        equipped={initialProgressRef.current.equipped}
+                        customization={customizationForAppearance(appearance.id)}
+                        className="rpg-identity-choice-portrait"
+                      />
+                      <span><b>{appearance.name}</b><small>{appearance.role}</small></span>
+                    </button>
+                  ))}
+                </div>
+
+                {identityError ? <p className="rpg-identity-error" role="alert">{identityError}</p> : null}
+                <div className="rpg-identity-wallet">
+                  <div>
+                    <span>Solana wallet</span>
+                    <small>{walletAddress ? `${walletAddress.slice(0, 5)}...${walletAddress.slice(-4)} connected` : "Optional for token features. Not required to play."}</small>
+                  </div>
+                  {onConnectWallet ? (
+                    <button type="button" onClick={walletAddress ? onDisconnectWallet : onConnectWallet}>
+                      {walletAddress ? "Disconnect" : "Connect Phantom"}
+                    </button>
+                  ) : null}
+                </div>
+                {walletMessage ? <small className="rpg-identity-wallet-message">{walletMessage}</small> : null}
+                <button type="button" className="rpg-identity-enter" onClick={saveIdentity}>
+                  {identityReady ? "Save adventurer" : "Enter Orehaven"}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {!panel && !dialogue && !hud.activeAction ? (
         <aside key={hud.location} className="rpg-zone-arrival" aria-live="polite">
@@ -1377,7 +1624,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
         </aside>
       ) : null}
 
-      <header className="rpg-status" aria-label="Player status">
+      <header className="rpg-status" aria-label="Player status" {...hudWidgetProps("status")}>
         <div className="rpg-avatar-medallion" aria-hidden="true">
           <HeroPortrait
             appearance={hud.progress.appearance}
@@ -1387,7 +1634,10 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
           />
         </div>
         <div className="rpg-status__identity">
-          <strong>{playerNameRef.current}</strong>
+          <button type="button" onClick={openIdentityEditor} title="Edit name and appearance">
+            <strong>{playerNameRef.current}</strong>
+            <small>EDIT</small>
+          </button>
           <span>{hud.location}</span>
         </div>
         <div className="rpg-vital">
@@ -1397,6 +1647,17 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
         </div>
         <div className="rpg-currency"><span>GOLD</span><strong>{hud.progress.gold.toLocaleString()}</strong></div>
         <div className="rpg-currency"><span>TOTAL</span><strong>{totalLevel(hud.progress)}</strong></div>
+        {onConnectWallet ? (
+          <button
+            type="button"
+            className={`rpg-wallet-toggle ${walletAddress ? "connected" : ""}`}
+            title={walletAddress || "Connect an optional Solana wallet"}
+            onClick={walletAddress ? onDisconnectWallet : onConnectWallet}
+          >
+            <span>{walletAddress ? "WALLET" : "WEB3"}</span>
+            <strong>{walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-3)}` : "CONNECT"}</strong>
+          </button>
+        ) : null}
         {(["localhost", "127.0.0.1"].includes(window.location.hostname)) ? (
           <div className="rpg-admin-tool-links">
             <a className="rpg-admin-tool-link" href="/world-editor.html" target="_blank" rel="noreferrer">WORLD</a>
@@ -1420,7 +1681,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
         <span className={`rpg-online rpg-online--${hud.online}`}>{hud.online === "online" ? `${hud.players} ONLINE` : hud.online.toUpperCase()}</span>
       </header>
 
-      <div className="rpg-objective-stack">
+      <div className="rpg-objective-stack" {...hudWidgetProps("objectives")}>
         <aside className={`rpg-quest-pin ${questTrackerOpen ? "open" : "collapsed"}`}>
           <header>
             <span>{activeQuest.chapter} • ACTIVE QUEST</span>
@@ -1488,7 +1749,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
       </div>
 
       {!panel && !dialogue ? (
-        <aside className={`rpg-chat ${chatOpen ? "open" : "collapsed"}`} aria-label="World chat">
+        <aside className={`rpg-chat ${chatOpen ? "open" : "collapsed"}`} aria-label="World chat" {...hudWidgetProps("chat")}>
           <header>
             <div><i /><strong>{chatChannel === "world" ? "World" : chatChannel === "party" ? "Party" : "Guild"} Chat</strong><span>{hud.players} online</span></div>
             <div className="rpg-chat__header-actions">
@@ -1548,7 +1809,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
         </aside>
       ) : null}
 
-      <div className="rpg-minimap" aria-label="Minimap">
+      <div className="rpg-minimap" aria-label="Minimap" {...hudWidgetProps("minimap")}>
         <div className="rpg-minimap__time" title="Orehaven world time">
           <i aria-hidden="true" />
           <span>{worldTime.label}</span>
@@ -1586,7 +1847,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
         </div>
       </div>
 
-      <nav className="rpg-menu" aria-label="Game menus">
+      <nav className="rpg-menu" aria-label="Game menus" {...hudWidgetProps("menu")}>
         {MENU_ITEMS.map((item) => (
           <button
             key={item.panel}
@@ -1621,8 +1882,40 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
         ) : null}
       </nav>
 
+      <button
+        type="button"
+        className={`rpg-hud-customize-toggle ${hudEditing ? "active" : ""}`}
+        aria-label={hudEditing ? "Finish editing interface" : "Customize interface"}
+        title="Move, resize, or hide interface panels"
+        onClick={() => setHudEditing((current) => !current)}
+      >{hudEditing ? "LOCK HUD" : "HUD"}</button>
+
+      {hudEditing ? (
+        <aside className="rpg-hud-editor" aria-label="Interface editor">
+          <header><div><span>INTERFACE EDITOR</span><strong>Make the HUD yours</strong></div><button type="button" onClick={() => setHudEditing(false)}>Done</button></header>
+          <p>Drag any outlined panel. Adjust its size or hide anything you do not need.</p>
+          <div>
+            {HUD_WIDGETS.map((widget) => {
+              const config = hudLayout[widget.id];
+              return (
+                <article key={widget.id}>
+                  <button
+                    type="button"
+                    className={config.visible ? "visible" : "hidden"}
+                    onClick={() => setHudLayout((current) => ({ ...current, [widget.id]: { ...current[widget.id], visible: !current[widget.id].visible } }))}
+                  >{config.visible ? "ON" : "OFF"}</button>
+                  <label><b>{widget.label}</b><span>{Math.round(config.scale * 100)}%</span><input type="range" min="65" max="140" step="5" value={Math.round(config.scale * 100)} onChange={(event) => setHudLayout((current) => ({ ...current, [widget.id]: { ...current[widget.id], scale: Number(event.target.value) / 100 } }))} /></label>
+                  <button type="button" className="reset" aria-label={`Reset ${widget.label}`} onClick={() => setHudLayout((current) => ({ ...current, [widget.id]: { ...DEFAULT_HUD_LAYOUT[widget.id] } }))}>↺</button>
+                </article>
+              );
+            })}
+          </div>
+          <footer><button type="button" onClick={() => setHudLayout(normalizeHudLayout(null))}>Reset everything</button><small>Saved automatically on this device</small></footer>
+        </aside>
+      ) : null}
+
       {hud.target ? (
-        <section className={`rpg-target-frame rpg-target-frame--${hud.target.combatStyle} ${hud.target.rare ? "rare" : ""} ${hud.activeAction ? "engaged" : "selected"}`} aria-label={`Target: ${hud.target.name}`}>
+        <section className={`rpg-target-frame rpg-target-frame--${hud.target.combatStyle} ${hud.target.rare ? "rare" : ""} ${hud.activeAction ? "engaged" : "selected"}`} aria-label={`Target: ${hud.target.name}`} {...hudWidgetProps("target")}>
           <div className="rpg-target-frame__portrait">
             <EnemyTargetPortrait target={hud.target} />
             {hud.target.rare ? <i>RARE</i> : null}
@@ -1736,7 +2029,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
         </section>
       ) : null}
 
-      <footer className="rpg-actionbar">
+      <footer className="rpg-actionbar" {...hudWidgetProps("actionbar")}>
         <button type="button" className="rpg-actionbar__interact" onClick={() => apiRef.current?.interact()}>
           <kbd>E</kbd>
           <span>{hud.action}</span>
@@ -2259,12 +2552,24 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
                 <section className="rpg-talent-tree">
                   <header>
                     <div><span>COMBAT SPECIALIZATIONS</span><h3>Adventurer Skill Tree</h3><p>Unlock active abilities with points earned from combat levels. Your equipped weapon chooses which branch appears on hotkeys 4 and 5.</p></div>
-                    <strong><b>{treePointsAvailable}</b><span>POINTS AVAILABLE</span><small>{hud.progress.skillTree.unlocked.length}/{treePointsTotal} spent</small></strong>
+                    <strong><b>{treePointsAvailable}</b><span>POINTS AVAILABLE</span><small>{hud.progress.skillTree.unlocked.length}/{treePointsTotal} spent</small>{hud.progress.skillTree.unlocked.length > 0 ? <button type="button" onClick={() => window.confirm("Refund every skill point? You can rebuild immediately.") && apiRef.current?.respecSkills()}>Reset build</button> : null}</strong>
                   </header>
+                  <nav className="rpg-talent-tree__tabs" aria-label="Skill tree branches">
+                    {(["melee", "range", "magic"] as const).map((branch) => {
+                      const branchUnlocked = SKILL_TREE_NODES.filter((node) => node.branch === branch && hud.progress.skillTree.unlocked.includes(node.id)).length;
+                      return (
+                        <button key={branch} type="button" className={`${selectedTreeBranch === branch ? "active" : ""} ${equippedCombatStyle === branch ? "equipped" : ""}`} onClick={() => setSelectedTreeBranch(branch)}>
+                          <i>{branch === "melee" ? "⚔" : branch === "range" ? "➶" : "✦"}</i>
+                          <span>{branch === "melee" ? "WARDEN" : branch === "range" ? "RANGER" : "ARCANIST"}</span>
+                          <small>{branchUnlocked}/8 learned{equippedCombatStyle === branch ? " • equipped" : ""}</small>
+                        </button>
+                      );
+                    })}
+                  </nav>
                   <div className="rpg-talent-tree__branches">
-                    {(["melee", "range", "magic"] as const).map((branch) => (
-                      <section key={branch} className={`rpg-talent-branch rpg-talent-branch--${branch} ${equippedCombatStyle === branch ? "active" : ""}`}>
-                        <header><b>{branch === "melee" ? "WARDEN" : branch === "range" ? "RANGER" : "ARCANIST"}</b><span>{branch.toUpperCase()} PATH</span></header>
+                    {([selectedTreeBranch] as const).map((branch) => (
+                      <section key={branch} className={`rpg-talent-branch rpg-talent-branch--${branch} active`}>
+                        <header><b>{branch === "melee" ? "THE WARDEN'S OATH" : branch === "range" ? "THE RANGER'S CREED" : "THE ARCANIST'S ASCENSION"}</b><span>8-NODE SPECIALIZATION • LEVEL 40 CAPSTONE</span></header>
                         <div>
                           {SKILL_TREE_NODES.filter((node) => node.branch === branch).map((node, index) => {
                             const unlocked = hud.progress.skillTree.unlocked.includes(node.id);
@@ -2276,7 +2581,7 @@ export function PhaserRpgGame({ onExit }: PhaserRpgGameProps) {
                               <article key={node.id} className={`${unlocked ? "unlocked" : ""} ${canUnlock ? "available" : ""}`} style={{ "--ability-color": `#${node.color.toString(16).padStart(6, "0")}` } as React.CSSProperties}>
                                 {index > 0 ? <i className="rpg-talent-link" /> : null}
                                 <div className="rpg-talent-node"><b>{node.badge}</b><span>{unlocked ? "UNLOCKED" : levelMet ? "1 POINT" : `LV ${node.requiredLevel}`}</span></div>
-                                <div><h4>{node.name}</h4><p>{node.detail}.</p><small>{node.areaRadius ? `Area of effect • ${node.areaRadius}px radius` : `${node.dot?.ticks ?? 0} damage ticks`} • {(node.cooldownMs / 1000).toFixed(1)}s cooldown</small></div>
+                                <div><h4>{node.name}<em>{node.kind}</em></h4><p>{node.detail}.</p><small>{node.kind === "passive" ? "Always active once learned" : node.areaRadius ? `Area of effect • ${node.areaRadius}px radius • ${(node.cooldownMs / 1000).toFixed(1)}s cooldown` : `${node.dot?.ticks ?? 0} damage ticks • ${(node.cooldownMs / 1000).toFixed(1)}s cooldown`}</small></div>
                                 <button type="button" disabled={!canUnlock} onClick={() => apiRef.current?.unlockSkill(node.id)}>{unlocked ? "Learned" : canUnlock ? "Unlock" : !prerequisiteMet ? "Previous skill" : !levelMet ? `${branch} ${node.requiredLevel}` : "Need point"}</button>
                               </article>
                             );

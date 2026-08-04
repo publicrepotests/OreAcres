@@ -24,7 +24,11 @@ const DYES = new Set(["guild-blue", "leaf-green", "violet", "crimson", "sand", "
 const GEAR_DYES = new Set(["original", "iron", "sunsteel", "verdant", "moonsteel", "ember", "obsidian"]);
 const WAYSTONES = new Set(["orehaven-gate", "moonwater-dock", "eastern-quarry", "briarwild-crossing", "moonfen-marsh", "ranger-camp", "sunstone-catacombs"]);
 const REGIONS = new Set(["orehaven", "western-woods", "moonwater-pond", "eastern-quarry", "goblin-camp", "southroad", "briarwild-crossing", "old-sun-shrine", "moonfen-marsh", "ranger-camp", "raider-dens", "sunstone-catacombs"]);
-const SKILL_TREE_NODES = new Set(["whirlwind", "bloodletter", "arrow-rain", "venom-shot", "sunfire-sigil", "arcane-burn"]);
+const SKILL_TREE_NODES = new Set([
+  "whirlwind", "tempered-body", "bloodletter", "blade-discipline", "relentless", "wide-arc", "executioner", "unyielding",
+  "arrow-rain", "steady-hands", "venom-shot", "toxin-lore", "rapid-nocking", "storm-quiver", "predators-focus", "windrunner",
+  "sunfire-sigil", "mana-weave", "arcane-burn", "runic-intensity", "unstable-echo", "greater-sigils", "soul-fracture", "archmage",
+]);
 const ARMOR_MAX_HP_BONUSES = {
   "trailguard-vest": 8,
   "sentinel-mail": 12,

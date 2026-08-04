@@ -25,10 +25,17 @@ assert.match(shell, /HOTBAR_SAVE_KEY/, "hotbar customization is not persisted");
 assert.match(shell, /application\/x-orehaven-hotbar-slot/, "hotbar slots cannot be dragged to reorder");
 assert.match(shell, /application\/x-orehaven-hotbar-entry/, "abilities and consumables cannot be dropped into hotbar slots");
 assert.match(shell, /Select slot \{selectedHotbarSlot \+ 1\}/, "hotbar editor lacks click-to-assign support");
+assert.match(shell, /HUD_LAYOUT_SAVE_KEY/, "HUD customization is not persisted");
+assert.match(shell, /data-hud-widget/, "HUD panels are not exposed to the layout editor");
+assert.match(shell, /min="65" max="140"/, "HUD panels cannot be resized through a safe scale range");
+assert.match(shell, /Reset everything/, "HUD editor lacks a full layout recovery option");
+assert.match(shell, /respecSkills/, "skill-tree builds cannot be reset during playtesting");
 
 assert.match(styles, /\.rpg-target-frame__engagement\s*\{/, "target engagement state has no visual treatment");
 assert.match(styles, /\.rpg-target-frame__controls > button\.engage\s*\{/, "Engage button has no distinct visual treatment");
 assert.match(styles, /\.rpg-target-frame\.engaged\s*\{/, "engaged target frame has no active-combat emphasis");
 assert.match(styles, /\.rpg-hotbar-editor\s*\{/, "hotbar editor has no visual treatment");
+assert.match(styles, /\.rpg-hud-editor\s*\{/, "HUD editor has no visual treatment");
+assert.match(styles, /\.rpg-hud-editing \[data-hud-widget\]/, "editable HUD panels have no clear edit-mode state");
 
 console.log("RPG combat UI checks passed: selected targets, explicit engagement, keyboard priority, and retreat states are wired.");

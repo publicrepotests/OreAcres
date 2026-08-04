@@ -254,6 +254,7 @@ export type WeaponAbilityDefinition = {
 export type SkillTreeNodeDefinition = {
   id: string;
   branch: CombatStyle;
+  kind: "active" | "passive";
   name: string;
   badge: string;
   detail: string;
@@ -264,6 +265,25 @@ export type SkillTreeNodeDefinition = {
   color: number;
   areaRadius?: number;
   dot?: { ticks: number; intervalMs: number; multiplier: number };
+  passive?: {
+    damageMultiplier?: number;
+    cooldownMultiplier?: number;
+    areaMultiplier?: number;
+    dotMultiplier?: number;
+    executeThreshold?: number;
+    executeMultiplier?: number;
+    damageReduction?: number;
+  };
+};
+
+export type SkillTreeBonuses = {
+  damageMultiplier: number;
+  cooldownMultiplier: number;
+  areaMultiplier: number;
+  dotMultiplier: number;
+  executeThreshold: number;
+  executeMultiplier: number;
+  damageReduction: number;
 };
 
 export type SkillTreeProgress = { unlocked: string[] };
@@ -314,7 +334,7 @@ export const TREASURE_CLUES: TreasureClueDefinition[] = [
 ];
 
 export const WAYSTONES: readonly WaystoneDefinition[] = [
-  { id: "orehaven-gate", name: "Orehaven Waystone", region: "Orehaven", x: 748, y: 720, arrivalX: 724, arrivalY: 720 },
+  { id: "orehaven-gate", name: "Orehaven Waystone", region: "Orehaven", x: 650, y: 820, arrivalX: 698, arrivalY: 820 },
   { id: "moonwater-dock", name: "Moonwater Waystone", region: "Western Woods", x: 282, y: 872, arrivalX: 302, arrivalY: 872 },
   { id: "eastern-quarry", name: "Quarry Waystone", region: "Eastern Quarry", x: 1248, y: 172, arrivalX: 1248, arrivalY: 204 },
   { id: "briarwild-crossing", name: "Briarwild Waystone", region: "Briarwild Crossing", x: 760, y: 1250, arrivalX: 760, arrivalY: 1290 },
@@ -948,13 +968,50 @@ export function weaponAbility(itemId: string) {
 }
 
 export const SKILL_TREE_NODES: readonly SkillTreeNodeDefinition[] = [
-  { id: "whirlwind", branch: "melee", name: "Whirlwind", badge: "WW", detail: "Spin through every enemy in a 112px circle", requiredLevel: 1, multiplier: 1.05, cooldownMs: 9_000, color: 0xf1a64f, areaRadius: 112 },
-  { id: "bloodletter", branch: "melee", name: "Bloodletter", badge: "BL", detail: "Deep strike followed by 4 bleeding damage ticks", requiredLevel: 5, prerequisite: "whirlwind", multiplier: 0.82, cooldownMs: 11_000, color: 0xe55f55, dot: { ticks: 4, intervalMs: 1_000, multiplier: 0.28 } },
-  { id: "arrow-rain", branch: "range", name: "Arrow Rain", badge: "AR", detail: "Blanket a 144px target area with falling arrows", requiredLevel: 1, multiplier: 0.92, cooldownMs: 10_000, color: 0xa9df67, areaRadius: 144 },
-  { id: "venom-shot", branch: "range", name: "Venom Shot", badge: "VS", detail: "Poisoned arrow followed by 5 venom damage ticks", requiredLevel: 5, prerequisite: "arrow-rain", multiplier: 0.72, cooldownMs: 12_000, color: 0x74d45a, dot: { ticks: 5, intervalMs: 900, multiplier: 0.24 } },
-  { id: "sunfire-sigil", branch: "magic", name: "Sunfire Sigil", badge: "SS", detail: "Ignite a 120px rune beneath a group of enemies", requiredLevel: 1, multiplier: 1, cooldownMs: 10_500, color: 0xffa24d, areaRadius: 120 },
-  { id: "arcane-burn", branch: "magic", name: "Arcane Burn", badge: "AB", detail: "Brand a target with 5 pulses of unstable magic", requiredLevel: 5, prerequisite: "sunfire-sigil", multiplier: 0.68, cooldownMs: 12_500, color: 0x8f7cff, dot: { ticks: 5, intervalMs: 850, multiplier: 0.27 } },
+  { id: "whirlwind", branch: "melee", kind: "active", name: "Whirlwind", badge: "WW", detail: "Spin through every enemy in a 112px circle", requiredLevel: 1, multiplier: 1.05, cooldownMs: 9_000, color: 0xf1a64f, areaRadius: 112 },
+  { id: "tempered-body", branch: "melee", kind: "passive", name: "Tempered Body", badge: "TB", detail: "Reduce all incoming damage by 4%", requiredLevel: 3, prerequisite: "whirlwind", multiplier: 1, cooldownMs: 0, color: 0xd79a5d, passive: { damageReduction: 0.04 } },
+  { id: "bloodletter", branch: "melee", kind: "active", name: "Bloodletter", badge: "BL", detail: "Deep strike followed by 4 bleeding damage ticks", requiredLevel: 5, prerequisite: "tempered-body", multiplier: 0.82, cooldownMs: 11_000, color: 0xe55f55, dot: { ticks: 4, intervalMs: 1_000, multiplier: 0.28 } },
+  { id: "blade-discipline", branch: "melee", kind: "passive", name: "Blade Discipline", badge: "BD", detail: "Increase melee damage by 8%", requiredLevel: 10, prerequisite: "bloodletter", multiplier: 1, cooldownMs: 0, color: 0xf0b25c, passive: { damageMultiplier: 1.08 } },
+  { id: "relentless", branch: "melee", kind: "passive", name: "Relentless", badge: "RL", detail: "Reduce weapon-tree cooldowns by 12%", requiredLevel: 16, prerequisite: "blade-discipline", multiplier: 1, cooldownMs: 0, color: 0xe8c16d, passive: { cooldownMultiplier: 0.88 } },
+  { id: "wide-arc", branch: "melee", kind: "passive", name: "Wide Arc", badge: "WA", detail: "Increase melee area effects by 22%", requiredLevel: 23, prerequisite: "relentless", multiplier: 1, cooldownMs: 0, color: 0xe69a45, passive: { areaMultiplier: 1.22 } },
+  { id: "executioner", branch: "melee", kind: "passive", name: "Executioner", badge: "EX", detail: "Deal 22% more damage to enemies below 30% health", requiredLevel: 31, prerequisite: "wide-arc", multiplier: 1, cooldownMs: 0, color: 0xe2614d, passive: { executeThreshold: 0.3, executeMultiplier: 1.22 } },
+  { id: "unyielding", branch: "melee", kind: "passive", name: "Unyielding", badge: "UY", detail: "Gain 7% more melee damage and 5% damage reduction", requiredLevel: 40, prerequisite: "executioner", multiplier: 1, cooldownMs: 0, color: 0xffd06b, passive: { damageMultiplier: 1.07, damageReduction: 0.05 } },
+
+  { id: "arrow-rain", branch: "range", kind: "active", name: "Arrow Rain", badge: "AR", detail: "Blanket a 144px target area with falling arrows", requiredLevel: 1, multiplier: 0.92, cooldownMs: 10_000, color: 0xa9df67, areaRadius: 144 },
+  { id: "steady-hands", branch: "range", kind: "passive", name: "Steady Hands", badge: "SH", detail: "Increase ranged damage by 6%", requiredLevel: 3, prerequisite: "arrow-rain", multiplier: 1, cooldownMs: 0, color: 0x9ed36f, passive: { damageMultiplier: 1.06 } },
+  { id: "venom-shot", branch: "range", kind: "active", name: "Venom Shot", badge: "VS", detail: "Poisoned arrow followed by 5 venom damage ticks", requiredLevel: 5, prerequisite: "steady-hands", multiplier: 0.72, cooldownMs: 12_000, color: 0x74d45a, dot: { ticks: 5, intervalMs: 900, multiplier: 0.24 } },
+  { id: "toxin-lore", branch: "range", kind: "passive", name: "Toxin Lore", badge: "TL", detail: "Increase damage-over-time effects by 25%", requiredLevel: 10, prerequisite: "venom-shot", multiplier: 1, cooldownMs: 0, color: 0x70c95a, passive: { dotMultiplier: 1.25 } },
+  { id: "rapid-nocking", branch: "range", kind: "passive", name: "Rapid Nocking", badge: "RN", detail: "Reduce weapon-tree cooldowns by 14%", requiredLevel: 16, prerequisite: "toxin-lore", multiplier: 1, cooldownMs: 0, color: 0xb6dc72, passive: { cooldownMultiplier: 0.86 } },
+  { id: "storm-quiver", branch: "range", kind: "passive", name: "Storm Quiver", badge: "SQ", detail: "Increase ranged area effects by 28%", requiredLevel: 23, prerequisite: "rapid-nocking", multiplier: 1, cooldownMs: 0, color: 0x78cda0, passive: { areaMultiplier: 1.28 } },
+  { id: "predators-focus", branch: "range", kind: "passive", name: "Predator's Focus", badge: "PF", detail: "Deal 18% more damage to enemies below 35% health", requiredLevel: 31, prerequisite: "storm-quiver", multiplier: 1, cooldownMs: 0, color: 0xb9e56f, passive: { executeThreshold: 0.35, executeMultiplier: 1.18 } },
+  { id: "windrunner", branch: "range", kind: "passive", name: "Windrunner", badge: "WR", detail: "Gain 10% ranged damage and 3% damage reduction", requiredLevel: 40, prerequisite: "predators-focus", multiplier: 1, cooldownMs: 0, color: 0xd2f08a, passive: { damageMultiplier: 1.1, damageReduction: 0.03 } },
+
+  { id: "sunfire-sigil", branch: "magic", kind: "active", name: "Sunfire Sigil", badge: "SS", detail: "Ignite a 120px rune beneath a group of enemies", requiredLevel: 1, multiplier: 1, cooldownMs: 10_500, color: 0xffa24d, areaRadius: 120 },
+  { id: "mana-weave", branch: "magic", kind: "passive", name: "Mana Weave", badge: "MW", detail: "Reduce weapon-tree cooldowns by 8%", requiredLevel: 3, prerequisite: "sunfire-sigil", multiplier: 1, cooldownMs: 0, color: 0xa58dff, passive: { cooldownMultiplier: 0.92 } },
+  { id: "arcane-burn", branch: "magic", kind: "active", name: "Arcane Burn", badge: "AB", detail: "Brand a target with 5 pulses of unstable magic", requiredLevel: 5, prerequisite: "mana-weave", multiplier: 0.68, cooldownMs: 12_500, color: 0x8f7cff, dot: { ticks: 5, intervalMs: 850, multiplier: 0.27 } },
+  { id: "runic-intensity", branch: "magic", kind: "passive", name: "Runic Intensity", badge: "RI", detail: "Increase magic damage by 9%", requiredLevel: 10, prerequisite: "arcane-burn", multiplier: 1, cooldownMs: 0, color: 0x9f8cff, passive: { damageMultiplier: 1.09 } },
+  { id: "unstable-echo", branch: "magic", kind: "passive", name: "Unstable Echo", badge: "UE", detail: "Increase damage-over-time effects by 30%", requiredLevel: 16, prerequisite: "runic-intensity", multiplier: 1, cooldownMs: 0, color: 0xbe79ff, passive: { dotMultiplier: 1.3 } },
+  { id: "greater-sigils", branch: "magic", kind: "passive", name: "Greater Sigils", badge: "GS", detail: "Increase magical area effects by 30%", requiredLevel: 23, prerequisite: "unstable-echo", multiplier: 1, cooldownMs: 0, color: 0xffa65b, passive: { areaMultiplier: 1.3 } },
+  { id: "soul-fracture", branch: "magic", kind: "passive", name: "Soul Fracture", badge: "SF", detail: "Deal 20% more damage to enemies below 32% health", requiredLevel: 31, prerequisite: "greater-sigils", multiplier: 1, cooldownMs: 0, color: 0xd270ff, passive: { executeThreshold: 0.32, executeMultiplier: 1.2 } },
+  { id: "archmage", branch: "magic", kind: "passive", name: "Archmage", badge: "AM", detail: "Gain 8% magic damage and 10% faster tree skills", requiredLevel: 40, prerequisite: "soul-fracture", multiplier: 1, cooldownMs: 0, color: 0xffce77, passive: { damageMultiplier: 1.08, cooldownMultiplier: 0.9 } },
 ];
+
+export function skillTreeBonuses(progress: Pick<PlayerProgress, "skillTree">, branch: CombatStyle): SkillTreeBonuses {
+  const unlocked = new Set(progress.skillTree.unlocked);
+  return SKILL_TREE_NODES.reduce<SkillTreeBonuses>((bonuses, node) => {
+    if (node.branch !== branch || node.kind !== "passive" || !unlocked.has(node.id) || !node.passive) return bonuses;
+    bonuses.damageMultiplier *= node.passive.damageMultiplier ?? 1;
+    bonuses.cooldownMultiplier *= node.passive.cooldownMultiplier ?? 1;
+    bonuses.areaMultiplier *= node.passive.areaMultiplier ?? 1;
+    bonuses.dotMultiplier *= node.passive.dotMultiplier ?? 1;
+    bonuses.damageReduction = 1 - (1 - bonuses.damageReduction) * (1 - (node.passive.damageReduction ?? 0));
+    if ((node.passive.executeThreshold ?? 0) > bonuses.executeThreshold) {
+      bonuses.executeThreshold = node.passive.executeThreshold ?? 0;
+      bonuses.executeMultiplier = node.passive.executeMultiplier ?? 1;
+    }
+    return bonuses;
+  }, { damageMultiplier: 1, cooldownMultiplier: 1, areaMultiplier: 1, dotMultiplier: 1, executeThreshold: 0, executeMultiplier: 1, damageReduction: 0 });
+}
 
 export function skillTreePointTotal(progress: Pick<PlayerProgress, "skills">) {
   const combatLevels = ["attack", "defense", "hitpoints", "range", "magic"]
@@ -968,7 +1025,7 @@ export function skillTreePointsAvailable(progress: Pick<PlayerProgress, "skills"
 
 export function unlockedTreeAbilities(progress: Pick<PlayerProgress, "skillTree">, branch: CombatStyle) {
   const unlocked = new Set(progress.skillTree.unlocked);
-  return SKILL_TREE_NODES.filter((node) => node.branch === branch && unlocked.has(node.id));
+  return SKILL_TREE_NODES.filter((node) => node.branch === branch && node.kind === "active" && unlocked.has(node.id));
 }
 
 export const COLLECTION_ITEMS = ITEMS.filter((item) => item.rarity);

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,17 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const port = 8091;
 const runId = process.pid;
+
+const clientDataSource = readFileSync(path.join(root, "src/rpg/gameData.ts"), "utf8");
+const serverSource = readFileSync(path.join(root, "server/src/index.js"), "utf8");
+const clientTreeSource = clientDataSource.slice(clientDataSource.indexOf("export const SKILL_TREE_NODES"), clientDataSource.indexOf("export function skillTreeBonuses"));
+const serverTreeSource = serverSource.slice(serverSource.indexOf("const RPG_SKILL_TREE ="), serverSource.indexOf("const RPG_SECOND_WIND_COOLDOWN_MS"));
+const clientNodeIds = [...clientTreeSource.matchAll(/\{ id: "([^"]+)"/g)].map((match) => match[1]);
+const serverNodeIds = [...serverTreeSource.matchAll(/(?:^|\n)\s*(?:"([^"]+)"|([a-z][a-z0-9-]*)):\s*\{ id:/g)].map((match) => match[1] || match[2]);
+assert.equal(clientNodeIds.length, 24, "The client should expose eight skill-tree nodes for each combat branch.");
+assert.deepEqual(serverNodeIds.sort(), clientNodeIds.sort(), "Client and authoritative server skill-tree catalogs diverged.");
+assert.equal((clientTreeSource.match(/kind: "active"/g) || []).length, 6, "The tree should expose two active abilities per branch.");
+assert.equal((clientTreeSource.match(/kind: "passive"/g) || []).length, 18, "The tree should expose six passive upgrades per branch.");
 
 function clearPoint(target, minimumDistance, maximumDistance) {
   for (let distance = minimumDistance; distance <= maximumDistance; distance += 6) {

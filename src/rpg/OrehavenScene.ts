@@ -17,6 +17,7 @@ import {
   WAYSTONES,
   WORLD,
   customizationForAppearance,
+  isAppearanceId,
   itemById,
   levelFromXp,
   maxHpForProgress,
@@ -24,6 +25,7 @@ import {
   normalizeDiscoveries,
   normalizeWaystones,
   skillLabel,
+  skillTreeBonuses,
   skillTreePointsAvailable,
   skillUnlocksBetween,
   unlockedTreeAbilities,
@@ -932,9 +934,11 @@ export class OrehavenScene extends Phaser.Scene {
         this.ws!.send(JSON.stringify({ type: "rpg_tree_ability", enemyId: enemy.definition.id, abilityId: ability.id }));
         return;
       }
+      const bonuses = skillTreeBonuses(this.progress, style);
+      const cooldownMs = Math.max(1_000, Math.round(ability.cooldownMs * bonuses.cooldownMultiplier));
       this.abilityCooldowns = {
         ...this.abilityCooldowns,
-        treeReadyAt: { ...this.abilityCooldowns.treeReadyAt, [ability.id]: now + ability.cooldownMs },
+        treeReadyAt: { ...this.abilityCooldowns.treeReadyAt, [ability.id]: now + cooldownMs },
       };
       this.playTreeAbilityFx(enemy, ability);
       this.applyLocalTreeAbility(enemy, ability);
@@ -963,12 +967,13 @@ export class OrehavenScene extends Phaser.Scene {
     }
     this.abilityCooldowns = { ...this.abilityCooldowns, signatureReadyAt: now + ability.cooldownMs };
     this.playSignatureAbilityFx(enemy, style, ability.id);
-    const damage = abilityDamage(
+    const treeBonusesForStrike = skillTreeBonuses(this.progress, style);
+    const damage = applyLocalSkillTreeDamage(abilityDamage(
       localCombatDamage(style, this.progress.skills[combatSkillForStyle(style)].level, weapon?.power ?? 1),
       ability,
       enemy.hp,
       enemy.definition.maxHp,
-    );
+    ), treeBonusesForStrike, enemy.hp, enemy.definition.maxHp);
     enemy.hp = Math.max(0, enemy.hp - damage);
     if (ability.status && enemy.hp > 0) {
       enemy.status = {
@@ -1008,6 +1013,16 @@ export class OrehavenScene extends Phaser.Scene {
     }
     this.progress = { ...this.progress, skillTree: { unlocked: [...this.progress.skillTree.unlocked, node.id] } };
     this.emitHud({ progress: this.progress, message: `${node.name} unlocked.` });
+  }
+
+  respecSkillTree() {
+    if (this.progress.skillTree.unlocked.length === 0) {
+      this.emitHud({ message: "Your skill tree is already clear." });
+      return;
+    }
+    if (this.useAuthoritativeProfileAction({ action: "respec_skills" }, "Refunding your skill points...")) return;
+    this.progress = { ...this.progress, skillTree: { unlocked: [] } };
+    this.emitHud({ progress: this.progress, message: "Skill points refunded. Try a new combat build." });
   }
 
   sendChat(text: string, channel: "world" | "party" | "guild" = "world") {
@@ -1119,6 +1134,23 @@ export class OrehavenScene extends Phaser.Scene {
     this.player.setCustomization(customization);
     this.setHeroAction("idle");
     this.emitHud({ message: "Character customization updated." });
+  }
+
+  setDisplayName(value: string) {
+    const displayName = value
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/[^a-zA-Z0-9 _-]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 24);
+    if (!displayName) return;
+    this.displayName = displayName;
+    window.localStorage.setItem("ore-acres-rpg-name", displayName);
+    this.refreshSocialWorldIndicators();
+    this.emitHud({ message: `Adventurer name changed to ${displayName}.` }, false);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: "rpg_identity_update", displayName }));
+    }
   }
 
   buyItem(itemId: string) {
@@ -4298,15 +4330,17 @@ export class OrehavenScene extends Phaser.Scene {
     const level = this.progress.skills[combatSkillForStyle(ability.branch)].level;
     const weaponPower = itemById(this.progress.equipped.weapon)?.power ?? 1;
     const base = localCombatDamage(ability.branch, level, weaponPower);
-    const targets = ability.areaRadius
+    const bonuses = skillTreeBonuses(this.progress, ability.branch);
+    const abilityRadius = ability.areaRadius ? ability.areaRadius * bonuses.areaMultiplier : 0;
+    const targets = abilityRadius
       ? [...this.enemyRuntime.values()].filter((enemy) => (
           enemy.hp > 0
           && enemy.respawnAt <= Date.now()
-          && Phaser.Math.Distance.Between(primary.definition.x, primary.definition.y, enemy.definition.x, enemy.definition.y) <= ability.areaRadius!
+          && Phaser.Math.Distance.Between(primary.definition.x, primary.definition.y, enemy.definition.x, enemy.definition.y) <= abilityRadius
         ))
       : [primary];
     targets.forEach((enemy, index) => {
-      const damage = Math.max(1, Math.ceil(base * ability.multiplier * (index === 0 ? 1 : 0.82)));
+      const damage = applyLocalSkillTreeDamage(Math.ceil(base * ability.multiplier * (index === 0 ? 1 : 0.82)), bonuses, enemy.hp, enemy.definition.maxHp);
       enemy.hp = Math.max(0, enemy.hp - damage);
       this.drawEnemyHp(enemy);
       this.showDamageNumber(enemy, damage, ability.branch);
@@ -4316,7 +4350,7 @@ export class OrehavenScene extends Phaser.Scene {
       for (let tick = 1; tick <= ability.dot.ticks; tick += 1) {
         this.time.delayedCall(ability.dot.intervalMs * tick, () => {
           if (this.disposed || primary.hp <= 0 || primary.respawnAt > Date.now()) return;
-          const damage = Math.max(1, Math.ceil(base * ability.dot!.multiplier));
+          const damage = applyLocalSkillTreeDamage(Math.ceil(base * ability.dot!.multiplier * bonuses.dotMultiplier), bonuses, primary.hp, primary.definition.maxHp);
           primary.hp = Math.max(0, primary.hp - damage);
           this.drawEnemyHp(primary);
           this.showDamageNumber(primary, damage, ability.branch);
@@ -4524,6 +4558,19 @@ export class OrehavenScene extends Phaser.Scene {
           this.updatePlayerView();
         }
       }
+      const pendingIdentityRaw = window.localStorage.getItem("ore-acres-rpg-identity-sync-pending");
+      if (pendingIdentityRaw) {
+        try {
+          const pendingIdentity = JSON.parse(pendingIdentityRaw) as { displayName?: unknown; appearance?: unknown };
+          const displayName = typeof pendingIdentity.displayName === "string" ? pendingIdentity.displayName : this.displayName;
+          const appearance = isAppearanceId(pendingIdentity.appearance) ? pendingIdentity.appearance : this.progress.appearance;
+          this.ws?.send(JSON.stringify({ type: "rpg_identity_update", displayName, appearance }));
+        } catch {
+          window.localStorage.removeItem("ore-acres-rpg-identity-sync-pending");
+        }
+      } else if (typeof data.profile?.displayName === "string") {
+        this.applyAdminIdentity(data.profile.displayName);
+      }
       const players = (data.snapshot?.players ?? []) as RemotePlayer[];
       players.filter((player) => player.id !== this.playerId).forEach((player) => this.upsertRemote(player));
       this.emitSocialRoster();
@@ -4624,6 +4671,10 @@ export class OrehavenScene extends Phaser.Scene {
     if (data.type === "rpg_world_event") this.applyWorldEventAnnouncement(data);
     if (data.type === "rpg_ability_result") this.applyAbilityResult(data);
     if (data.type === "rpg_profile_state") this.applyAuthoritativeProfile(data.profile, true, data.message);
+    if (data.type === "rpg_identity_state") {
+      window.localStorage.removeItem("ore-acres-rpg-identity-sync-pending");
+      this.applyAdminIdentity(data.displayName);
+    }
     if (data.type === "rpg_admin_patch") this.applyAdminProgressPatch(data.patch, data.message);
     if (data.type === "rpg_admin_identity") this.applyAdminIdentity(data.displayName);
     if (data.type === "rpg_admin_notice") this.applyAdminNotice(data.message);
@@ -5975,6 +6026,19 @@ function abilityDamage(
     multiplier *= ability.executeMultiplier;
   }
   return Math.max(1, Math.ceil(baseDamage * multiplier));
+}
+
+function applyLocalSkillTreeDamage(
+  baseDamage: number,
+  bonuses: ReturnType<typeof skillTreeBonuses>,
+  enemyHp: number,
+  enemyMaxHp: number,
+) {
+  const healthRatio = enemyMaxHp > 0 ? enemyHp / enemyMaxHp : 1;
+  const executeMultiplier = bonuses.executeThreshold > 0 && healthRatio <= bonuses.executeThreshold
+    ? bonuses.executeMultiplier
+    : 1;
+  return Math.max(1, Math.ceil(baseDamage * bonuses.damageMultiplier * executeMultiplier));
 }
 
 function customizationKey(customization: CharacterCustomization) {

@@ -110,16 +110,16 @@ type MiningReward = {
   nftId?: string;
 };
 
-type EarningsScenarioId = "starter" | "builder" | "late";
+type AdventurePathId = "warden" | "ranger" | "arcanist";
 
-type EarningsScenario = {
-  id: EarningsScenarioId;
+type AdventurePath = {
+  id: AdventurePathId;
   label: string;
   description: string;
-  solPerDay: number;
-  solPerWeek: number;
-  solPerMonth: number;
-  setup: string[];
+  focus: string;
+  starterAbility: string;
+  capstone: string;
+  milestones: string[];
   color: string;
   points: number[];
 };
@@ -1230,39 +1230,39 @@ const MINER_DRONE_MINING_FRAMES = Array.from(
 );
 const MINER_DRONE_TRAVEL_MS = 1200;
 
-const EARNINGS_SCENARIOS: EarningsScenario[] = [
+const ADVENTURE_PATHS: AdventurePath[] = [
   {
-    id: "starter",
-    label: "Starter plot",
-    description: "A fresh acre with one drill, a shack, and a tiny trickle.",
-    solPerDay: 0.00008,
-    solPerWeek: 0.00056,
-    solPerMonth: 0.0024,
-    setup: ["1 shack", "1 drill", "basic pet", "no premium skins"],
-    color: "#67f5d3",
-    points: [0.00002, 0.00003, 0.00004, 0.00005, 0.00006, 0.00007, 0.00008],
+    id: "warden",
+    label: "Warden",
+    description: "Close-range fighters who hold the line, break groups, and finish wounded enemies.",
+    focus: "Melee control",
+    starterAbility: "Whirlwind",
+    capstone: "Unyielding",
+    milestones: ["Area attacks", "Damage reduction", "Bleeds", "Weapon mastery", "Faster skills", "Execute damage"],
+    color: "#f1a64f",
+    points: [12, 23, 35, 49, 65, 82, 100],
   },
   {
-    id: "builder",
-    label: "Builder plot",
-    description: "A mid-game acre with drills, relay support, a drone, and cosmetics.",
-    solPerDay: 0.00022,
-    solPerWeek: 0.00154,
-    solPerMonth: 0.0066,
-    setup: ["3 drills", "power relay", "auto drone", "one pet", "skins equipped"],
-    color: "#7aa7ff",
-    points: [0.00008, 0.00011, 0.00014, 0.00017, 0.00019, 0.00021, 0.00022],
+    id: "ranger",
+    label: "Ranger",
+    description: "Mobile ranged specialists who control space with volleys, venom, and precision damage.",
+    focus: "Range and mobility",
+    starterAbility: "Arrow Rain",
+    capstone: "Windrunner",
+    milestones: ["Area volleys", "Steady aim", "Poison", "Toxin mastery", "Rapid attacks", "Predator focus"],
+    color: "#9ed36f",
+    points: [11, 24, 38, 53, 68, 84, 100],
   },
   {
-    id: "late",
-    label: "Late-game plot",
-    description: "A dense production acre with a mansion, automation, and flex.",
-    solPerDay: 0.00035,
-    solPerWeek: 0.00245,
-    solPerMonth: 0.0105,
-    setup: ["max drills", "automation", "mansion", "legendary pet", "rare skins"],
-    color: "#ffd166",
-    points: [0.00012, 0.00016, 0.0002, 0.00025, 0.00029, 0.00032, 0.00035],
+    id: "arcanist",
+    label: "Arcanist",
+    description: "Spellcasters who burn groups, amplify magical effects, and shape the battlefield with sigils.",
+    focus: "Magic and effects",
+    starterAbility: "Sunfire Sigil",
+    capstone: "Archmage",
+    milestones: ["Area sigils", "Mana weave", "Arcane burn", "Runic power", "Echo damage", "Soul fracture"],
+    color: "#a58dff",
+    points: [13, 25, 39, 54, 70, 86, 100],
   },
 ];
 
@@ -1275,27 +1275,27 @@ const ROADMAP: RoadmapItem[] = [
   },
   {
     phase: "Phase 2",
-    title: "The Briarwild frontier",
-    copy: "A second connected region with Moonfen, ranger camps, raider dens, rare enemies, and two more story chapters.",
+    title: "Build-defining progression",
+    copy: "Ten trainable skills, visible equipment, three combat styles, weapon abilities, and a 24-node specialization tree.",
     status: "Live",
   },
   {
     phase: "Phase 3",
-    title: "Persistent adventuring",
-    copy: "Server-authoritative profiles, banking, crafting, collection logs, daily contracts, targeted bounties, and public events.",
+    title: "The shared frontier",
+    copy: "Briarwild, Moonfen, Sunstone Catacombs, rare encounters, public bosses, gathering routes, and persistent profiles.",
     status: "Live",
   },
   {
     phase: "Phase 4",
-    title: "Guilds and group expeditions",
-    copy: "Player guilds, shared objectives, social progression, instanced expeditions, and larger cooperative encounters.",
-    status: "Next",
+    title: "Guild life",
+    copy: "Parties, guilds, world chat, cooperative expeditions, daily contracts, collection logs, and social progression.",
+    status: "Live",
   },
   {
     phase: "Phase 5",
-    title: "Living-world seasons",
-    copy: "New regions, seasonal questlines, mobile polish, optional on-chain cosmetics, and carefully capped community rewards.",
-    status: "Planned",
+    title: "Living-world playtest",
+    copy: "Balance passes, more dungeons and professions, seasonal questlines, player trading, optional cosmetics, and mobile polish.",
+    status: "In progress",
   },
 ];
 
@@ -1478,42 +1478,42 @@ const RESERVE_TARGET_RUNWAY_DAYS = 180;
 
 const ECONOMY_GUARDS = [
   {
-    title: "Reserve floor",
-    value: `${RESERVE_FLOOR_SOL.toFixed(2)} SOL`,
-    copy: "The game stops paying SOL before the reward pool reaches the protected floor.",
+    title: "Gameplay currency",
+    value: "GOLD",
+    copy: "Quests, creatures, gathering, crafting, and merchant sales form a closed gameplay loop that does not require a wallet.",
   },
   {
-    title: "Idle cap",
-    value: `${MAX_IDLE_SOL_PER_DAY.toFixed(6)} SOL/day`,
-    copy: "Idle production is capped per economy model, so whales cannot force runaway emissions.",
+    title: "Optional utility",
+    value: "MINT",
+    copy: "The community mint can substitute for gold on selected purchases and support cosmetics without gating core progression.",
   },
   {
-    title: "Ore cap",
-    value: `${MAX_ORE_SOL_PER_DAY.toFixed(6)} SOL/day`,
-    copy: "Ore payouts stay tiny and are weighted toward small nodes with longer mining time on rare nodes.",
+    title: "Reward policy",
+    value: "NO FIXED YIELD",
+    copy: "Playing is never presented as guaranteed profit. Any on-chain rewards must be limited, event-based, and treasury-backed.",
   },
   {
-    title: "Runway target",
-    value: `${RESERVE_TARGET_RUNWAY_DAYS} days`,
-    copy: "Payouts throttle down automatically when the reserve runway gets shorter.",
+    title: "Game integrity",
+    value: "SERVER OWNED",
+    copy: "Profiles, combat, drops, purchases, progression, and reward eligibility are validated by the authoritative game server.",
   },
 ];
 
 const ECONOMY_STRESS_TESTS = [
   {
-    label: "Dry launch",
-    stress: "Low marketcap, low buys, few players",
-    response: "Small bootstrap reserve, low reward caps, and cosmetics-first progression keep emissions tiny while the community forms.",
+    label: "New adventurer",
+    stress: "No wallet and no token holdings",
+    response: "The full quest, combat, gathering, crafting, guild, and dungeon loops remain playable with earned gold.",
   },
   {
-    label: "Hype spike",
-    stress: "High marketcap, more buyers, faster growth",
-    response: "More purchases can refill reserves, but payout caps still prevent a rich-get-richer drain spiral.",
+    label: "Growing world",
+    stress: "More players, trade, and demand",
+    response: "Gold sinks, item rarity, server-side drops, merchant pricing, and content progression absorb demand without selling combat power.",
   },
   {
-    label: "Slowdown",
-    stress: "Market cools off after launch",
-    response: "Runway throttling reduces rewards before reserves are damaged, preserving playability without pretending yields are fixed.",
+    label: "Market volatility",
+    stress: "The community mint rises or falls",
+    response: "Gold-denominated progression keeps the RPG stable while USD-quoted token purchases can be recalculated at checkout.",
   },
 ];
 
@@ -1521,28 +1521,28 @@ const PUMP_FUN_COIN_URL = "https://pump.fun/coin/Crfc1ZiazkbLtfVWqVBjzv1NwD64KVu
 
 const PAYMENT_STRUCTURE = [
   {
-    label: "Payment mint",
-    role: "TestMint for checkout planning",
-    address: "7eTsoXT3HA2rCu1vF61CkvTJbA5bnh9pDgnB2vqMpump",
-    split: "100% source mint",
+    label: "Earn",
+    role: "Play the RPG",
+    address: "Quests • combat • gathering • crafting • events",
+    split: "Gold and account-bound progression",
   },
   {
-    label: "OreAcreWallet1",
-    role: "Main treasury and reward-reserve backing",
-    address: "B3VZNSnWYGCZ1ZcydfSKvzjrL1UsYXWG5HTbgHAKaVjX",
-    split: "80% of item payments",
+    label: "Spend",
+    role: "Choose convenience or expression",
+    address: "Equipment services • materials • cosmetics • supplies",
+    split: "Gold first, optional mint where enabled",
   },
   {
-    label: "OreAcreWallet2",
-    role: "Reward-reserve sink wallet for future player rewards",
-    address: "39DYX1oRUHCuQg9zFhB5HW8pJ3WhBeNXmZYyzVWf9Cao",
-    split: "10% of item payments",
+    label: "Sink",
+    role: "Protect long-term value",
+    address: "Crafting costs • gear services • seasonal collections",
+    split: "Designed to remove currency from circulation",
   },
   {
-    label: "OreAcreWallet3",
-    role: "Ops, maintenance, liquidity, and launch costs",
-    address: "GrKAPcrb45WoxdxEwxoXyhbZmLWGoADwNsGGpWNmA4XC",
-    split: "10% of item payments",
+    label: "Reward",
+    role: "Celebrate play, not capital",
+    address: "Rare drops • titles • cosmetics • capped events",
+    split: "No permanent or guaranteed investment yield",
   },
 ];
 
@@ -3970,8 +3970,8 @@ function App() {
     return sanitizeRoomId(fromQuery ?? window.localStorage.getItem("ore-acres-room") ?? "lobby");
   });
   const [page, setPage] = useState<Page>(() => pageFromPath(window.location.pathname));
-  const [earningsScenarioId, setEarningsScenarioId] = useState<EarningsScenarioId>("starter");
-  const [earningsHoverIndex, setEarningsHoverIndex] = useState<number | null>(null);
+  const [adventurePathId, setAdventurePathId] = useState<AdventurePathId>("warden");
+  const [pathHoverIndex, setPathHoverIndex] = useState<number | null>(null);
   const [marketFilter, setMarketFilter] = useState<"all" | "skins" | "pickaxes" | "clothes" | "pets">("all");
   const [marketSort, setMarketSort] = useState<"low" | "high" | "newest">("low");
   const [cameraZoom, setCameraZoom] = useState(1);
@@ -3986,8 +3986,19 @@ function App() {
   });
   const [hideCharacter, setHideCharacter] = useState(false);
   const devMode = new URLSearchParams(window.location.search).get("dev") === "1";
+  const showLegacyGame = import.meta.env.DEV && new URLSearchParams(window.location.search).get("legacy") === "1";
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const gamePanelRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const metadata = page === "game"
+      ? { title: "Play Ore Acres | Pixel Online RPG", description: "Enter the shared world of Orehaven to quest, fight, gather, craft, and adventure with other players." }
+      : page === "economy"
+        ? { title: "Ore Acres Economy | Play First", description: "Learn how gold, optional token utility, server authority, and sustainable sinks support the Ore Acres MMORPG." }
+        : { title: "Ore Acres | Pixel Online RPG", description: "A shared-world pixel MMORPG with quests, combat builds, professions, dungeons, guilds, and optional Solana utility." };
+    document.title = metadata.title;
+    document.querySelector<HTMLMetaElement>('meta[name="description"]')?.setAttribute("content", metadata.description);
+  }, [page]);
   const tutorialAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicEngineRef = useRef<{
     context: AudioContext;
@@ -4443,6 +4454,13 @@ function App() {
   }, [page]);
 
   useEffect(() => {
+    if (!showLegacyGame) {
+      socketRef.current?.close();
+      socketRef.current = null;
+      setRemotePlayers({});
+      setMultiplayerStatus("offline");
+      return;
+    }
     let cancelled = false;
     let socket: WebSocket | null = null;
     let timeout = 0;
@@ -4685,7 +4703,7 @@ function App() {
         socket.close();
       }
     };
-  }, [playerName, roomCode]);
+  }, [playerName, roomCode, showLegacyGame]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -6495,16 +6513,16 @@ function finishMiningOre(plotId: string, oreId: string) {
       progress,
     };
   });
-  const earningsScenario = EARNINGS_SCENARIOS.find((scenario) => scenario.id === earningsScenarioId) ?? EARNINGS_SCENARIOS[0];
+  const adventurePath = ADVENTURE_PATHS.find((path) => path.id === adventurePathId) ?? ADVENTURE_PATHS[0];
   const chartWidth = 760;
   const chartHeight = 320;
-  const chartPoints = earningsScenario.points;
+  const chartPoints = adventurePath.points;
   const chartMin = Math.min(...chartPoints);
   const chartMax = Math.max(...chartPoints);
   const chartRange = Math.max(0.01, chartMax - chartMin);
   const chartPathValue = chartPath(chartPoints, chartWidth, chartHeight);
   const chartAreaValue = chartAreaPath(chartPoints, chartWidth, chartHeight);
-  const chartPointIndex = earningsHoverIndex ?? chartPoints.length - 1;
+  const chartPointIndex = pathHoverIndex ?? chartPoints.length - 1;
   const chartPointX =
     16 + (chartPointIndex / Math.max(1, chartPoints.length - 1)) * (chartWidth - 32);
   const chartPointValue = chartPoints[chartPointIndex] ?? chartPoints[chartPoints.length - 1] ?? 0;
@@ -6661,8 +6679,8 @@ function finishMiningOre(plotId: string, oreId: string) {
           <button type="button" className="site-nav__link" onClick={() => scrollToSection("roadmap")}>
             Roadmap
           </button>
-          <button type="button" className="site-nav__link" onClick={openMarketplace}>
-            Marketplace
+          <button type="button" className="site-nav__link" onClick={() => scrollToSection("gameplay")}>
+            How to play
           </button>
           <a className="site-nav__link site-nav__link--pump" href={PUMP_FUN_COIN_URL} target="_blank" rel="noreferrer">
             Pump.fun
@@ -6705,34 +6723,37 @@ function finishMiningOre(plotId: string, oreId: string) {
               </div>
             </div>
 
-            <div className="wallet-card">
-              <button
-                className="primary wallet-button"
-                onClick={walletPublicKey ? disconnectWallet : connectWallet}
-              >
-                {walletPublicKey ? "Disconnect wallet" : "Connect Phantom"}
-              </button>
-
+            <aside className="wallet-card world-card">
+              <span className="landing-card__eyebrow">Your first adventure</span>
+              <h2>Start in Orehaven. Choose what you become.</h2>
               <dl>
                 <div>
-                  <dt>Wallet</dt>
-                  <dd>{formatAddress(walletPublicKey)}</dd>
+                  <dt>Begin</dt>
+                  <dd>Follow Mira's guided starting quest</dd>
                 </div>
                 <div>
-                  <dt>Status</dt>
-                  <dd>{walletMessage || game.message}</dd>
+                  <dt>Train</dt>
+                  <dd>Fight, mine, fish, chop, smith, and craft</dd>
+                </div>
+                <div>
+                  <dt>Grow</dt>
+                  <dd>Unlock abilities, gear, regions, and dungeons</dd>
+                </div>
+                <div>
+                  <dt>Connect</dt>
+                  <dd>Party up, join a guild, and meet the world</dd>
                 </div>
               </dl>
-
               <div className="wallet-actions">
-                <button className="ghost" onClick={resetWorld}>
-                  Reset world
+                <button className="primary" onClick={() => goToPage("game")}>
+                  Play now
                 </button>
               </div>
-            </div>
+              <small className="world-card__note">Free to playtest. A Solana wallet is optional and reserved for verified token features.</small>
+            </aside>
           </section>
 
-          <section className="landing-grid">
+          <section className="landing-grid" id="gameplay">
             <article className="landing-card landing-card--feature">
               <span className="landing-card__eyebrow">A world worth exploring</span>
               <h2>Quest together. Fight your way forward. Build a real adventurer.</h2>
@@ -6750,25 +6771,25 @@ function finishMiningOre(plotId: string, oreId: string) {
             </article>
 
             <article className="landing-card landing-card--stats">
-              <span className="landing-card__eyebrow">Optional homestead playtest model</span>
-              <h2>{earningsScenario.label}</h2>
-              <p>{earningsScenario.description}</p>
+              <span className="landing-card__eyebrow">Choose a combat identity</span>
+              <h2>{adventurePath.label}</h2>
+              <p>{adventurePath.description}</p>
               <div className="landing-card__stats-row">
                 <div>
-                  <span>Day</span>
-                  <strong>{earningsScenario.solPerDay.toFixed(6)} MINT</strong>
+                  <span>Focus</span>
+                  <strong>{adventurePath.focus}</strong>
                 </div>
                 <div>
-                  <span>Week</span>
-                  <strong>{earningsScenario.solPerWeek.toFixed(6)} MINT</strong>
+                  <span>First skill</span>
+                  <strong>{adventurePath.starterAbility}</strong>
                 </div>
                 <div>
-                  <span>Month</span>
-                  <strong>{earningsScenario.solPerMonth.toFixed(6)} MINT</strong>
+                  <span>Capstone</span>
+                  <strong>{adventurePath.capstone}</strong>
                 </div>
               </div>
               <div className="landing-card__legend">
-                {earningsScenario.setup.map((entry) => (
+                {adventurePath.milestones.map((entry) => (
                   <span key={entry}>{entry}</span>
                 ))}
               </div>
@@ -6776,19 +6797,19 @@ function finishMiningOre(plotId: string, oreId: string) {
 
             <article className="landing-card landing-card--chart">
               <div className="landing-card__header">
-                <span className="landing-card__eyebrow">Interactive test-mint model</span>
+                <span className="landing-card__eyebrow">Interactive specialization paths</span>
                 <div className="scenario-tabs">
-                  {EARNINGS_SCENARIOS.map((scenario) => (
+                  {ADVENTURE_PATHS.map((path) => (
                     <button
-                      key={scenario.id}
+                      key={path.id}
                       type="button"
-                      className={`chip ${earningsScenarioId === scenario.id ? "active" : ""}`}
+                      className={`chip ${adventurePathId === path.id ? "active" : ""}`}
                       onClick={() => {
-                        setEarningsScenarioId(scenario.id);
-                        setEarningsHoverIndex(null);
+                        setAdventurePathId(path.id);
+                        setPathHoverIndex(null);
                       }}
                     >
-                      {scenario.label}
+                      {path.label}
                     </button>
                   ))}
                 </div>
@@ -6797,7 +6818,7 @@ function finishMiningOre(plotId: string, oreId: string) {
                 <svg
                   viewBox={`0 0 ${chartWidth} ${chartHeight}`}
                   role="img"
-                  aria-label="Interactive playtest mint-output chart"
+                  aria-label="Interactive combat specialization progression chart"
                   onMouseMove={(event) => {
                     const rect = event.currentTarget.getBoundingClientRect();
                     const x = event.clientX - rect.left;
@@ -6808,14 +6829,14 @@ function finishMiningOre(plotId: string, oreId: string) {
                         Math.round(((x / rect.width) * (chartPoints.length - 1)) || 0),
                       ),
                     );
-                    setEarningsHoverIndex(index);
+                    setPathHoverIndex(index);
                   }}
-                  onMouseLeave={() => setEarningsHoverIndex(null)}
+                  onMouseLeave={() => setPathHoverIndex(null)}
                 >
                   <defs>
-                    <linearGradient id={`earnings-fill-${earningsScenario.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor={earningsScenario.color} stopOpacity="0.36" />
-                      <stop offset="100%" stopColor={earningsScenario.color} stopOpacity="0.02" />
+                    <linearGradient id={`earnings-fill-${adventurePath.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor={adventurePath.color} stopOpacity="0.36" />
+                      <stop offset="100%" stopColor={adventurePath.color} stopOpacity="0.02" />
                     </linearGradient>
                   </defs>
                   <rect x="0" y="0" width={chartWidth} height={chartHeight} rx="24" fill="rgba(255,255,255,0.03)" />
@@ -6830,16 +6851,16 @@ function finishMiningOre(plotId: string, oreId: string) {
                       strokeWidth="1"
                     />
                   ))}
-                  <path d={chartAreaValue} fill={`url(#earnings-fill-${earningsScenario.id})`} />
-                  <path d={chartPathValue} fill="none" stroke={earningsScenario.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d={chartAreaValue} fill={`url(#earnings-fill-${adventurePath.id})`} />
+                  <path d={chartPathValue} fill="none" stroke={adventurePath.color} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
                   {chartPoints.map((point, index) => {
                     const x = 16 + (index / Math.max(1, chartPoints.length - 1)) * (chartWidth - 32);
                     const normalized = (point - chartMin) / chartRange;
                     const y = 16 + (chartHeight - 32) - normalized * (chartHeight - 32);
                     const active = index === chartPointIndex;
                     return (
-                      <g key={`${earningsScenario.id}-${index}`}>
-                        <circle cx={x} cy={y} r={active ? 9 : 6} fill={active ? "#0b1020" : earningsScenario.color} stroke={earningsScenario.color} strokeWidth="3" />
+                      <g key={`${adventurePath.id}-${index}`}>
+                        <circle cx={x} cy={y} r={active ? 9 : 6} fill={active ? "#0b1020" : adventurePath.color} stroke={adventurePath.color} strokeWidth="3" />
                       </g>
                     );
                   })}
@@ -6851,7 +6872,7 @@ function finishMiningOre(plotId: string, oreId: string) {
                     stroke="rgba(255,255,255,0.14)"
                     strokeDasharray="8 8"
                   />
-                  <circle cx={chartPointX} cy={chartPointY} r="12" fill={earningsScenario.color} opacity="0.18" />
+                  <circle cx={chartPointX} cy={chartPointY} r="12" fill={adventurePath.color} opacity="0.18" />
                 </svg>
                 <div
                   className="earnings-chart__tooltip"
@@ -6860,12 +6881,12 @@ function finishMiningOre(plotId: string, oreId: string) {
                     top: `${Math.max(12, Math.min(84, (1 - (chartPointValue - chartMin) / chartRange) * 100))}%`,
                   }}
                 >
-                  <strong>Day {chartPointIndex + 1}</strong>
-                  <span>{chartPointValue.toFixed(6)} test MINT/day</span>
+                  <strong>{["Initiate", "Apprentice", "Adept", "Veteran", "Elite", "Master", "Legend"][chartPointIndex]}</strong>
+                  <span>{chartPointValue}% build potential</span>
                 </div>
               </div>
               <div className="landing-card__meta">
-                <span>Illustrative playtest values only. Hover and swap scenarios to compare optional homestead tiers.</span>
+                <span>Hover the path and switch specializations to preview how each combat identity develops toward level 40.</span>
               </div>
             </article>
           </section>
@@ -6873,11 +6894,11 @@ function finishMiningOre(plotId: string, oreId: string) {
           <section className="whitepaper" id="whitepaper">
             <div className="section-heading">
               <span className="eyebrow">Whitepaper</span>
-              <h2>A social RPG first. A Web3 economy second.</h2>
+              <h2>A persistent pixel MMORPG built around player choice.</h2>
               <p>
-                Ore Acres combines the readable skilling and player freedom of a
-                classic sandbox RPG with the shared quests, gear chase, combat roles,
-                and world events of a modern online adventure.
+                Ore Acres is a shared-world adventure inspired by the freedom and
+                readable progression of classic sandbox RPGs. Web3 supports optional
+                ownership and utility; it is not the reason the game is fun.
               </p>
             </div>
 
@@ -6885,33 +6906,33 @@ function finishMiningOre(plotId: string, oreId: string) {
               <article className="whitepaper-card">
                 <h3>Core loop</h3>
                 <p>
-                  Explore new regions, complete story and bounty objectives, train
-                  skills, defeat increasingly dangerous creatures, craft equipment,
-                  and build a loadout that visibly changes your character.
+                  Begin in Orehaven, follow story quests into dangerous regions,
+                  improve ten skills, collect visible equipment, craft upgrades,
+                  and prepare for dungeons, rare encounters, and public events.
                 </p>
               </article>
               <article className="whitepaper-card">
-                <h3>Economy</h3>
+                <h3>Combat builds</h3>
                 <p>
-                  Gold is the everyday game currency. The Pump.fun mint is an
-                  optional alternative for selected goods and future cosmetics;
-                  gameplay progression never depends on a guaranteed token yield.
+                  Melee, range, and magic each support distinct weapons, signature
+                  attacks, area effects, damage-over-time skills, passives, executes,
+                  and eight-node specialization paths.
                 </p>
               </article>
               <article className="whitepaper-card">
-                <h3>Social layer</h3>
+                <h3>Living world</h3>
                 <p>
-                  Players share the same towns and roads, see each other's animated
-                  equipment, talk in world chat, track public events, and cooperate
-                  against threats without forced PvP.
+                  Players share towns and roads, see one another's animated gear,
+                  chat, form parties and guilds, join cooperative expeditions, and
+                  fight world threats without forced PvP.
                 </p>
               </article>
               <article className="whitepaper-card">
-                <h3>Marketplace</h3>
+                <h3>Currency and ownership</h3>
                 <p>
-                  Tradeable cosmetics and rare visual rewards are a secondary layer.
-                  They are designed around identity and collection rather than
-                  replacing quests, combat, skilling, or crafting.
+                  Gold powers normal play. The community mint may be accepted for
+                  selected goods, cosmetics, and player trading, but no wallet is
+                  required and gameplay never promises a fixed financial return.
                 </p>
               </article>
             </div>
@@ -6922,9 +6943,9 @@ function finishMiningOre(plotId: string, oreId: string) {
               <span className="eyebrow">Roadmap</span>
               <h2>Launch plan</h2>
               <p>
-                The playable foundation now covers the first province. The roadmap
-                grows outward through social systems, cooperative expeditions, new
-                regions, stronger seasonal storytelling, and continued visual polish.
+                The current playtest already includes the shared world, persistent
+                profiles, story chapters, combat builds, professions, a dungeon,
+                guilds, parties, rare encounters, and live public events.
               </p>
             </div>
 
@@ -6949,18 +6970,17 @@ function finishMiningOre(plotId: string, oreId: string) {
         <section className="economy-page">
           <div className="economy-hero">
             <div>
-              <p className="eyebrow">Sustainable reward design</p>
-              <h1>Economy Guardrails</h1>
+              <p className="eyebrow">Play-first economy</p>
+              <h1>How Value Moves</h1>
               <p className="lede">
-                Ore Acres is designed to survive both quiet launches and hype cycles
-                by keeping SOL emissions tiny, reserve-backed, and automatically
-                throttled. The game should sell fun, cosmetics, status, and social
-                progression first. Mint rewards drive the mining loop, while SOL
-                rewards remain a small bonus, not a fixed yield.
+                Ore Acres is an MMORPG economy, not an idle investment dashboard.
+                Players earn gold through useful play, spend it on progression and
+                supplies, and may use the community mint for selected purchases. Core
+                quests, combat, professions, and social systems remain wallet-free.
               </p>
               <div className="hero__actions">
                 <button type="button" className="primary" onClick={() => goToPage("game")}>
-                  Test the economy
+                  Enter Orehaven
                 </button>
                 <button type="button" className="ghost" onClick={() => goToPage("home")}>
                   Back to home
@@ -6968,20 +6988,18 @@ function finishMiningOre(plotId: string, oreId: string) {
               </div>
             </div>
             <aside className="economy-meter">
-              <span className="landing-card__eyebrow">Current local model</span>
-              <strong>{rewardReserveHealth}</strong>
+              <span className="landing-card__eyebrow">Design priority</span>
+              <strong>PLAY FIRST</strong>
               <p>
-                Reserve: {game.rewardReserveSol.toFixed(4)} SOL •{" "}
-                {Number.isFinite(rewardReserveRunwayDays)
-                  ? `${rewardReserveRunwayDays.toFixed(1)} days runway`
-                  : "no active drain"}
+                Gold controls progression. Skill, quest, and equipment advancement
+                come from playing the world rather than purchasing an advantage.
               </p>
               <div className="economy-meter__track" aria-hidden="true">
-                <span style={{ width: `${Math.max(3, Math.min(100, emissionThrottle * 100))}%` }} />
+                <span style={{ width: "92%" }} />
               </div>
               <small>
-                Throttle: {Math.round(emissionThrottle * 100)}%. When runway drops,
-                rewards shrink before the reserve is damaged.
+                Optional token utility sits beside the game loop. It never replaces
+                levels, quest access, combat skill, or earned equipment.
               </small>
             </aside>
           </div>
@@ -6998,46 +7016,41 @@ function finishMiningOre(plotId: string, oreId: string) {
 
           <div className="economy-split">
             <article className="economy-panel">
-              <span className="landing-card__eyebrow">Why it can survive</span>
-              <h2>Rewards cannot outrun reserves.</h2>
+              <span className="landing-card__eyebrow">Three distinct roles</span>
+              <h2>Gold, mint, and SOL do different jobs.</h2>
               <p>
-                The current model uses three brakes at once: a protected reserve
-                floor, hard payout caps, and runway-based throttling. If marketcap
-                is low or purchases slow down, rewards automatically compress
-                toward near-zero instead of draining the pool. If marketcap is high,
-                new purchases can refill reserves, but caps still prevent players
-                from extracting too much too quickly.
+                Gold is the everyday game currency. The mint is an optional payment
+                and ownership layer for selected goods. SOL is reserved for future
+                player-market settlement or carefully funded promotions, never an
+                automatic per-minute promise.
               </p>
               <div className="economy-proof-list">
-                <span>Purchases fund reserves and sinks.</span>
-                <span>Idle rewards are capped per day.</span>
-                <span>Ore rewards are tiny, weighted, and time-gated.</span>
-                <span>Marketplace fees add reserve support and token sinks.</span>
+                <span>Earn gold from quests, enemies, resources, and merchant sales.</span>
+                <span>Spend gold on gear services, crafting, and supplies.</span>
+                <span>Use the mint only where an optional token quote is offered.</span>
+                <span>Keep combat power dependent on levels and earned requirements.</span>
               </div>
             </article>
 
             <article className="economy-panel economy-panel--warning">
               <span className="landing-card__eyebrow">Important honesty</span>
-              <h2>This is safer, not magic.</h2>
+              <h2>Playing is not a profit guarantee.</h2>
               <p>
-                No token game should promise permanent profit. The sustainable
-                version of Ore Acres is one where players buy status, convenience,
-                cosmetics, pets, and plot expression, while SOL rewards remain
-                small and reserve-limited. Before mainnet launch, the next step
-                is moving reward accounting server-side so daily caps are enforced
-                authoritatively per player and wallet.
+                Token prices, liquidity, demand, and marketplace activity can change.
+                Ore Acres is designed to remain a complete game when token activity
+                is quiet. Any future on-chain reward program must publish its pool,
+                eligibility, limits, and duration before players participate.
               </p>
             </article>
           </div>
 
           <div className="economy-panel economy-panel--payments">
-            <span className="landing-card__eyebrow">Payment structure</span>
-            <h2>Test mint routing is now explicit.</h2>
+            <span className="landing-card__eyebrow">Currency lifecycle</span>
+            <h2>Every source needs a matching reason to spend.</h2>
             <p>
-              Checkout quotes use the TestMint and split item payments across
-              three owner wallets. The app derives associated token accounts for
-              these wallets automatically during checkout, so the wallets can
-              receive the mint without manually pasting token-account addresses.
+              The sustainable version of the game creates value through content,
+              identity, collection, and community. Currency sinks must scale with
+              currency sources, while rare rewards remain scarce and server-verified.
             </p>
             <div className="payment-structure-grid">
               {PAYMENT_STRUCTURE.map((entry) => (
@@ -7064,32 +7077,18 @@ function finishMiningOre(plotId: string, oreId: string) {
       ) : null}
 
       {page === "game" ? (
-        <>
-          <section className="game-topbar">
-            <div>
-              <p className="eyebrow">Game page</p>
-              <h2>Ore Acres RPG</h2>
-              <p>{multiplayerStatus === "online" ? "Live shared world" : "Local preview mode"}</p>
-            </div>
-            <div className="game-topbar__actions">
-              <button type="button" className="ghost" onClick={() => goToPage("home")}>
-                Home
-              </button>
-              <button type="button" className="primary" onClick={resetWorld}>
-                Reset
-              </button>
-            </div>
-          </section>
-        </>
-      ) : null}
-
-      {page === "game" ? (
         <Suspense fallback={<div className="rpg-route-loading"><strong>Entering Orehaven...</strong><span>Loading world and adventurers</span></div>}>
-          <PhaserRpgGame onExit={() => goToPage("home")} />
+          <PhaserRpgGame
+            onExit={() => goToPage("home")}
+            walletAddress={walletPublicKey?.toBase58() ?? null}
+            walletMessage={walletMessage}
+            onConnectWallet={connectWallet}
+            onDisconnectWallet={disconnectWallet}
+          />
         </Suspense>
       ) : null}
 
-      {page === "game" ? (
+      {page === "game" && showLegacyGame ? (
         <section className="game-panel legacy-game-panel" ref={gamePanelRef}>
         <div className="stats">
           <div>

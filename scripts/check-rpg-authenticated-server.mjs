@@ -163,6 +163,17 @@ try {
   assert.equal(welcome.profile.progress.gold, 75);
 
   let startAt = first.messages.length;
+  first.send({ type: "rpg_identity_update", displayName: "Persistent Warden", appearance: "ranger" });
+  const identitySaved = await first.waitFor(
+    (message) => message.type === "rpg_profile_state" && message.reason === "profile_identity",
+    3_000,
+    startAt,
+  );
+  await first.waitFor((message) => message.type === "rpg_identity_state" && message.displayName === "Persistent Warden", 3_000, startAt);
+  assert.equal(identitySaved.profile.displayName, "Persistent Warden");
+  assert.equal(identitySaved.profile.progress.appearance, "ranger");
+
+  startAt = first.messages.length;
   first.send({ type: "rpg_profile_action", action: "buy", itemId: "healing-potion" });
   const purchase = await first.waitFor(
     (message) => message.type === "rpg_profile_state" && message.reason === "profile_buy",
@@ -229,9 +240,9 @@ try {
   assert.deepEqual(skillUnlock.profile.progress.skillTree.unlocked, ["whirlwind"]);
 
   startAt = first.messages.length;
-  first.send({ type: "rpg_profile_action", action: "unlock_skill", nodeId: "bloodletter" });
+  first.send({ type: "rpg_profile_action", action: "unlock_skill", nodeId: "tempered-body" });
   const levelLockedSkill = await first.waitFor(
-    (message) => message.type === "rpg_action_error" && /requires attack level 5/i.test(message.message),
+    (message) => message.type === "rpg_action_error" && /requires attack level 3/i.test(message.message),
     3_000,
     startAt,
   );
@@ -262,8 +273,8 @@ try {
     3_000,
     startAt,
   );
-  assert.deepEqual([starterWaystoneTravel.x, starterWaystoneTravel.y], [724, 720]);
-  for (const point of movementPath({ x: 724, y: 720 }, { x: 748, y: 505 }).slice(1)) {
+  assert.deepEqual([starterWaystoneTravel.x, starterWaystoneTravel.y], [698, 820]);
+  for (const point of movementPath({ x: 698, y: 820 }, { x: 748, y: 505 }).slice(1)) {
     first.send({ type: "move", ...point });
     await delay(55);
   }
@@ -421,6 +432,7 @@ try {
   second = new Client();
   const reconnect = await second.waitFor((message) => message.type === "welcome");
   assert.equal(await displacedSession, 4001);
+  assert.equal(reconnect.profile.displayName, "Persistent Warden");
   assert.ok(reconnect.profile.progress.gold >= 50 && reconnect.profile.progress.gold <= 58);
   assert.equal(reconnect.profile.progress.appearance, "arcanist");
   assert.equal(reconnect.profile.progress.customization.hairColor, "copper");
@@ -721,6 +733,8 @@ try {
 
   console.log(JSON.stringify({
     identity: reconnect.identity.mode,
+    persistedDisplayName: reconnect.profile.displayName,
+    onboardingIdentityPersisted: reconnect.profile.displayName === "Persistent Warden",
     persistedGold: reconnect.profile.progress.gold,
     persistedAppearance: reconnect.profile.progress.appearance,
     persistedCustomization: reconnect.profile.progress.customization,
