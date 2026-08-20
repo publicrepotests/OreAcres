@@ -27,6 +27,7 @@
     "test:catacombs": "node scripts/check-rpg-catacombs.mjs",
     "test:icefang": "node scripts/check-rpg-icefang-vault.mjs",
     "test:icefang-rules": "node --experimental-strip-types scripts/check-rpg-icefang-rules.mjs",
+    "test:icefang-campaign": "node scripts/check-rpg-icefang-campaign.mjs",
     "test:catacomb-server": "node scripts/check-rpg-catacomb-server.mjs",
     "test:catacomb-rules": "node --experimental-strip-types scripts/check-rpg-catacomb-rules.mjs",
     "test:combat-server": "node scripts/check-rpg-combat-server.mjs",
@@ -48,7 +49,7 @@
     "test:portraits": "node scripts/check-rpg-portrait-assets.mjs",
     "test:tutorial": "node --experimental-strip-types scripts/check-rpg-tutorial.mjs",
     "test:site": "node scripts/check-public-site-content.mjs",
-    "test:rpg": "npm run test:world && npm run test:world-editor && npm run test:ambience && npm run test:regional-simulation && npm run test:world-time && npm run test:quests && npm run test:side-quests && npm run test:world-guidance && npm run test:audiovisual && npm run test:catacombs && npm run test:icefang && npm run test:icefang-rules && npm run test:catacomb-server && npm run test:catacomb-rules && npm run test:activities && npm run test:adventures && npm run test:rare-encounters && npm run test:public-events && npm run test:loot && npm run test:characters && npm run test:portraits && npm run test:tutorial && npm run test:progression && npm run test:hitpoints && npm run test:equipment && npm run test:recovery && npm run test:profiles && npm run test:combat-server && npm run test:combat-ui && npm run test:ui-layout && npm run test:interactions && npm run test:skill-tree && npm run test:social-server && npm run test:world-event && npm run test:auth-server && npm run test:admin && npm run test:site"
+    "test:rpg": "npm run test:world && npm run test:world-editor && npm run test:ambience && npm run test:regional-simulation && npm run test:world-time && npm run test:quests && npm run test:side-quests && npm run test:world-guidance && npm run test:audiovisual && npm run test:catacombs && npm run test:icefang && npm run test:icefang-rules && npm run test:icefang-campaign && npm run test:catacomb-server && npm run test:catacomb-rules && npm run test:activities && npm run test:adventures && npm run test:rare-encounters && npm run test:public-events && npm run test:loot && npm run test:characters && npm run test:portraits && npm run test:tutorial && npm run test:progression && npm run test:hitpoints && npm run test:equipment && npm run test:recovery && npm run test:profiles && npm run test:combat-server && npm run test:combat-ui && npm run test:ui-layout && npm run test:interactions && npm run test:skill-tree && npm run test:social-server && npm run test:world-event && npm run test:auth-server && npm run test:admin && npm run test:site"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.14",

@@ -26,7 +26,7 @@ const HELMET_STYLES = new Set(["auto", "barbuta", "greathelm", "sugarloaf", "pla
 const CAPE_STYLES = new Set(["auto", "solid", "tattered", "briar"]);
 const SHIELD_STYLES = new Set(["auto", "crusader"]);
 const WAYSTONES = new Set(["orehaven-gate", "moonwater-dock", "eastern-quarry", "briarwild-crossing", "moonfen-marsh", "ranger-camp", "sunstone-catacombs", "moonfen-expanse", "emberfall-highlands", "frostmere-coast", "sunscar-expanse", "guild-hall"]);
-const REGIONS = new Set(["orehaven", "western-woods", "moonwater-pond", "eastern-quarry", "goblin-camp", "southroad", "briarwild-crossing", "old-sun-shrine", "moonfen-marsh", "ranger-camp", "raider-dens", "sunstone-catacombs", "moonfen-expanse", "emberfall-highlands", "frostmere-coast", "sunscar-expanse", "orehaven-guild-hall"]);
+const REGIONS = new Set(["orehaven", "western-woods", "moonwater-pond", "eastern-quarry", "goblin-camp", "southroad", "briarwild-crossing", "old-sun-shrine", "moonfen-marsh", "ranger-camp", "raider-dens", "sunstone-catacombs", "moonfen-expanse", "emberfall-highlands", "frostmere-coast", "sunscar-expanse", "orehaven-guild-hall", "icefang-vault"]);
 const SKILL_TREE_NODES = new Set([
   "whirlwind", "tempered-body", "bloodletter", "blade-discipline", "relentless", "wide-arc", "executioner", "unyielding",
   "arrow-rain", "steady-hands", "venom-shot", "toxin-lore", "rapid-nocking", "storm-quiver", "predators-focus", "windrunner",
@@ -187,7 +187,7 @@ export function normalizeRpgProgress(value) {
     equipped,
     appearance,
     customization: normalizeRpgCustomization(candidate.customization, customizationForRpgAppearance(appearance)),
-    questStep: finiteInteger(candidate.questStep, 0, 0, 50),
+    questStep: finiteInteger(candidate.questStep, 0, 0, 57),
     questComplete: Boolean(candidate.questComplete),
     activities: normalizeActivityProgress(candidate.activities),
     collectionLog: candidate.collectionLog && typeof candidate.collectionLog === "object"

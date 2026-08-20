@@ -1,6 +1,6 @@
 {
-  "maxStep": 50,
-  "turnInSteps": [3, 8, 14, 22, 29, 34, 39, 44, 49],
+  "maxStep": 57,
+  "turnInSteps": [3, 8, 14, 22, 29, 34, 39, 44, 49, 56],
   "combat": [
     { "from": 2, "enemyId": "goblin-camp-1", "to": 3 },
     { "from": 6, "enemyId": "wolf-forest", "to": 7 },
@@ -22,7 +22,11 @@
     { "from": 41, "enemyId": "frostmere-icewolf-1", "to": 42 },
     { "from": 43, "enemyId": "frostmere-lighthouse-warden", "to": 44 },
     { "from": 46, "enemyId": "sunscar-dune-stalker-1", "to": 47 },
-    { "from": 48, "enemyId": "sunscar-tomb-king", "to": 49 }
+    { "from": 48, "enemyId": "sunscar-tomb-king", "to": 49 },
+    { "from": 51, "enemyId": "icefang-seer-1", "to": 52 },
+    { "from": 52, "enemyId": "icefang-sentinel-1", "to": 53 },
+    { "from": 54, "enemyId": "icefang-wolf-2", "to": 55 },
+    { "from": 55, "enemyId": "icefang-rimebound-king", "to": 56 }
   ],
   "gather": [
     { "from": 1, "resourcePrefix": "copper", "to": 2 },
@@ -32,7 +36,8 @@
     { "from": 32, "resourcePrefix": "moonfen-ore", "to": 33 },
     { "from": 37, "resourcePrefix": "emberfall-ore", "to": 38 },
     { "from": 42, "resourcePrefix": "frostmere-ore", "to": 43 },
-    { "from": 47, "resourcePrefix": "sunscar-ore", "to": 48 }
+    { "from": 47, "resourcePrefix": "sunscar-ore", "to": 48 },
+    { "from": 53, "resourcePrefix": "icefang-ore", "to": 54 }
   ],
   "craft": [
     { "from": 13, "recipeId": "forge-iron-pick", "to": 14 }

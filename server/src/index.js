@@ -433,7 +433,7 @@ const BASE_RPG_ENEMIES = {
   "emberfall-emberseer-1": { id: "emberfall-emberseer-1", kind: "witch", maxHp: 316, x: 1140, y: 4780, gold: [158, 232], xp: 326, level: 25, attackStyle: "magic", aggroRange: 310, speed: 46, attackRange: 225, attackCooldown: 1480 },
   "emberfall-caldera-lord": { id: "emberfall-caldera-lord", kind: "orc", maxHp: 520, x: 768, y: 4930, gold: [260, 380], xp: 520, level: 30, attackStyle: "melee", aggroRange: 350, speed: 48, attackRange: 68, attackCooldown: 1350, respawnMs: 1_080_000 },
   "frostmere-icewolf-1": { id: "frostmere-icewolf-1", kind: "wolf", maxHp: 338, x: 520, y: 5380, gold: [168, 238], xp: 340, level: 27, aggroRange: 255, speed: 70, attackRange: 54, attackCooldown: 1360 },
-  "frostmere-raider-1": { id: "frostmere-raider-1", kind: "orc", maxHp: 366, x: 790, y: 5590, gold: [182, 258], xp: 366, level: 28, aggroRange: 250, speed: 56, attackRange: 58, attackCooldown: 1320 },
+  "frostmere-raider-1": { id: "frostmere-raider-1", kind: "orc", maxHp: 366, x: 1030, y: 5450, gold: [182, 258], xp: 366, level: 28, aggroRange: 250, speed: 56, attackRange: 58, attackCooldown: 1320 },
   "frostmere-witch-1": { id: "frostmere-witch-1", kind: "witch", maxHp: 392, x: 1090, y: 5740, gold: [196, 276], xp: 398, level: 29, attackStyle: "magic", aggroRange: 315, speed: 44, attackRange: 225, attackCooldown: 1480 },
   "frostmere-lighthouse-warden": { id: "frostmere-lighthouse-warden", kind: "skeleton", maxHp: 610, x: 1260, y: 5260, gold: [310, 440], xp: 620, level: 34, attackStyle: "magic", aggroRange: 340, speed: 42, attackRange: 230, attackCooldown: 1380, respawnMs: 1_200_000 },
   "sunscar-dune-stalker-1": { id: "sunscar-dune-stalker-1", kind: "wolf", maxHp: 430, x: 440, y: 6450, gold: [215, 302], xp: 430, level: 31, aggroRange: 260, speed: 74, attackRange: 54, attackCooldown: 1320 },
@@ -742,6 +742,7 @@ function playerWithinRange(player, target, maxRange = RPG_INTERACTION_RANGE) {
 }
 
 function rpgRegionIdAt(x, y) {
+  if (y >= 8192) return "icefang-vault";
   if (y >= 7168) return "orehaven-guild-hall";
   if (y >= 6144) return "sunscar-expanse";
   if (y >= 5120) return "frostmere-coast";
@@ -1943,7 +1944,18 @@ function applyProfileAction(progress, message) {
       next.questComplete = true;
       next.gold += 5_000;
       next = addProfileItem(next, "nightguard-plate", 1);
-      resultMessage = "The Buried Sun complete. You are now Warden of Seven Roads.";
+      resultMessage = "The Buried Sun complete. Keeper Elowen has sent an urgent beacon from Frostmere.";
+    } else if (npcId === "frostkeeper" && next.questStep === 50) {
+      next.questStep = 51;
+      next.questComplete = false;
+      resultMessage = "Chapter VIII begun: descend through Frostmere's eastern cliff into Icefang Vault.";
+    } else if (npcId === "frostkeeper" && next.questStep === 56) {
+      next.questStep = 57;
+      next.questComplete = true;
+      next.gold += 6_800;
+      next = addProfileItem(next, "frostguard-aegis", 1);
+      next = addProfileItem(next, "healing-potion", 6);
+      resultMessage = "The Rimebound Oath complete. +6,800 gold, Frostguard Aegis, and 6 Crimson Tonics.";
     } else {
       changed = false;
     }
@@ -3384,7 +3396,7 @@ wss.on("connection", async (ws) => {
         const distance = Math.hypot(clampedX - player.x, clampedY - player.y);
         const maximumDistance = 40 + RPG_PLAYER_MOVE_SPEED * elapsedSeconds * 3;
         const speedAllowed = player.authMode === "guest" || RPG_ALLOW_TEST_WARP || distance <= maximumDistance;
-        const areaAt = (worldY) => worldY >= 6144 ? "sunscar" : worldY >= 5120 ? "frostmere" : worldY >= 4096 ? "highlands" : worldY >= 3072 ? "marsh" : worldY >= 2048 ? "dungeon" : "overworld";
+        const areaAt = (worldY) => worldY >= 8192 ? "icefang" : worldY >= 7168 ? "guildhall" : worldY >= 6144 ? "sunscar" : worldY >= 5120 ? "frostmere" : worldY >= 4096 ? "highlands" : worldY >= 3072 ? "marsh" : worldY >= 2048 ? "dungeon" : "overworld";
         const remainsInArea = areaAt(player.y) === areaAt(clampedY);
         if (speedAllowed && remainsInArea && isWorldPositionWalkable(clampedX, clampedY, PLAYER_COLLISION_RADIUS)) {
           player.x = clampedX;

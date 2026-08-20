@@ -670,7 +670,14 @@ export const QUEST_STEPS: readonly QuestStepDefinition[] = [
   { questId: "buried-sun", chapter: "Chapter VII", questTitle: "The Buried Sun", title: "A Suncrystal Key", detail: "Mine Suncrystal to open the buried court's solar lock.", target: "Suncrystal Vein" },
   { questId: "buried-sun", chapter: "Chapter VII", questTitle: "The Buried Sun", title: "Solar Burial", detail: "Defeat Khepri in the sealed tomb before the dead sun rises.", target: "Khepri, Tomb King" },
   { questId: "buried-sun", chapter: "Chapter VII", questTitle: "The Buried Sun", title: "The Seventh Dawn", detail: "Return to Samira with Khepri's solar seal.", target: "Scholar Samira" },
-  { questId: "buried-sun", chapter: "Epilogue", questTitle: "Warden of Seven Roads", title: "Orehaven Endures", detail: "The province is open. Rare hunts, guild expeditions, world events, and mastery paths remain.", target: "Complete" },
+  { questId: "rimebound-oath", chapter: "Chapter VIII", questTitle: "The Rimebound Oath", title: "A Beacon Below", detail: "Return to Keeper Elowen. Something beneath Frostmere has answered the relit beacon.", target: "Keeper Elowen" },
+  { questId: "rimebound-oath", chapter: "Chapter VIII", questTitle: "The Rimebound Oath", title: "Whispers at the Threshold", detail: "Enter Icefang Vault and silence the Glacial Oathseer near the broken southern bridge.", target: "Glacial Oathseer" },
+  { questId: "rimebound-oath", chapter: "Chapter VIII", questTitle: "The Rimebound Oath", title: "The Oathbound Guard", detail: "Defeat the Oathbound Sentinel holding the central crossing.", target: "Oathbound Sentinel" },
+  { questId: "rimebound-oath", chapter: "Chapter VIII", questTitle: "The Rimebound Oath", title: "A Lens for Ancient Ice", detail: "Mine Prismatic Frostglass from the western vault bridge to expose Hroth's frozen seal.", target: "Prismatic Frostglass Vein" },
+  { questId: "rimebound-oath", chapter: "Chapter VIII", questTitle: "The Rimebound Oath", title: "Fang of the Vault", detail: "Defeat the Vault Icefang guarding the approach to the Rime Throne.", target: "Vault Icefang" },
+  { questId: "rimebound-oath", chapter: "Chapter VIII", questTitle: "The Rimebound Oath", title: "The King Who Would Not Thaw", detail: "Break Hroth's three frozen decrees and end the oath at the Rime Throne.", target: "Hroth, the Rimebound King" },
+  { questId: "rimebound-oath", chapter: "Chapter VIII", questTitle: "The Rimebound Oath", title: "Dawn Over Frostmere", detail: "Return to Keeper Elowen after breaking Hroth's oath.", target: "Keeper Elowen" },
+  { questId: "rimebound-oath", chapter: "Epilogue", questTitle: "Warden of the Thawing Realm", title: "Orehaven Endures", detail: "The province is open. Rare hunts, guild expeditions, world events, and mastery paths remain.", target: "Complete" },
 ];
 
 export const BASE_NPCS: NpcDefinition[] = [
@@ -1031,7 +1038,7 @@ export const BASE_ENEMIES: EnemyDefinition[] = [
     visual: { weapon: "auric-cleaver", armor: "sunforged-mail", scale: 1.2, auraColor: 0xff693d },
   },
   { id: "frostmere-icewolf-1", name: "Icefang Wolf", kind: "wolf", frame: 5, level: 27, x: 520, y: 5380, maxHp: 338, gold: [168, 238], attackXp: 340, aggroRange: 255, speed: 70 },
-  { id: "frostmere-raider-1", name: "Frostbound Raider", kind: "orc", frame: 4, level: 28, x: 790, y: 5590, maxHp: 366, gold: [182, 258], attackXp: 366, aggroRange: 250, speed: 56 },
+  { id: "frostmere-raider-1", name: "Frostbound Raider", kind: "orc", frame: 4, level: 28, x: 1030, y: 5450, maxHp: 366, gold: [182, 258], attackXp: 366, aggroRange: 250, speed: 56 },
   { id: "frostmere-witch-1", name: "Glacier Seer", kind: "witch", frame: 0, level: 29, x: 1090, y: 5740, maxHp: 392, gold: [196, 276], attackXp: 398, attackStyle: "magic", aggroRange: 315, speed: 44 },
   {
     id: "frostmere-lighthouse-warden",

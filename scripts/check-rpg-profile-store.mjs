@@ -118,7 +118,7 @@ assert.equal(normalized.gold, 75);
 assert.equal(normalized.hp, 0);
 assert.equal(normalized.inventory.trout, undefined);
 assert.deepEqual(normalizeRpgProgress({ position: { x: 1400, y: 7100 } }).position, { x: 1400, y: 7100 }, "frontier positions must survive profile normalization");
-assert.equal(normalizeRpgProgress({ questStep: 999 }).questStep, 50, "quest progress must preserve the full seven-road campaign");
+assert.equal(normalizeRpgProgress({ questStep: 999 }).questStep, 57, "quest progress must preserve the full Icefang campaign");
 const customized = normalizeRpgProgress({
   customization: {
     faceStyle: "cheerful",
@@ -194,7 +194,7 @@ console.log(JSON.stringify({
   miningLevel: saved.progress.skills.mining.level,
   conflictRejected: true,
   consumedStarterStayedConsumed: true,
-  maximumQuestStep: 50,
+  maximumQuestStep: 57,
   customizationWhitelisted: true,
   gearDyesWhitelisted: true,
   wardrobeVisibilityWhitelisted: true,

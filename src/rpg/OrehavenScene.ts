@@ -530,6 +530,7 @@ const QUEST_REWARD_TOASTS: Record<number, { to: number; title: string; detail: s
   39: { to: 40, title: "Emberfall Crown shattered", detail: "+2,800 gold • Sunstone Pickaxe", itemId: "sunstone-pick" },
   44: { to: 45, title: "The Last Light rekindled", detail: "+3,400 gold • Frostspire Staff", itemId: "frostspire-staff" },
   49: { to: 50, title: "Warden of Seven Roads", detail: "+5,000 gold • Nightguard Plate", itemId: "nightguard-plate" },
+  56: { to: 57, title: "The Rimebound Oath broken", detail: "+6,800 gold • Frostguard Aegis • 6 Crimson Tonics", itemId: "frostguard-aegis" },
 };
 const NPC_VISUALS: Record<
   NpcDefinition["id"],
@@ -4227,6 +4228,8 @@ export class OrehavenScene extends Phaser.Scene {
       44: "Eira's oath is finally broken. The beacon can carry its light across the northern sea again.",
       45: "The buried court's dead sun has shifted beneath the dunes. We must open its tomb before the next eclipse.",
       49: "Khepri's seal is whole, but its light answers to you now. The seven roads name you their Warden.",
+      50: "The relit beacon cast a second shadow beneath the ice. Hroth's old oath is waking in the vault below our eastern cliff.",
+      56: "The storm has changed. Hroth's crown no longer commands the coast, and Frostmere can finally greet the dawn without fear.",
     };
     const questLine = lateCampaignDialogue[this.progress.questStep] && activeQuest.target === npc.name
       ? lateCampaignDialogue[this.progress.questStep]!
@@ -4267,7 +4270,7 @@ export class OrehavenScene extends Phaser.Scene {
         : undefined,
       shop: npc.shop,
       service: npc.service,
-      sideQuest: sideQuest ? {
+      sideQuest: !questSpeaker && sideQuest ? {
         id: sideQuest.id,
         chapter: sideQuest.chapter,
         title: sideQuest.title,
@@ -4441,7 +4444,25 @@ export class OrehavenScene extends Phaser.Scene {
         inventory: { ...this.progress.inventory, "nightguard-plate": (this.progress.inventory["nightguard-plate"] ?? 0) + 1 },
       };
       this.showQuestRewardToast(49);
-      this.emitHud({ message: "The Buried Sun complete. You are now Warden of Seven Roads." });
+      this.emitHud({ message: "The Buried Sun complete. Keeper Elowen has sent an urgent beacon from Frostmere." });
+    } else if (npc.id === "frostkeeper" && this.progress.questStep === 50) {
+      this.progress = { ...this.progress, questStep: 51, questComplete: false };
+      this.emitHud({ message: "Chapter VIII begun: descend through Frostmere's eastern cliff into Icefang Vault." });
+      this.callbacks.onToast({ title: "Chapter VIII", detail: "The Rimebound Oath has begun", tone: "quest" });
+    } else if (npc.id === "frostkeeper" && this.progress.questStep === 56) {
+      this.progress = {
+        ...this.progress,
+        questStep: 57,
+        questComplete: true,
+        gold: this.progress.gold + 6_800,
+        inventory: {
+          ...this.progress.inventory,
+          "frostguard-aegis": (this.progress.inventory["frostguard-aegis"] ?? 0) + 1,
+          "healing-potion": (this.progress.inventory["healing-potion"] ?? 0) + 6,
+        },
+      };
+      this.showQuestRewardToast(56);
+      this.emitHud({ message: "The Rimebound Oath complete. Frostmere has thawed, and you are Warden of the Thawing Realm." });
     } else {
       this.emitHud({ message: `${npc.name}: ${questLine}` });
     }
@@ -6196,6 +6217,7 @@ export class OrehavenScene extends Phaser.Scene {
   }
 
   private currentLocation() {
+    if (this.playerPos.y >= 8192) return "Icefang Vault";
     if (this.playerPos.y >= 7168) return "Orehaven Guild Hall";
     if (this.playerPos.y >= 6144) return "Sunscar Expanse";
     if (this.playerPos.y >= 5120) return "Frostmere Coast";

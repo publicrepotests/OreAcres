@@ -76,7 +76,7 @@ export function normalizePlayerProgress(value: unknown): PlayerProgress {
     equipped,
     appearance,
     customization: normalizeCharacterCustomization(parsed.customization, customizationForAppearance(appearance)),
-    questStep: Math.max(0, Math.min(50, Math.floor(Number(parsed.questStep) || 0))),
+    questStep: Math.max(0, Math.min(57, Math.floor(Number(parsed.questStep) || 0))),
     questComplete: Boolean(parsed.questComplete),
     activities: normalizeActivityProgress(parsed.activities),
     collectionLog: normalizeCollectionLog(parsed.collectionLog),
