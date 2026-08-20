@@ -92,6 +92,7 @@ assert.match(layeredHero, /action === "walk"[\s\S]*?targets: this\.groundShadow/
 assert.match(layeredHero, /sprite\.setVisible\(true\)\.setTint/, "streamed animated layers must recover visibility when their texture becomes available");
 assert.match(layeredHero, /sprite\.setVisible\(true\)\.setTexture/, "streamed static gear layers must recover visibility when their texture becomes available");
 const gameScene = await readFile(new URL("../src/rpg/OrehavenScene.ts", import.meta.url), "utf8");
+assert.doesNotMatch(gameScene, /playerShadow/, "the scene must not stack a second shadow beneath the shared layered-character shadow");
 const heroPortrait = await readFile(new URL("../src/rpg/HeroPortrait.tsx", import.meta.url), "utf8");
 const gameUi = await readFile(new URL("../src/PhaserRpgGame.tsx", import.meta.url), "utf8");
 const serverProfiles = await readFile(new URL("../server/src/rpgProfiles.js", import.meta.url), "utf8");
