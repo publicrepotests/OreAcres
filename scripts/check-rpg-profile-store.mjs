@@ -117,7 +117,8 @@ const normalized = normalizeRpgProgress({ gold: Number.POSITIVE_INFINITY, hp: -2
 assert.equal(normalized.gold, 75);
 assert.equal(normalized.hp, 0);
 assert.equal(normalized.inventory.trout, undefined);
-assert.equal(normalizeRpgProgress({ questStep: 999 }).questStep, 30, "quest progress must preserve the full Sunbone chapter");
+assert.deepEqual(normalizeRpgProgress({ position: { x: 1400, y: 7100 } }).position, { x: 1400, y: 7100 }, "frontier positions must survive profile normalization");
+assert.equal(normalizeRpgProgress({ questStep: 999 }).questStep, 50, "quest progress must preserve the full seven-road campaign");
 const customized = normalizeRpgProgress({
   customization: {
     faceStyle: "cheerful",
@@ -130,6 +131,9 @@ const customized = normalizeRpgProgress({
     bootsColor: "brown",
     armorDye: "moonsteel",
     weaponDye: "sunsteel",
+    helmetStyle: "greathelm",
+    capeStyle: "briar",
+    shieldStyle: "crusader",
     showHelmet: false,
     showCape: false,
     showShield: false,
@@ -141,6 +145,9 @@ assert.equal(customized.customization.faceStyle, "cheerful");
 assert.equal(customized.customization.beardStyle, "winter");
 assert.equal(customized.customization.armorDye, "moonsteel");
 assert.equal(customized.customization.weaponDye, "sunsteel");
+assert.equal(customized.customization.helmetStyle, "greathelm");
+assert.equal(customized.customization.capeStyle, "briar");
+assert.equal(customized.customization.shieldStyle, "crusader");
 assert.equal(customized.customization.showHelmet, false);
 assert.equal(customized.customization.showCape, false);
 assert.equal(customized.customization.showShield, false);
@@ -150,6 +157,9 @@ assert.equal(normalizeRpgProgress({ customization: { faceStyle: "../../bad" } })
 assert.equal(normalizeRpgProgress({ customization: { beardStyle: "../../bad" } }).customization.beardStyle, "none");
 assert.equal(normalizeRpgProgress({ customization: { armorDye: "../../bad" } }).customization.armorDye, "original");
 assert.equal(normalizeRpgProgress({ customization: { weaponDye: "neon-hack" } }).customization.weaponDye, "original");
+assert.equal(normalizeRpgProgress({ customization: { helmetStyle: "../../bad" } }).customization.helmetStyle, "auto");
+assert.equal(normalizeRpgProgress({ customization: { capeStyle: "../../bad" } }).customization.capeStyle, "auto");
+assert.equal(normalizeRpgProgress({ customization: { shieldStyle: "../../bad" } }).customization.shieldStyle, "auto");
 assert.equal(normalizeRpgProgress({ customization: { showHelmet: "no" } }).customization.showHelmet, true);
 const staleActivities = normalizeRpgProgress({
   activities: {
@@ -171,6 +181,7 @@ assert.deepEqual(
 );
 assert.deepEqual(normalizeRpgProgress({ skillTree: { unlocked: ["whirlwind", "../../hack", "whirlwind"] } }).skillTree.unlocked, ["whirlwind"]);
 assert.deepEqual(normalizeRpgProgress({ skillTree: { unlocked: ["unyielding", "windrunner", "archmage"] } }).skillTree.unlocked, ["unyielding", "windrunner", "archmage"]);
+assert.deepEqual(normalizeRpgProgress({ skillTree: { unlocked: ["groundbreaker", "pinning-volley", "frost-nova-tree"] } }).skillTree.unlocked, ["groundbreaker", "pinning-volley", "frost-nova-tree"]);
 assert.deepEqual(normalizeRpgProgress({ adventureClaims: ["warden-in-training", "../../hack", "warden-in-training"] }).adventureClaims, ["warden-in-training"]);
 assert.deepEqual(
   normalizeRpgProgress({ discoveries: ["../../void", "western-woods", "western-woods"] }).discoveries,
@@ -183,7 +194,7 @@ console.log(JSON.stringify({
   miningLevel: saved.progress.skills.mining.level,
   conflictRejected: true,
   consumedStarterStayedConsumed: true,
-  maximumQuestStep: 30,
+  maximumQuestStep: 50,
   customizationWhitelisted: true,
   gearDyesWhitelisted: true,
   wardrobeVisibilityWhitelisted: true,

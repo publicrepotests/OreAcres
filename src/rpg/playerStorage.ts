@@ -76,7 +76,7 @@ export function normalizePlayerProgress(value: unknown): PlayerProgress {
     equipped,
     appearance,
     customization: normalizeCharacterCustomization(parsed.customization, customizationForAppearance(appearance)),
-    questStep: Math.max(0, Math.min(30, Math.floor(Number(parsed.questStep) || 0))),
+    questStep: Math.max(0, Math.min(50, Math.floor(Number(parsed.questStep) || 0))),
     questComplete: Boolean(parsed.questComplete),
     activities: normalizeActivityProgress(parsed.activities),
     collectionLog: normalizeCollectionLog(parsed.collectionLog),
@@ -88,7 +88,7 @@ export function normalizePlayerProgress(value: unknown): PlayerProgress {
     discoveries: normalizeDiscoveries(parsed.discoveries),
     position: {
       x: Number.isFinite(savedX) ? Math.max(26, Math.min(1510, savedX)) : fallback.position.x,
-      y: Number.isFinite(savedY) ? Math.max(34, Math.min(3044, savedY)) : fallback.position.y,
+      y: Number.isFinite(savedY) ? Math.max(34, Math.min(9192, savedY)) : fallback.position.y,
     },
     skillTree: {
       unlocked: Array.from(new Set(

@@ -26,6 +26,7 @@ for (const [armorId, bonus] of Object.entries({
   "briarhide-cloak": 16,
   "moonweave-mantle": 26,
   "nightguard-plate": 34,
+  "frostguard-aegis": 42,
 })) {
   levelFive.equipped.armor = armorId;
   assert.equal(maxHpForRpgProgress(levelFive), 34 + bonus, `${armorId} health bonus drifted`);

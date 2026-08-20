@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import net from "node:net";
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import os from "node:os";
@@ -9,7 +10,14 @@ import { hasWorldLineOfSight, isWorldPositionWalkable } from "../server/src/worl
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const port = 8091;
+const port = await new Promise((resolve, reject) => {
+  const probe = net.createServer();
+  probe.once("error", reject);
+  probe.listen(0, "127.0.0.1", () => {
+    const assigned = probe.address().port;
+    probe.close(() => resolve(assigned));
+  });
+});
 const runId = process.pid;
 
 const clientDataSource = readFileSync(path.join(root, "src/rpg/gameData.ts"), "utf8");
@@ -18,10 +26,18 @@ const clientTreeSource = clientDataSource.slice(clientDataSource.indexOf("export
 const serverTreeSource = serverSource.slice(serverSource.indexOf("const RPG_SKILL_TREE ="), serverSource.indexOf("const RPG_SECOND_WIND_COOLDOWN_MS"));
 const clientNodeIds = [...clientTreeSource.matchAll(/\{ id: "([^"]+)"/g)].map((match) => match[1]);
 const serverNodeIds = [...serverTreeSource.matchAll(/(?:^|\n)\s*(?:"([^"]+)"|([a-z][a-z0-9-]*)):\s*\{ id:/g)].map((match) => match[1] || match[2]);
-assert.equal(clientNodeIds.length, 24, "The client should expose eight skill-tree nodes for each combat branch.");
+assert.equal(clientNodeIds.length, 51, "The client should expose a substantial interconnected passive web.");
 assert.deepEqual(serverNodeIds.sort(), clientNodeIds.sort(), "Client and authoritative server skill-tree catalogs diverged.");
-assert.equal((clientTreeSource.match(/kind: "active"/g) || []).length, 6, "The tree should expose two active abilities per branch.");
-assert.equal((clientTreeSource.match(/kind: "passive"/g) || []).length, 18, "The tree should expose six passive upgrades per branch.");
+assert.equal((clientTreeSource.match(/kind: "active"/g) || []).length, 9, "The tree should expose three active abilities per branch.");
+assert.equal((clientTreeSource.match(/kind: "passive"/g) || []).length, 42, "The tree should expose forty-two passive upgrades.");
+assert.equal((clientTreeSource.match(/tier: "keystone"/g) || []).length, 9, "The passive web should expose three discipline capstones and six hybrid keystones.");
+assert.equal((clientTreeSource.match(/affinities: \[[^\]]+, [^\]]+\]/g) || []).length, 6, "The passive web should expose six dual-discipline keystones.");
+assert.equal((clientTreeSource.match(/requiresAll: true/g) || []).length, 9, "Hybrid keystones and advanced actives must require both connected paths.");
+assert.equal((clientTreeSource.match(/position: \{ x:/g) || []).length, 51, "Every skill-tree node needs an authored graph position.");
+assert.equal((clientTreeSource.match(/status: \{ kind:/g) || []).length, 3, "Each discipline should expose one crowd-control active.");
+assert.match(serverSource, /statusApplied: Boolean\(appliedStatus\)/, "The server must broadcast authoritative tree-skill crowd control.");
+assert.match(clientDataSource, /return Math\.min\(36, 3 \+ Math\.floor/, "Client tree points must preserve meaningful endgame build choices.");
+assert.match(serverSource, /return Math\.min\(36, 3 \+ Math\.floor/, "Server tree point budget diverged from the client.");
 
 function clearPoint(target, minimumDistance, maximumDistance) {
   for (let distance = minimumDistance; distance <= maximumDistance; distance += 6) {
@@ -100,6 +116,13 @@ try {
   const cooldown = await areaCaster.waitFor((message) => message.type === "rpg_action_error" && message.abilityId === "arrow-rain", 3_000, startAt);
   assert.match(cooldown.message, /ready in/i);
 
+  startAt = areaCaster.messages.length;
+  areaCaster.send({ type: "rpg_tree_ability", enemyId: "goblin-camp-1", abilityId: "pinning-volley" });
+  const pinningVolley = await areaCaster.waitFor((message) => message.type === "rpg_enemy_state" && message.abilityId === "pinning-volley" && !message.secondary, 3_000, startAt);
+  assert.equal(pinningVolley.statusApplied, true, "Pinning Volley should apply server-authoritative crowd control.");
+  assert.equal(pinningVolley.enemy.status?.kind, "slow", "Pinning Volley should slow its primary target.");
+  assert.equal(pinningVolley.enemy.status?.label, "Pinned");
+
   const slime = { x: 1348, y: 430 };
   const dotPoint = clearPoint(slime, 150, 210);
   assert.ok(dotPoint, "Could not find a Venom Shot firing lane.");
@@ -125,6 +148,7 @@ try {
     closeRangeBowDamage: closeStrike.damage,
     arrowRainTargets: [primary.enemy.id, secondary.enemy.id],
     arrowRainCooldownEnforced: true,
+    pinningVolleyStatus: pinningVolley.enemy.status?.kind,
     venomInitialDamage: venomInitial.damage,
     venomTickDamage: venomTick.damage,
     liveStatePreservedAcrossDotTicks: true,

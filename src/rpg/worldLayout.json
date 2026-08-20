@@ -120,9 +120,127 @@
         "The dead are quiet. Return to me and we will seal the hill together.",
         "Sunstone Hill is still. Wear this mail as the first Sunforged Warden of Orehaven."
       ]
+    },
+    {
+      "id": "fen-cartographer",
+      "name": "Nessa Reedlight",
+      "role": "Moonfen Lantern Cartographer",
+      "frame": 11,
+      "x": 620,
+      "y": 3340,
+      "dialogue": [
+        "Every Moonfen lantern marks a road that survived the flood. The western lights are fading, and travelers are vanishing with them.",
+        "Gloomstone holds the marsh's cold fire. Bring me enough to relight the route, then we can deal with what hunts beyond it."
+      ]
+    },
+    {
+      "id": "ember-forgekeeper",
+      "name": "Dagan Flint",
+      "role": "Emberfall Forgekeeper",
+      "frame": 12,
+      "x": 900,
+      "y": 4420,
+      "dialogue": [
+        "Emberfall's road is carved through a living furnace. Without fresh warding plates, the next ash storm will bury every traveler on it.",
+        "The caldera veins carry metal that cools without cracking. Mine what you can, but keep an eye on the Cinder Guard below the ridge."
+      ]
+    },
+    {
+      "id": "frostkeeper",
+      "name": "Keeper Elowen",
+      "role": "Frostmere Beacon-Keeper",
+      "frame": 9,
+      "x": 742,
+      "y": 5570,
+      "dialogue": [
+        "Frostmere's roads are open, but the lighthouse has gone dark. Without its lens, every ship and waystone on this coast is blind.",
+        "The blue veins in the western cave and eastern cliffs hold the frostglass we need. Bring enough to wake the lens."
+      ]
+    },
+    {
+      "id": "sunscar-scholar",
+      "name": "Scholar Samira",
+      "role": "Sunscar Astronomer",
+      "frame": 10,
+      "x": 1010,
+      "y": 6520,
+      "dialogue": [
+        "The observatory has tracked the buried court for a century. Tonight, its dead sun moved for the first time.",
+        "The oasis remembers every eclipse. Its fish carry mineral traces that can reveal which tomb has awakened."
+      ]
+    },
+    {
+      "id": "guildmaster",
+      "name": "Alden Voss",
+      "role": "Guildmaster",
+      "frame": 7,
+      "x": 430,
+      "y": 7330,
+      "dialogue": [
+        "Every great expedition starts with a party willing to share the risk.",
+        "Use the guild panel to recruit companions, set a role, and keep your team together across the frontier."
+      ],
+      "service": "social"
+    },
+    {
+      "id": "quartermaster",
+      "name": "Juno Flint",
+      "role": "Guild Quartermaster",
+      "frame": 8,
+      "x": 1110,
+      "y": 7360,
+      "dialogue": [
+        "Guild work earns more than coin. Bring back proof of your expeditions and I can outfit the whole company.",
+        "The workshop panel is where you compare weapon power, tool speed, and the next upgrade."
+      ],
+      "shop": "weapons",
+      "service": "workshop"
+    },
+    {
+      "id": "hall-banker",
+      "name": "Merris Vale",
+      "role": "Guild Banker",
+      "frame": 9,
+      "x": 1200,
+      "y": 7540,
+      "dialogue": [
+        "The guild vault is shared space for supplies, not a place to leave your personal gold unattended.",
+        "Your private bank remains available anywhere the Orehaven banking network reaches."
+      ],
+      "service": "bank"
+    },
+    {
+      "id": "scribe",
+      "name": "Pella Quill",
+      "role": "Quest Scribe",
+      "frame": 10,
+      "x": 430,
+      "y": 7850,
+      "dialogue": [
+        "I record the routes adventurers make famous: relic trails, public events, and rare creature sightings.",
+        "Open your quest journal whenever you need the next objective, reward, or region clue."
+      ],
+      "service": "activities"
     }
   ],
   "enemies": [
+    {
+      "id": "ember-tusk-boar-1",
+      "name": "Ember Tusk Boar",
+      "kind": "boar",
+      "frame": 0,
+      "level": 8,
+      "x": 1060,
+      "y": 1120,
+      "maxHp": 92,
+      "gold": [
+        34,
+        56
+      ],
+      "attackXp": 96,
+      "aggroRange": 190,
+      "speed": 62
+    },
     {
       "id": "rat-west",
       "name": "Field Rat",
@@ -362,6 +480,26 @@
       "attackXp": 88,
       "aggroRange": 235,
       "speed": 72
+    },
+    {
+      "id": "briar-treant",
+      "name": "Briar Treant",
+      "kind": "treant",
+      "frame": 0,
+      "level": 12,
+      "x": 720,
+      "y": 1450,
+      "maxHp": 188,
+      "gold": [
+        88,
+        132
+      ],
+      "attackXp": 176,
+      "rare": true,
+      "passive": true,
+      "respawnMs": 480000,
+      "aggroRange": 210,
+      "speed": 32
     },
     {
       "id": "bog-slime-1",
@@ -804,6 +942,451 @@
         "armor": "sunforged-mail",
         "scale": 1.16,
         "auraColor": 16762970
+      }
+    },
+    {
+      "id": "moonfen-wraith-1",
+      "name": "Fen Wraith",
+      "kind": "witch",
+      "frame": 0,
+      "level": 18,
+      "x": 1040,
+      "y": 3330,
+      "maxHp": 220,
+      "gold": [
+        104,
+        148
+      ],
+      "attackXp": 226,
+      "attackStyle": "magic",
+      "aggroRange": 280,
+      "speed": 46
+    },
+    {
+      "id": "moonfen-stalker-1",
+      "name": "Drowned Stalker",
+      "kind": "wolf",
+      "frame": 5,
+      "level": 17,
+      "x": 520,
+      "y": 3470,
+      "maxHp": 186,
+      "gold": [
+        92,
+        132
+      ],
+      "attackXp": 198,
+      "aggroRange": 220,
+      "speed": 66
+    },
+    {
+      "id": "moonfen-sentinel-1",
+      "name": "Marsh Sentinel",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 19,
+      "x": 720,
+      "y": 3760,
+      "maxHp": 248,
+      "gold": [
+        118,
+        168
+      ],
+      "attackXp": 242,
+      "attackStyle": "melee",
+      "aggroRange": 235,
+      "speed": 52
+    },
+    {
+      "id": "moonfen-archon",
+      "name": "Nhalassa, Drowned Archon",
+      "kind": "witch",
+      "frame": 0,
+      "level": 24,
+      "x": 768,
+      "y": 3890,
+      "maxHp": 380,
+      "gold": [
+        190,
+        280
+      ],
+      "attackXp": 380,
+      "rare": true,
+      "respawnMs": 900000,
+      "attackStyle": "magic",
+      "aggroRange": 330,
+      "speed": 44,
+      "visual": {
+        "weapon": "frostspire-staff",
+        "armor": "moonweave-mantle",
+        "scale": 1.16,
+        "auraColor": 7321839
+      }
+    },
+    {
+      "id": "emberfall-ashwing-1",
+      "name": "Ashwing Drake",
+      "kind": "drake",
+      "frame": 5,
+      "level": 22,
+      "x": 440,
+      "y": 4440,
+      "maxHp": 264,
+      "gold": [
+        132,
+        188
+      ],
+      "attackXp": 270,
+      "attackStyle": "range",
+      "aggroRange": 260,
+      "speed": 72,
+      "attackRange": 210,
+      "attackCooldown": 1420
+    },
+    {
+      "id": "emberfall-cinder-guard-1",
+      "name": "Cinder Guard",
+      "kind": "orc",
+      "frame": 4,
+      "level": 23,
+      "x": 1050,
+      "y": 4520,
+      "maxHp": 292,
+      "gold": [
+        146,
+        214
+      ],
+      "attackXp": 292,
+      "aggroRange": 245,
+      "speed": 58,
+      "attackRange": 58,
+      "attackCooldown": 1320
+    },
+    {
+      "id": "emberfall-emberseer-1",
+      "name": "Emberseer",
+      "kind": "witch",
+      "frame": 0,
+      "level": 25,
+      "x": 1140,
+      "y": 4780,
+      "maxHp": 316,
+      "gold": [
+        158,
+        232
+      ],
+      "attackXp": 326,
+      "attackStyle": "magic",
+      "aggroRange": 310,
+      "speed": 46,
+      "attackRange": 225,
+      "attackCooldown": 1480
+    },
+    {
+      "id": "emberfall-caldera-lord",
+      "name": "Varkul, Caldera Lord",
+      "kind": "orc",
+      "frame": 4,
+      "level": 30,
+      "x": 768,
+      "y": 4930,
+      "maxHp": 520,
+      "gold": [
+        260,
+        380
+      ],
+      "attackXp": 520,
+      "rare": true,
+      "respawnMs": 1080000,
+      "attackStyle": "melee",
+      "aggroRange": 350,
+      "speed": 48,
+      "attackRange": 68,
+      "attackCooldown": 1350,
+      "visual": {
+        "weapon": "auric-cleaver",
+        "armor": "sunforged-mail",
+        "scale": 1.2,
+        "auraColor": 16738877
+      }
+    },
+    {
+      "id": "frostmere-icewolf-1",
+      "name": "Icefang Wolf",
+      "kind": "wolf",
+      "frame": 5,
+      "level": 27,
+      "x": 520,
+      "y": 5380,
+      "maxHp": 338,
+      "gold": [
+        168,
+        238
+      ],
+      "attackXp": 340,
+      "aggroRange": 255,
+      "speed": 70,
+      "attackRange": 54,
+      "attackCooldown": 1360
+    },
+    {
+      "id": "frostmere-raider-1",
+      "name": "Frostbound Raider",
+      "kind": "orc",
+      "frame": 4,
+      "level": 28,
+      "x": 790,
+      "y": 5590,
+      "maxHp": 366,
+      "gold": [
+        182,
+        258
+      ],
+      "attackXp": 366,
+      "aggroRange": 250,
+      "speed": 56,
+      "attackRange": 58,
+      "attackCooldown": 1320
+    },
+    {
+      "id": "frostmere-witch-1",
+      "name": "Glacier Seer",
+      "kind": "witch",
+      "frame": 0,
+      "level": 29,
+      "x": 1090,
+      "y": 5740,
+      "maxHp": 392,
+      "gold": [
+        196,
+        276
+      ],
+      "attackXp": 398,
+      "attackStyle": "magic",
+      "aggroRange": 315,
+      "speed": 44,
+      "attackRange": 225,
+      "attackCooldown": 1480
+    },
+    {
+      "id": "frostmere-lighthouse-warden",
+      "name": "Eira, Lighthouse Warden",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 34,
+      "x": 1260,
+      "y": 5260,
+      "maxHp": 610,
+      "gold": [
+        310,
+        440
+      ],
+      "attackXp": 620,
+      "rare": true,
+      "respawnMs": 1200000,
+      "attackStyle": "magic",
+      "aggroRange": 340,
+      "speed": 42,
+      "attackRange": 230,
+      "attackCooldown": 1380,
+      "visual": {
+        "weapon": "frostspire-staff",
+        "armor": "moonweave-mantle",
+        "scale": 1.2,
+        "auraColor": 9033727
+      }
+    },
+    {
+      "id": "sunscar-dune-stalker-1",
+      "name": "Dune Stalker",
+      "kind": "dune-stalker",
+      "frame": 5,
+      "level": 31,
+      "x": 440,
+      "y": 6450,
+      "maxHp": 430,
+      "gold": [
+        215,
+        302
+      ],
+      "attackXp": 430,
+      "aggroRange": 260,
+      "speed": 72,
+      "attackRange": 54,
+      "attackCooldown": 1360
+    },
+    {
+      "id": "sunscar-sand-raider-1",
+      "name": "Sand Raider",
+      "kind": "orc",
+      "frame": 4,
+      "level": 32,
+      "x": 790,
+      "y": 6590,
+      "maxHp": 458,
+      "gold": [
+        230,
+        318
+      ],
+      "attackXp": 458,
+      "aggroRange": 255,
+      "speed": 58,
+      "attackRange": 58,
+      "attackCooldown": 1320
+    },
+    {
+      "id": "sunscar-astral-seer-1",
+      "name": "Astral Seer",
+      "kind": "witch",
+      "frame": 0,
+      "level": 33,
+      "x": 1120,
+      "y": 6780,
+      "maxHp": 486,
+      "gold": [
+        244,
+        336
+      ],
+      "attackXp": 490,
+      "attackStyle": "magic",
+      "aggroRange": 320,
+      "speed": 46,
+      "attackRange": 225,
+      "attackCooldown": 1480
+    },
+    {
+      "id": "sunscar-tomb-king",
+      "name": "Khepri, Tomb King",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 38,
+      "x": 330,
+      "y": 6270,
+      "maxHp": 720,
+      "gold": [
+        360,
+        520
+      ],
+      "attackXp": 740,
+      "rare": true,
+      "respawnMs": 1320000,
+      "attackStyle": "magic",
+      "aggroRange": 360,
+      "speed": 42,
+      "attackRange": 230,
+      "attackCooldown": 1380,
+      "visual": {
+        "weapon": "frostspire-staff",
+        "armor": "sunforged-mail",
+        "scale": 1.22,
+        "auraColor": 16755775
+      }
+    },
+    {
+      "id": "icefang-wolf-1",
+      "name": "Rimefang Prowler",
+      "kind": "wolf",
+      "frame": 5,
+      "level": 35,
+      "x": 430,
+      "y": 8580,
+      "maxHp": 520,
+      "gold": [258, 356],
+      "attackXp": 520,
+      "aggroRange": 220,
+      "speed": 68,
+      "attackRange": 54,
+      "attackCooldown": 1320
+    },
+    {
+      "id": "icefang-wolf-2",
+      "name": "Vault Icefang",
+      "kind": "wolf",
+      "frame": 5,
+      "level": 36,
+      "x": 1080,
+      "y": 8520,
+      "maxHp": 548,
+      "gold": [272, 374],
+      "attackXp": 548,
+      "aggroRange": 225,
+      "speed": 70,
+      "attackRange": 54,
+      "attackCooldown": 1280
+    },
+    {
+      "id": "icefang-sentinel-1",
+      "name": "Oathbound Sentinel",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 36,
+      "x": 620,
+      "y": 8780,
+      "maxHp": 570,
+      "gold": [284, 392],
+      "attackXp": 574,
+      "aggroRange": 235,
+      "speed": 50,
+      "attackRange": 58,
+      "attackCooldown": 1380
+    },
+    {
+      "id": "icefang-sentinel-2",
+      "name": "Frozen Gatekeeper",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 37,
+      "x": 290,
+      "y": 8950,
+      "maxHp": 604,
+      "gold": [302, 414],
+      "attackXp": 608,
+      "attackStyle": "range",
+      "aggroRange": 270,
+      "speed": 48,
+      "attackRange": 220,
+      "attackCooldown": 1480
+    },
+    {
+      "id": "icefang-seer-1",
+      "name": "Glacial Oathseer",
+      "kind": "witch",
+      "frame": 0,
+      "level": 38,
+      "x": 1180,
+      "y": 8950,
+      "maxHp": 632,
+      "gold": [316, 438],
+      "attackXp": 638,
+      "attackStyle": "magic",
+      "aggroRange": 300,
+      "speed": 42,
+      "attackRange": 225,
+      "attackCooldown": 1520
+    },
+    {
+      "id": "icefang-rimebound-king",
+      "name": "Hroth, the Rimebound King",
+      "kind": "skeleton",
+      "frame": 0,
+      "level": 44,
+      "x": 768,
+      "y": 8345,
+      "maxHp": 980,
+      "gold": [490, 690],
+      "attackXp": 980,
+      "rare": true,
+      "respawnMs": 1500000,
+      "attackStyle": "magic",
+      "aggroRange": 350,
+      "speed": 40,
+      "attackRange": 235,
+      "attackCooldown": 1360,
+      "visual": {
+        "weapon": "frostspire-staff",
+        "armor": "nightguard-plate",
+        "scale": 1.24,
+        "auraColor": 9300479
       }
     }
   ],
@@ -1257,6 +1840,261 @@
       "scale": 0.18,
       "requiredLevel": 12,
       "itemId": "sunstone-ore"
+    },
+    {
+      "id": "moonfen-fish-1",
+      "name": "Moonfen Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 1080,
+      "y": 3230,
+      "seconds": 12,
+      "gold": 22,
+      "xp": 88,
+      "scale": 0.12,
+      "requiredLevel": 14,
+      "itemId": "moonfin"
+    },
+    {
+      "id": "moonfen-fish-2",
+      "name": "Moonfen Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 1210,
+      "y": 3430,
+      "seconds": 12,
+      "gold": 22,
+      "xp": 88,
+      "scale": 0.12,
+      "requiredLevel": 14,
+      "itemId": "moonfin"
+    },
+    {
+      "id": "moonfen-ore-1",
+      "name": "Gloomstone Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 320,
+      "y": 3450,
+      "seconds": 15,
+      "gold": 34,
+      "xp": 118,
+      "scale": 0.18,
+      "requiredLevel": 16,
+      "itemId": "gloomstone-ore"
+    },
+    {
+      "id": "moonfen-ore-2",
+      "name": "Gloomstone Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 470,
+      "y": 3720,
+      "seconds": 15,
+      "gold": 34,
+      "xp": 118,
+      "scale": 0.18,
+      "requiredLevel": 16,
+      "itemId": "gloomstone-ore"
+    },
+    {
+      "id": "emberfall-ore-1",
+      "name": "Emberstone Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 330,
+      "y": 4450,
+      "seconds": 18,
+      "gold": 46,
+      "xp": 156,
+      "scale": 0.18,
+      "requiredLevel": 20,
+      "itemId": "emberstone-ore"
+    },
+    {
+      "id": "emberfall-ore-2",
+      "name": "Emberstone Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 1180,
+      "y": 4660,
+      "seconds": 18,
+      "gold": 46,
+      "xp": 156,
+      "scale": 0.18,
+      "requiredLevel": 20,
+      "itemId": "emberstone-ore"
+    },
+    {
+      "id": "emberfall-ore-3",
+      "name": "Star-Iron Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 820,
+      "y": 4860,
+      "seconds": 22,
+      "gold": 62,
+      "xp": 210,
+      "scale": 0.19,
+      "requiredLevel": 24,
+      "itemId": "star-iron"
+    },
+    {
+      "id": "emberfall-fish-1",
+      "name": "Craterpool Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 1180,
+      "y": 4220,
+      "seconds": 15,
+      "gold": 30,
+      "xp": 116,
+      "scale": 0.12,
+      "requiredLevel": 18,
+      "itemId": "ember-koi"
+    },
+    {
+      "id": "frostmere-ore-1",
+      "name": "Frostglass Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 360,
+      "y": 5240,
+      "seconds": 24,
+      "gold": 72,
+      "xp": 246,
+      "scale": 0.19,
+      "requiredLevel": 26,
+      "itemId": "frostglass-ore"
+    },
+    {
+      "id": "frostmere-ore-2",
+      "name": "Frostglass Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 1310,
+      "y": 5900,
+      "seconds": 25,
+      "gold": 76,
+      "xp": 260,
+      "scale": 0.19,
+      "requiredLevel": 28,
+      "itemId": "frostglass-ore"
+    },
+    {
+      "id": "frostmere-fish-1",
+      "name": "Icewater Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 1010,
+      "y": 5700,
+      "seconds": 18,
+      "gold": 38,
+      "xp": 144,
+      "scale": 0.12,
+      "requiredLevel": 24,
+      "itemId": "frosttrout"
+    },
+    {
+      "id": "sunscar-ore-1",
+      "name": "Suncrystal Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 1320,
+      "y": 6500,
+      "seconds": 27,
+      "gold": 86,
+      "xp": 286,
+      "scale": 0.19,
+      "requiredLevel": 30,
+      "itemId": "suncrystal-ore"
+    },
+    {
+      "id": "sunscar-ore-2",
+      "name": "Suncrystal Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 520,
+      "y": 6920,
+      "seconds": 28,
+      "gold": 92,
+      "xp": 302,
+      "scale": 0.19,
+      "requiredLevel": 32,
+      "itemId": "suncrystal-ore"
+    },
+    {
+      "id": "sunscar-fish-1",
+      "name": "Oasis Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 1090,
+      "y": 6740,
+      "seconds": 20,
+      "gold": 44,
+      "xp": 162,
+      "scale": 0.12,
+      "requiredLevel": 29,
+      "itemId": "sunscale-fish"
+    },
+    {
+      "id": "icefang-ore-1",
+      "name": "Prismatic Frostglass Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 250,
+      "y": 8515,
+      "seconds": 30,
+      "gold": 104,
+      "xp": 338,
+      "scale": 0.2,
+      "requiredLevel": 34,
+      "itemId": "frostglass-ore"
+    },
+    {
+      "id": "icefang-ore-2",
+      "name": "Deep Frostglass Vein",
+      "kind": "ore",
+      "frame": 1,
+      "skill": "mining",
+      "x": 360,
+      "y": 8550,
+      "seconds": 31,
+      "gold": 108,
+      "xp": 352,
+      "scale": 0.2,
+      "requiredLevel": 35,
+      "itemId": "frostglass-ore"
+    },
+    {
+      "id": "icefang-fish-1",
+      "name": "Vault Icewater Ripples",
+      "kind": "fish",
+      "frame": 4,
+      "skill": "fishing",
+      "x": 1260,
+      "y": 8580,
+      "seconds": 22,
+      "gold": 52,
+      "xp": 184,
+      "scale": 0.12,
+      "requiredLevel": 32,
+      "itemId": "frosttrout"
     }
   ],
   "decorations": [

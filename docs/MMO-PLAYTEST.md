@@ -26,6 +26,7 @@ Open `http://localhost:5173/game?room=lobby`. A second browser in the same room 
 - Activities, daily contracts, milestones, and collection log: `J`
 - Shops: `B`
 - World map: `M`
+- Bestiary: `V`
 - Close a panel: `Esc`
 - Focus world chat: `Enter`
 
@@ -37,7 +38,7 @@ Open `http://localhost:5173/game?room=lobby`. A second browser in the same room 
 - Ten skills, NPC dialogue, shops, equipment requirements, consumables, banking, and crafting
 - Three quest chapters with 31 deterministic states covering combat, gathering, and crafting
 - Fifteen contested gathering nodes with server-owned rewards and respawns
-- Nineteen persistent enemies, including animated skeletons and spell-casting witches
+- Fifty-six persistent enemies across the frontier, including animated rats, wolves, ember tusk boars, slimes, skeletons, treants, and spell-casting witches
 - Cooperative Auric Slime world event with contribution rewards and a weighted loot pool
 - Four UTC-daily contracts, eight lifetime milestones, and claim-ready menu badges
 - Enemy-specific weighted loot across all nineteen creatures, with eleven collectibles and four rare/epic equipment drops

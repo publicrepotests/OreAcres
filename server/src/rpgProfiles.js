@@ -14,20 +14,26 @@ const SKILL_IDS = [
   "smithing",
   "crafting",
 ];
-const APPEARANCES = new Set(["vanguard", "ranger", "arcanist"]);
+const APPEARANCES = new Set(["vanguard", "ranger", "arcanist", "stonewarden", "marshborn"]);
 const FACE_STYLES = new Set(["neutral", "determined", "cheerful", "wide-eyed"]);
-const HAIR_STYLES = new Set(["plain", "shorthawk", "spiked2"]);
+const HAIR_STYLES = new Set(["plain", "shorthawk", "spiked2", "afro", "bob", "cornrows", "buzzcut"]);
 const BEARD_STYLES = new Set(["none", "stubble", "trimmed", "winter"]);
 const SKIN_TONES = new Set(["ivory", "sunlit", "warm", "umber", "deep"]);
 const HAIR_COLORS = new Set(["raven", "chestnut", "copper", "silver", "violet"]);
 const DYES = new Set(["guild-blue", "leaf-green", "violet", "crimson", "sand", "charcoal", "slate", "brown"]);
 const GEAR_DYES = new Set(["original", "iron", "sunsteel", "verdant", "moonsteel", "ember", "obsidian"]);
-const WAYSTONES = new Set(["orehaven-gate", "moonwater-dock", "eastern-quarry", "briarwild-crossing", "moonfen-marsh", "ranger-camp", "sunstone-catacombs"]);
-const REGIONS = new Set(["orehaven", "western-woods", "moonwater-pond", "eastern-quarry", "goblin-camp", "southroad", "briarwild-crossing", "old-sun-shrine", "moonfen-marsh", "ranger-camp", "raider-dens", "sunstone-catacombs"]);
+const HELMET_STYLES = new Set(["auto", "barbuta", "greathelm", "sugarloaf", "plate"]);
+const CAPE_STYLES = new Set(["auto", "solid", "tattered", "briar"]);
+const SHIELD_STYLES = new Set(["auto", "crusader"]);
+const WAYSTONES = new Set(["orehaven-gate", "moonwater-dock", "eastern-quarry", "briarwild-crossing", "moonfen-marsh", "ranger-camp", "sunstone-catacombs", "moonfen-expanse", "emberfall-highlands", "frostmere-coast", "sunscar-expanse", "guild-hall"]);
+const REGIONS = new Set(["orehaven", "western-woods", "moonwater-pond", "eastern-quarry", "goblin-camp", "southroad", "briarwild-crossing", "old-sun-shrine", "moonfen-marsh", "ranger-camp", "raider-dens", "sunstone-catacombs", "moonfen-expanse", "emberfall-highlands", "frostmere-coast", "sunscar-expanse", "orehaven-guild-hall"]);
 const SKILL_TREE_NODES = new Set([
   "whirlwind", "tempered-body", "bloodletter", "blade-discipline", "relentless", "wide-arc", "executioner", "unyielding",
   "arrow-rain", "steady-hands", "venom-shot", "toxin-lore", "rapid-nocking", "storm-quiver", "predators-focus", "windrunner",
   "sunfire-sigil", "mana-weave", "arcane-burn", "runic-intensity", "unstable-echo", "greater-sigils", "soul-fracture", "archmage",
+  "iron-grip", "guarded-heart", "sweeping-edge", "crimson-flow", "duelist-tempo", "war-banner", "groundbreaker", "spellblade-oath", "deadeye-duelist",
+  "eagle-eye", "fleet-fletching", "split-shaft", "serpent-fletching", "hunters-patience", "storm-sight", "pinning-volley", "arcane-marksman", "shadow-skirmisher",
+  "ember-mind", "quick-incantation", "rune-bloom", "witchfire", "warded-soul", "astral-resonance", "frost-nova-tree", "battle-mage", "stormweaver",
 ]);
 const ARMOR_MAX_HP_BONUSES = {
   "trailguard-vest": 8,
@@ -37,11 +43,14 @@ const ARMOR_MAX_HP_BONUSES = {
   "briarhide-cloak": 16,
   "moonweave-mantle": 26,
   "nightguard-plate": 34,
+  "frostguard-aegis": 42,
 };
 const APPEARANCE_CUSTOMIZATION = {
-  vanguard: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "ivory", hairColor: "silver", shirtColor: "guild-blue", pantsColor: "slate", bootsColor: "brown", armorDye: "original", weaponDye: "original", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  ranger: { faceStyle: "cheerful", hairStyle: "shorthawk", beardStyle: "stubble", skinTone: "warm", hairColor: "chestnut", shirtColor: "leaf-green", pantsColor: "charcoal", bootsColor: "brown", armorDye: "original", weaponDye: "original", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  arcanist: { faceStyle: "wide-eyed", hairStyle: "spiked2", beardStyle: "none", skinTone: "sunlit", hairColor: "violet", shirtColor: "violet", pantsColor: "slate", bootsColor: "charcoal", armorDye: "original", weaponDye: "original", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  vanguard: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "ivory", hairColor: "silver", shirtColor: "guild-blue", pantsColor: "slate", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  ranger: { faceStyle: "cheerful", hairStyle: "shorthawk", beardStyle: "stubble", skinTone: "warm", hairColor: "chestnut", shirtColor: "leaf-green", pantsColor: "charcoal", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  arcanist: { faceStyle: "wide-eyed", hairStyle: "spiked2", beardStyle: "none", skinTone: "sunlit", hairColor: "violet", shirtColor: "violet", pantsColor: "slate", bootsColor: "charcoal", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  stonewarden: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "umber", hairColor: "raven", shirtColor: "crimson", pantsColor: "charcoal", bootsColor: "brown", armorDye: "iron", weaponDye: "iron", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  marshborn: { faceStyle: "wide-eyed", hairStyle: "plain", beardStyle: "none", skinTone: "deep", hairColor: "raven", shirtColor: "slate", pantsColor: "charcoal", bootsColor: "brown", armorDye: "moonsteel", weaponDye: "moonsteel", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
 };
 
 export function customizationForRpgAppearance(appearance) {
@@ -61,6 +70,9 @@ export function normalizeRpgCustomization(value, fallback = customizationForRpgA
     bootsColor: DYES.has(candidate.bootsColor) ? candidate.bootsColor : fallback.bootsColor,
     armorDye: GEAR_DYES.has(candidate.armorDye) ? candidate.armorDye : fallback.armorDye,
     weaponDye: GEAR_DYES.has(candidate.weaponDye) ? candidate.weaponDye : fallback.weaponDye,
+    helmetStyle: HELMET_STYLES.has(candidate.helmetStyle) ? candidate.helmetStyle : fallback.helmetStyle,
+    capeStyle: CAPE_STYLES.has(candidate.capeStyle) ? candidate.capeStyle : fallback.capeStyle,
+    shieldStyle: SHIELD_STYLES.has(candidate.shieldStyle) ? candidate.shieldStyle : fallback.shieldStyle,
     showHelmet: typeof candidate.showHelmet === "boolean" ? candidate.showHelmet : fallback.showHelmet,
     showCape: typeof candidate.showCape === "boolean" ? candidate.showCape : fallback.showCape,
     showShield: typeof candidate.showShield === "boolean" ? candidate.showShield : fallback.showShield,
@@ -175,7 +187,7 @@ export function normalizeRpgProgress(value) {
     equipped,
     appearance,
     customization: normalizeRpgCustomization(candidate.customization, customizationForRpgAppearance(appearance)),
-    questStep: finiteInteger(candidate.questStep, 0, 0, 30),
+    questStep: finiteInteger(candidate.questStep, 0, 0, 50),
     questComplete: Boolean(candidate.questComplete),
     activities: normalizeActivityProgress(candidate.activities),
     collectionLog: candidate.collectionLog && typeof candidate.collectionLog === "object"
@@ -195,7 +207,9 @@ export function normalizeRpgProgress(value) {
     ])),
     position: {
       x: Number.isFinite(positionX) ? Math.max(26, Math.min(1510, positionX)) : fallback.position.x,
-      y: Number.isFinite(positionY) ? Math.max(34, Math.min(3044, positionY)) : fallback.position.y,
+      // Profiles persist across every stacked regional canvas, including the
+      // instanced Icefang Vault below the original seven-chart frontier.
+      y: Number.isFinite(positionY) ? Math.max(34, Math.min(9192, positionY)) : fallback.position.y,
     },
     skillTree: {
       unlocked: Array.from(new Set(

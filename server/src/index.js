@@ -96,10 +96,11 @@ const RPG_AGGRO_RANGE_MULTIPLIER = 0.72;
 const RPG_RESOURCE_RESPAWN_MS = 30_000;
 const RPG_INTERACTION_RANGE = 132;
 const RPG_ATTACK_RANGES = { melee: 104, range: 320, magic: 285 };
-const RPG_WORLD = { width: 1536, height: 3072 };
+const RPG_WORLD = { width: 1536, height: 9216 };
 const RPG_PLAYER_START = { x: 748, y: 505 };
 const RPG_SANCTUARY = { id: "founders-fountain", name: "Founders' Fountain", x: 688, y: 468 };
 const RPG_WAYSTONE_RANGE = 112;
+const RPG_WAYSTONE_SANCTUARY_RADIUS = 168;
 const RPG_WAYSTONES = Object.fromEntries([
   { id: "orehaven-gate", name: "Orehaven Waystone", region: "Orehaven", x: 650, y: 820, arrivalX: 698, arrivalY: 820 },
   { id: "moonwater-dock", name: "Moonwater Waystone", region: "Western Woods", x: 282, y: 872, arrivalX: 302, arrivalY: 872 },
@@ -108,10 +109,27 @@ const RPG_WAYSTONES = Object.fromEntries([
   { id: "moonfen-marsh", name: "Moonfen Waystone", region: "Moonfen Marsh", x: 1060, y: 1340, arrivalX: 1096, arrivalY: 1340 },
   { id: "ranger-camp", name: "Ranger Camp Waystone", region: "Briarwild Ranger Camp", x: 246, y: 1640, arrivalX: 266, arrivalY: 1640 },
   { id: "sunstone-catacombs", name: "Catacomb Waystone", region: "Sunstone Catacombs", x: 768, y: 2192, arrivalX: 768, arrivalY: 2228 },
+  { id: "moonfen-expanse", name: "Moonfen Expanse Waystone", region: "Moonfen Expanse", x: 768, y: 3260, arrivalX: 768, arrivalY: 3310 },
+  { id: "emberfall-highlands", name: "Emberfall Waystone", region: "Emberfall Highlands", x: 768, y: 4300, arrivalX: 768, arrivalY: 4350 },
+  { id: "frostmere-coast", name: "Frostmere Waystone", region: "Frostmere Coast", x: 260, y: 5500, arrivalX: 310, arrivalY: 5500 },
+  { id: "sunscar-expanse", name: "Sunscar Waystone", region: "Sunscar Expanse", x: 230, y: 6620, arrivalX: 280, arrivalY: 6620 },
+  { id: "guild-hall", name: "Guild Hall Waystone", region: "Orehaven Guild Hall", x: 608, y: 7788, arrivalX: 608, arrivalY: 7820 },
 ].map((waystone) => [waystone.id, waystone]));
 const RPG_DUNGEON_PORTALS = Object.fromEntries([
   { id: "sunstone-descent", name: "Sunstone Descent", region: "Sunstone Catacombs", x: 330, y: 1300, destinationX: 768, destinationY: 2140 },
   { id: "sunstone-ascent", name: "Sunstone Ascent", region: "Old Sun Shrine", x: 768, y: 2104, destinationX: 330, destinationY: 1332 },
+  { id: "moonfen-descent", name: "Moonfen Floodgate", region: "Moonfen Expanse", x: 1310, y: 2880, destinationX: 768, destinationY: 3310 },
+  { id: "moonfen-ascent", name: "Moonfen Return", region: "Sunstone Catacombs", x: 138, y: 3150, destinationX: 768, destinationY: 2228 },
+  { id: "emberfall-ascent", name: "Emberfall Lift", region: "Emberfall Highlands", x: 1320, y: 4080, destinationX: 768, destinationY: 4350 },
+  { id: "emberfall-descent", name: "Emberfall Return", region: "Moonfen Expanse", x: 160, y: 4170, destinationX: 768, destinationY: 3260 },
+  { id: "frostmere-ascent", name: "Frostmere Gate", region: "Frostmere Coast", x: 768, y: 5165, destinationX: 768, destinationY: 5300 },
+  { id: "frostmere-descent", name: "Frostmere Return", region: "Emberfall Highlands", x: 768, y: 6020, destinationX: 768, destinationY: 5050 },
+  { id: "sunscar-ascent", name: "Sunscar Gate", region: "Sunscar Expanse", x: 768, y: 6165, destinationX: 768, destinationY: 6320 },
+  { id: "sunscar-descent", name: "Sunscar Return", region: "Frostmere Coast", x: 768, y: 7050, destinationX: 768, destinationY: 6050 },
+  { id: "guildhall-entry", name: "Guild Hall Doors", region: "Orehaven Guild Hall", x: 930, y: 200, destinationX: 1080, destinationY: 7420 },
+  { id: "guildhall-exit", name: "Guild Hall Exit", region: "Orehaven", x: 768, y: 8120, destinationX: 1010, destinationY: 392 },
+  { id: "icefang-descent", name: "Icefang Vault Descent", region: "Icefang Vault", x: 1350, y: 5850, destinationX: 768, destinationY: 9120 },
+  { id: "icefang-ascent", name: "Icefang Vault Ascent", region: "Frostmere Coast", x: 768, y: 9128, destinationX: 1310, destinationY: 5840 },
 ].map((portal) => [portal.id, portal]));
 const RPG_REGIONS = Object.fromEntries([
   { id: "orehaven", name: "Orehaven" },
@@ -126,12 +144,18 @@ const RPG_REGIONS = Object.fromEntries([
   { id: "ranger-camp", name: "Briarwild Ranger Camp" },
   { id: "raider-dens", name: "Raider Dens" },
   { id: "sunstone-catacombs", name: "Sunstone Catacombs" },
+  { id: "moonfen-expanse", name: "Moonfen Expanse" },
+  { id: "emberfall-highlands", name: "Emberfall Highlands" },
+  { id: "frostmere-coast", name: "Frostmere Coast" },
+  { id: "sunscar-expanse", name: "Sunscar Expanse" },
+  { id: "orehaven-guild-hall", name: "Orehaven Guild Hall" },
+  { id: "icefang-vault", name: "Icefang Vault" },
 ].map((region) => [region.id, region]));
 const RPG_REGION_DISCOVERY_GOLD = 20;
 const RPG_REGION_COMPLETION_GOLD = 180;
 const RPG_AI_TICK_MS = 250;
 const RPG_PLAYER_MOVE_SPEED = 112;
-const RPG_APPEARANCES = new Set(["vanguard", "ranger", "arcanist"]);
+const RPG_APPEARANCES = new Set(["vanguard", "ranger", "arcanist", "stonewarden", "marshborn"]);
 const RPG_EQUIPMENT_SLOTS = ["weapon", "tool", "armor"];
 const RPG_PLAYER_ACTIONS = new Set(["idle", "walk", "attack", "gather", "mine", "chop", "fish", "attune"]);
 const RPG_DIRECTIONS = new Set(["up", "left", "down", "right"]);
@@ -152,6 +176,9 @@ const RPG_WEAPON_ABILITIES = {
   "arcane-staff": { id: "starfall", name: "Starfall", multiplier: 1.78, cooldownMs: 6_500, status: { kind: "stagger", label: "Starstruck", durationMs: 1_500 } },
   "frostspire-staff": { id: "frost-nova", name: "Frost Nova", multiplier: 1.84, cooldownMs: 6_900, status: { kind: "root", label: "Frozen", durationMs: 2_200 } },
   "bonecaller-focus": { id: "moonbind", name: "Moonbind", multiplier: 1.9, cooldownMs: 7_300, status: { kind: "root", label: "Moonbound", durationMs: 3_000 } },
+  "sunscar-reaver": { id: "solar-sever", name: "Solar Sever", multiplier: 2.18, cooldownMs: 8_400, executeThreshold: 0.3, executeMultiplier: 1.45 },
+  "aurora-longbow": { id: "aurora-barrage", name: "Aurora Barrage", multiplier: 2.08, cooldownMs: 8_100, hitCount: 5, status: { kind: "weaken", label: "Aurora-marked", durationMs: 6_000, strength: 0.45 } },
+  "eclipse-staff": { id: "eclipse-well", name: "Eclipse Well", multiplier: 2.2, cooldownMs: 8_500, status: { kind: "root", label: "Eclipsed", durationMs: 3_500 } },
 };
 const RPG_SKILL_TREE = {
   whirlwind: { id: "whirlwind", branch: "melee", kind: "active", name: "Whirlwind", requiredLevel: 1, multiplier: 1.05, cooldownMs: 9_000, areaRadius: 112 },
@@ -178,6 +205,33 @@ const RPG_SKILL_TREE = {
   "greater-sigils": { id: "greater-sigils", branch: "magic", kind: "passive", name: "Greater Sigils", requiredLevel: 23, prerequisite: "unstable-echo", passive: { areaMultiplier: 1.3 } },
   "soul-fracture": { id: "soul-fracture", branch: "magic", kind: "passive", name: "Soul Fracture", requiredLevel: 31, prerequisite: "greater-sigils", passive: { executeThreshold: 0.32, executeMultiplier: 1.2 } },
   archmage: { id: "archmage", branch: "magic", kind: "passive", name: "Archmage", requiredLevel: 40, prerequisite: "soul-fracture", passive: { damageMultiplier: 1.08, cooldownMultiplier: 0.9 } },
+  "iron-grip": { id: "iron-grip", branch: "melee", kind: "passive", name: "Iron Grip", requiredLevel: 2, prerequisite: "whirlwind", passive: { damageMultiplier: 1.03 } },
+  "guarded-heart": { id: "guarded-heart", branch: "melee", kind: "passive", name: "Guarded Heart", requiredLevel: 4, prerequisites: ["iron-grip", "tempered-body"], passive: { damageReduction: 0.02 } },
+  "sweeping-edge": { id: "sweeping-edge", branch: "melee", kind: "passive", name: "Sweeping Edge", requiredLevel: 6, prerequisite: "whirlwind", passive: { areaMultiplier: 1.12 } },
+  "crimson-flow": { id: "crimson-flow", branch: "melee", kind: "passive", name: "Crimson Flow", requiredLevel: 12, prerequisites: ["bloodletter", "sweeping-edge"], passive: { dotMultiplier: 1.15 } },
+  "duelist-tempo": { id: "duelist-tempo", branch: "melee", kind: "passive", name: "Duelist Tempo", requiredLevel: 18, prerequisite: "blade-discipline", passive: { cooldownMultiplier: 0.94 } },
+  "war-banner": { id: "war-banner", branch: "melee", kind: "passive", name: "War Banner", requiredLevel: 26, prerequisites: ["duelist-tempo", "relentless"], passive: { damageMultiplier: 1.05, damageReduction: 0.02 } },
+  groundbreaker: { id: "groundbreaker", branch: "melee", kind: "active", name: "Groundbreaker", requiredLevel: 28, prerequisites: ["war-banner", "wide-arc"], requiresAll: true, multiplier: 1.18, cooldownMs: 14_000, areaRadius: 126, status: { kind: "stagger", label: "Quake-staggered", durationMs: 1_250 } },
+  "spellblade-oath": { id: "spellblade-oath", branch: "melee", affinities: ["melee", "magic"], kind: "passive", name: "Spellblade Oath", requiredLevel: 20, prerequisites: ["crimson-flow", "runic-intensity"], requiresAll: true, passive: { damageMultiplier: 1.08 } },
+  "deadeye-duelist": { id: "deadeye-duelist", branch: "melee", affinities: ["melee", "range"], kind: "passive", name: "Deadeye Duelist", requiredLevel: 24, prerequisites: ["wide-arc", "rapid-nocking"], requiresAll: true, passive: { cooldownMultiplier: 0.91 } },
+  "eagle-eye": { id: "eagle-eye", branch: "range", kind: "passive", name: "Eagle Eye", requiredLevel: 2, prerequisite: "arrow-rain", passive: { damageMultiplier: 1.03 } },
+  "fleet-fletching": { id: "fleet-fletching", branch: "range", kind: "passive", name: "Fleet Fletching", requiredLevel: 4, prerequisites: ["eagle-eye", "steady-hands"], passive: { cooldownMultiplier: 0.95 } },
+  "split-shaft": { id: "split-shaft", branch: "range", kind: "passive", name: "Split Shaft", requiredLevel: 6, prerequisite: "arrow-rain", passive: { areaMultiplier: 1.14 } },
+  "serpent-fletching": { id: "serpent-fletching", branch: "range", kind: "passive", name: "Serpent Fletching", requiredLevel: 12, prerequisites: ["venom-shot", "split-shaft"], passive: { dotMultiplier: 1.18 } },
+  "hunters-patience": { id: "hunters-patience", branch: "range", kind: "passive", name: "Hunter's Patience", requiredLevel: 18, prerequisite: "toxin-lore", passive: { damageReduction: 0.03 } },
+  "storm-sight": { id: "storm-sight", branch: "range", kind: "passive", name: "Storm Sight", requiredLevel: 26, prerequisites: ["hunters-patience", "rapid-nocking"], passive: { damageMultiplier: 1.06, areaMultiplier: 1.1 } },
+  "pinning-volley": { id: "pinning-volley", branch: "range", kind: "active", name: "Pinning Volley", requiredLevel: 28, prerequisites: ["storm-sight", "storm-quiver"], requiresAll: true, multiplier: 1.02, cooldownMs: 14_500, areaRadius: 156, status: { kind: "slow", label: "Pinned", durationMs: 4_000, strength: 0.58 } },
+  "arcane-marksman": { id: "arcane-marksman", branch: "range", affinities: ["range", "magic"], kind: "passive", name: "Arcane Marksman", requiredLevel: 20, prerequisites: ["serpent-fletching", "unstable-echo"], requiresAll: true, passive: { areaMultiplier: 1.18 } },
+  "shadow-skirmisher": { id: "shadow-skirmisher", branch: "range", affinities: ["range", "melee"], kind: "passive", name: "Shadow Skirmisher", requiredLevel: 24, prerequisites: ["storm-quiver", "relentless"], requiresAll: true, passive: { damageMultiplier: 1.07 } },
+  "ember-mind": { id: "ember-mind", branch: "magic", kind: "passive", name: "Ember Mind", requiredLevel: 2, prerequisite: "sunfire-sigil", passive: { damageMultiplier: 1.03 } },
+  "quick-incantation": { id: "quick-incantation", branch: "magic", kind: "passive", name: "Quick Incantation", requiredLevel: 4, prerequisites: ["ember-mind", "mana-weave"], passive: { cooldownMultiplier: 0.95 } },
+  "rune-bloom": { id: "rune-bloom", branch: "magic", kind: "passive", name: "Rune Bloom", requiredLevel: 6, prerequisite: "sunfire-sigil", passive: { areaMultiplier: 1.14 } },
+  witchfire: { id: "witchfire", branch: "magic", kind: "passive", name: "Witchfire", requiredLevel: 12, prerequisites: ["arcane-burn", "rune-bloom"], passive: { dotMultiplier: 1.18 } },
+  "warded-soul": { id: "warded-soul", branch: "magic", kind: "passive", name: "Warded Soul", requiredLevel: 18, prerequisite: "runic-intensity", passive: { damageReduction: 0.03 } },
+  "astral-resonance": { id: "astral-resonance", branch: "magic", kind: "passive", name: "Astral Resonance", requiredLevel: 26, prerequisites: ["warded-soul", "unstable-echo"], passive: { damageMultiplier: 1.06, cooldownMultiplier: 0.92 } },
+  "frost-nova-tree": { id: "frost-nova-tree", branch: "magic", kind: "active", name: "Frost Nova", requiredLevel: 28, prerequisites: ["astral-resonance", "greater-sigils"], requiresAll: true, multiplier: 1.08, cooldownMs: 15_000, areaRadius: 138, status: { kind: "root", label: "Frostbound", durationMs: 2_600 } },
+  "battle-mage": { id: "battle-mage", branch: "magic", affinities: ["magic", "melee"], kind: "passive", name: "Battle Mage", requiredLevel: 20, prerequisites: ["warded-soul", "tempered-body"], requiresAll: true, passive: { damageMultiplier: 1.04, damageReduction: 0.03 } },
+  stormweaver: { id: "stormweaver", branch: "magic", affinities: ["magic", "range"], kind: "passive", name: "Stormweaver", requiredLevel: 24, prerequisites: ["greater-sigils", "storm-quiver"], requiresAll: true, passive: { areaMultiplier: 1.12, cooldownMultiplier: 0.92 } },
 };
 const RPG_SECOND_WIND_COOLDOWN_MS = 18_000;
 const RPG_PARTY_MAX_MEMBERS = 5;
@@ -245,18 +299,26 @@ const RPG_ITEM_RULES = {
   "iron-pick": { slot: "tool", category: "tool", cost: 160, power: 2, requiredSkill: "mining", requiredLevel: 5 },
   "crystal-pick": { slot: "tool", category: "tool", cost: 620, power: 3, requiredSkill: "mining", requiredLevel: 15 },
   "sunstone-pick": { slot: "tool", category: "tool", cost: 0, power: 4, requiredSkill: "mining", requiredLevel: 20, sellValue: 480 },
-  "trailguard-vest": { slot: "armor", category: "armor", cost: 145, power: 8, requiredSkill: "defense", requiredLevel: 1 },
-  "sentinel-mail": { slot: "armor", category: "armor", cost: 280, power: 12, requiredSkill: "defense", requiredLevel: 5 },
-  "warden-mail": { slot: "armor", category: "armor", cost: 520, power: 20, requiredSkill: "defense", requiredLevel: 12 },
-  "sunforged-mail": { slot: "armor", category: "armor", cost: 0, power: 28, requiredSkill: "defense", requiredLevel: 18 },
-  "briarhide-cloak": { slot: "armor", category: "armor", cost: 0, power: 16, requiredSkill: "defense", requiredLevel: 8, sellValue: 90 },
-  "moonweave-mantle": { slot: "armor", category: "armor", cost: 760, power: 26, requiredSkill: "defense", requiredLevel: 20 },
-  "nightguard-plate": { slot: "armor", category: "armor", cost: 920, power: 34, requiredSkill: "defense", requiredLevel: 25 },
+  "trailguard-vest": { slot: "armor", category: "armor", cost: 145, power: 8, requiredSkill: "defense", requiredLevel: 1, armorTrait: { healingMultiplier: 1.1 } },
+  "sentinel-mail": { slot: "armor", category: "armor", cost: 280, power: 12, requiredSkill: "defense", requiredLevel: 5, armorTrait: { damageReduction: 0.04 } },
+  "warden-mail": { slot: "armor", category: "armor", cost: 520, power: 20, requiredSkill: "defense", requiredLevel: 12, armorTrait: { damageReduction: 0.06 } },
+  "sunforged-mail": { slot: "armor", category: "armor", cost: 0, power: 28, requiredSkill: "defense", requiredLevel: 18, armorTrait: { damageReduction: 0.08 } },
+  "briarhide-cloak": { slot: "armor", category: "armor", cost: 0, power: 16, requiredSkill: "defense", requiredLevel: 8, sellValue: 90, armorTrait: { healingMultiplier: 1.24 } },
+  "moonweave-mantle": { slot: "armor", category: "armor", cost: 760, power: 26, requiredSkill: "defense", requiredLevel: 20, armorTrait: { damageReduction: 0.04, healingMultiplier: 1.18 } },
+  "nightguard-plate": { slot: "armor", category: "armor", cost: 920, power: 34, requiredSkill: "defense", requiredLevel: 25, armorTrait: { damageReduction: 0.1 } },
   "auric-cleaver": { slot: "weapon", category: "weapon", cost: 0, power: 9, combatStyle: "melee", requiredSkill: "attack", requiredLevel: 18, sellValue: 350 },
   "aurex-sunblade": { slot: "weapon", category: "weapon", cost: 0, power: 12, combatStyle: "melee", requiredSkill: "attack", requiredLevel: 24, sellValue: 520 },
   "fallen-recurve": { slot: "weapon", category: "weapon", cost: 0, power: 8, combatStyle: "range", requiredSkill: "range", requiredLevel: 14, sellValue: 140 },
   "bonecaller-focus": { slot: "weapon", category: "weapon", cost: 0, power: 8, combatStyle: "magic", requiredSkill: "magic", requiredLevel: 14, sellValue: 160 },
+  "sunscar-reaver": { slot: "weapon", category: "weapon", cost: 0, power: 16, combatStyle: "melee", requiredSkill: "attack", requiredLevel: 36, sellValue: 980 },
+  "aurora-longbow": { slot: "weapon", category: "weapon", cost: 0, power: 15, combatStyle: "range", requiredSkill: "range", requiredLevel: 32, sellValue: 920 },
+  "eclipse-staff": { slot: "weapon", category: "weapon", cost: 0, power: 16, combatStyle: "magic", requiredSkill: "magic", requiredLevel: 36, sellValue: 980 },
+  "frostguard-aegis": { slot: "armor", category: "armor", cost: 0, power: 42, requiredSkill: "defense", requiredLevel: 32, sellValue: 1_050, armorTrait: { damageReduction: 0.12 } },
   trout: { category: "consumable", cost: 0, healing: 12 },
+  moonfin: { category: "consumable", cost: 0, healing: 18, sellValue: 8 },
+  "ember-koi": { category: "consumable", cost: 0, healing: 24, sellValue: 14 },
+  frosttrout: { category: "consumable", cost: 0, healing: 32, sellValue: 22 },
+  "sunscale-fish": { category: "consumable", cost: 0, healing: 40, sellValue: 30 },
   "healing-potion": { category: "consumable", cost: 45, healing: 25 },
   "copper-ore": { category: "material", cost: 0 },
   "iron-ore": { category: "material", cost: 0 },
@@ -267,11 +329,17 @@ const RPG_ITEM_RULES = {
   "founders-relic": { category: "material", cost: 0, sellValue: 110 },
   "sunstone-shard": { category: "material", cost: 0 },
   "sunstone-ore": { category: "material", cost: 0, sellValue: 34 },
+  "gloomstone-ore": { category: "material", cost: 0, sellValue: 42 },
+  "emberstone-ore": { category: "material", cost: 0, sellValue: 58 },
+  "star-iron": { category: "material", cost: 0, sellValue: 78 },
+  "frostglass-ore": { category: "material", cost: 0, sellValue: 96 },
+  "suncrystal-ore": { category: "material", cost: 0, sellValue: 125 },
   "rat-tail": { category: "material", cost: 0, sellValue: 2 },
   "goblin-insignia": { category: "material", cost: 0, sellValue: 5 },
   pinefang: { category: "material", cost: 0, sellValue: 7 },
   "crystal-residue": { category: "material", cost: 0, sellValue: 9 },
   "briar-hide": { category: "material", cost: 0, sellValue: 12 },
+  "ember-hide": { category: "material", cost: 0, sellValue: 16 },
   "mire-essence": { category: "material", cost: 0, sellValue: 10 },
   "orc-totem": { category: "material", cost: 0, sellValue: 14 },
   marshscale: { category: "material", cost: 0, sellValue: 18 },
@@ -287,6 +355,10 @@ const RPG_RECIPES = {
   "craft-ember-staff": { skill: "crafting", requiredLevel: 4, inputs: { "oak-log": 2, "copper-ore": 3 }, output: { itemId: "ember-staff", quantity: 1 }, xp: 150 },
   "craft-iron-bow": { skill: "crafting", requiredLevel: 8, inputs: { "oak-log": 4, "iron-ore": 2 }, output: { itemId: "iron-bow", quantity: 1 }, xp: 260 },
   "brew-crimson-tonic": { skill: "crafting", requiredLevel: 3, inputs: { trout: 2, "oak-log": 1 }, output: { itemId: "healing-potion", quantity: 2 }, xp: 125 },
+  "forge-frostguard-aegis": { skill: "smithing", requiredLevel: 30, inputs: { "frostglass-ore": 8, "star-iron": 4, "auric-core": 1 }, output: { itemId: "frostguard-aegis", quantity: 1 }, xp: 1_400 },
+  "craft-aurora-longbow": { skill: "crafting", requiredLevel: 30, inputs: { "frostglass-ore": 5, "oak-log": 6, "witch-thread": 2 }, output: { itemId: "aurora-longbow", quantity: 1 }, xp: 1_250 },
+  "bind-eclipse-staff": { skill: "crafting", requiredLevel: 34, inputs: { "suncrystal-ore": 6, "gloomstone-ore": 4, "witch-thread": 4 }, output: { itemId: "eclipse-staff", quantity: 1 }, xp: 1_550 },
+  "forge-sunscar-reaver": { skill: "smithing", requiredLevel: 34, inputs: { "suncrystal-ore": 8, "star-iron": 4, "sunstone-shard": 2 }, output: { itemId: "sunscar-reaver", quantity: 1 }, xp: 1_600 },
 };
 const BASE_RPG_NPC_POSITIONS = {
   guide: { x: 704, y: 515 },
@@ -326,6 +398,7 @@ const BASE_RPG_ENEMIES = {
   "briar-wolf-1": { id: "briar-wolf-1", kind: "wolf", maxHp: 74, x: 680, y: 1380, gold: [30, 48], xp: 78, level: 7, aggroRange: 230, speed: 68, attackRange: 48, attackCooldown: 1380 },
   "briar-wolf-2": { id: "briar-wolf-2", kind: "wolf", maxHp: 92, x: 820, y: 1510, gold: [40, 62], xp: 98, level: 9, aggroRange: 250, speed: 74, attackRange: 50, attackCooldown: 1320 },
   "briar-wolf-3": { id: "briar-wolf-3", kind: "wolf", maxHp: 82, x: 460, y: 1440, gold: [34, 54], xp: 88, level: 8, aggroRange: 235, speed: 72, attackRange: 50, attackCooldown: 1350 },
+  "briar-treant": { id: "briar-treant", kind: "treant", maxHp: 188, x: 720, y: 1450, gold: [88, 132], xp: 176, level: 12, rare: true, passive: true, respawnMs: 480000, aggroRange: 210, speed: 32, attackRange: 58, attackCooldown: 2200 },
   "bog-slime-1": { id: "bog-slime-1", kind: "slime", maxHp: 66, x: 1030, y: 1345, gold: [25, 40], xp: 68, level: 6, aggroRange: 175, speed: 38, attackRange: 46, attackCooldown: 1580 },
   "bog-slime-2": { id: "bog-slime-2", kind: "slime", maxHp: 84, x: 1320, y: 1320, gold: [34, 52], xp: 88, level: 8, aggroRange: 185, speed: 42, attackRange: 48, attackCooldown: 1520 },
   "bog-slime-3": { id: "bog-slime-3", kind: "slime", maxHp: 74, x: 928, y: 1216, gold: [29, 46], xp: 78, level: 7, aggroRange: 180, speed: 40, attackRange: 47, attackCooldown: 1550 },
@@ -350,6 +423,22 @@ const BASE_RPG_ENEMIES = {
   "emberbone-marksman": { id: "emberbone-marksman", kind: "skeleton", maxHp: 146, x: 500, y: 2240, gold: [70, 102], xp: 180, level: 15, attackStyle: "range", aggroRange: 285, speed: 52, attackRange: 210, attackCooldown: 1480 },
   "cryptflame-channeler": { id: "cryptflame-channeler", kind: "witch", maxHp: 196, x: 1040, y: 2240, gold: [94, 132], xp: 218, level: 17, attackStyle: "magic", aggroRange: 305, speed: 44, attackRange: 220, attackCooldown: 1540 },
   "sunstone-revenant": { id: "sunstone-revenant", kind: "skeleton", maxHp: 310, x: 768, y: 2690, gold: [155, 230], xp: 330, level: 20, attackStyle: "magic", aggroRange: 330, speed: 50, attackRange: 220, attackCooldown: 1380, respawnMs: 720_000 },
+  "moonfen-wraith-1": { id: "moonfen-wraith-1", kind: "witch", maxHp: 220, x: 1040, y: 3330, gold: [104, 148], xp: 226, level: 18, attackStyle: "magic", aggroRange: 280, speed: 46, attackRange: 215, attackCooldown: 1500 },
+  "moonfen-stalker-1": { id: "moonfen-stalker-1", kind: "wolf", maxHp: 186, x: 520, y: 3470, gold: [92, 132], xp: 198, level: 17, aggroRange: 220, speed: 66, attackRange: 52, attackCooldown: 1380 },
+  "moonfen-sentinel-1": { id: "moonfen-sentinel-1", kind: "skeleton", maxHp: 248, x: 720, y: 3760, gold: [118, 168], xp: 242, level: 19, aggroRange: 235, speed: 52, attackRange: 56, attackCooldown: 1360 },
+  "moonfen-archon": { id: "moonfen-archon", kind: "witch", maxHp: 380, x: 768, y: 3890, gold: [190, 280], xp: 380, level: 24, attackStyle: "magic", aggroRange: 330, speed: 44, attackRange: 230, attackCooldown: 1420, respawnMs: 900_000 },
+  "emberfall-ashwing-1": { id: "emberfall-ashwing-1", kind: "wolf", maxHp: 264, x: 440, y: 4440, gold: [132, 188], xp: 270, level: 22, attackStyle: "range", aggroRange: 260, speed: 72, attackRange: 210, attackCooldown: 1420 },
+  "emberfall-cinder-guard-1": { id: "emberfall-cinder-guard-1", kind: "orc", maxHp: 292, x: 1050, y: 4520, gold: [146, 214], xp: 292, level: 23, aggroRange: 245, speed: 58, attackRange: 58, attackCooldown: 1320 },
+  "emberfall-emberseer-1": { id: "emberfall-emberseer-1", kind: "witch", maxHp: 316, x: 1140, y: 4780, gold: [158, 232], xp: 326, level: 25, attackStyle: "magic", aggroRange: 310, speed: 46, attackRange: 225, attackCooldown: 1480 },
+  "emberfall-caldera-lord": { id: "emberfall-caldera-lord", kind: "orc", maxHp: 520, x: 768, y: 4930, gold: [260, 380], xp: 520, level: 30, attackStyle: "melee", aggroRange: 350, speed: 48, attackRange: 68, attackCooldown: 1350, respawnMs: 1_080_000 },
+  "frostmere-icewolf-1": { id: "frostmere-icewolf-1", kind: "wolf", maxHp: 338, x: 520, y: 5380, gold: [168, 238], xp: 340, level: 27, aggroRange: 255, speed: 70, attackRange: 54, attackCooldown: 1360 },
+  "frostmere-raider-1": { id: "frostmere-raider-1", kind: "orc", maxHp: 366, x: 790, y: 5590, gold: [182, 258], xp: 366, level: 28, aggroRange: 250, speed: 56, attackRange: 58, attackCooldown: 1320 },
+  "frostmere-witch-1": { id: "frostmere-witch-1", kind: "witch", maxHp: 392, x: 1090, y: 5740, gold: [196, 276], xp: 398, level: 29, attackStyle: "magic", aggroRange: 315, speed: 44, attackRange: 225, attackCooldown: 1480 },
+  "frostmere-lighthouse-warden": { id: "frostmere-lighthouse-warden", kind: "skeleton", maxHp: 610, x: 1260, y: 5260, gold: [310, 440], xp: 620, level: 34, attackStyle: "magic", aggroRange: 340, speed: 42, attackRange: 230, attackCooldown: 1380, respawnMs: 1_200_000 },
+  "sunscar-dune-stalker-1": { id: "sunscar-dune-stalker-1", kind: "wolf", maxHp: 430, x: 440, y: 6450, gold: [215, 302], xp: 430, level: 31, aggroRange: 260, speed: 74, attackRange: 54, attackCooldown: 1320 },
+  "sunscar-sand-raider-1": { id: "sunscar-sand-raider-1", kind: "orc", maxHp: 458, x: 790, y: 6590, gold: [230, 318], xp: 458, level: 32, aggroRange: 255, speed: 58, attackRange: 58, attackCooldown: 1320 },
+  "sunscar-astral-seer-1": { id: "sunscar-astral-seer-1", kind: "witch", maxHp: 486, x: 1120, y: 6780, gold: [244, 336], xp: 490, level: 33, attackStyle: "magic", aggroRange: 320, speed: 45, attackRange: 225, attackCooldown: 1480 },
+  "sunscar-tomb-king": { id: "sunscar-tomb-king", kind: "skeleton", maxHp: 720, x: 330, y: 6270, gold: [360, 520], xp: 740, level: 38, attackStyle: "magic", aggroRange: 360, speed: 40, attackRange: 230, attackCooldown: 1380, respawnMs: 1_320_000 },
 };
 const supabaseAdmin = SUPABASE_URL && SUPABASE_SECRET_KEY
   ? createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
@@ -388,6 +477,20 @@ const BASE_RPG_RESOURCES = {
   "sunstone-vein-1": { id: "sunstone-vein-1", kind: "ore", skill: "mining", x: 280, y: 2360, seconds: 12, gold: 24, xp: 92, itemId: "sunstone-ore", requiredLevel: 12 },
   "sunstone-vein-2": { id: "sunstone-vein-2", kind: "ore", skill: "mining", x: 240, y: 2480, seconds: 12, gold: 24, xp: 92, itemId: "sunstone-ore", requiredLevel: 12 },
   "sunstone-vein-3": { id: "sunstone-vein-3", kind: "ore", skill: "mining", x: 360, y: 2280, seconds: 12, gold: 24, xp: 92, itemId: "sunstone-ore", requiredLevel: 12 },
+  "moonfen-fish-1": { id: "moonfen-fish-1", kind: "fish", skill: "fishing", x: 1080, y: 3230, seconds: 12, gold: 22, xp: 88, itemId: "moonfin", requiredLevel: 14 },
+  "moonfen-fish-2": { id: "moonfen-fish-2", kind: "fish", skill: "fishing", x: 1210, y: 3430, seconds: 12, gold: 22, xp: 88, itemId: "moonfin", requiredLevel: 14 },
+  "moonfen-ore-1": { id: "moonfen-ore-1", kind: "ore", skill: "mining", x: 320, y: 3450, seconds: 15, gold: 34, xp: 118, itemId: "gloomstone-ore", requiredLevel: 16 },
+  "moonfen-ore-2": { id: "moonfen-ore-2", kind: "ore", skill: "mining", x: 470, y: 3720, seconds: 15, gold: 34, xp: 118, itemId: "gloomstone-ore", requiredLevel: 16 },
+  "emberfall-ore-1": { id: "emberfall-ore-1", kind: "ore", skill: "mining", x: 330, y: 4450, seconds: 18, gold: 46, xp: 156, itemId: "emberstone-ore", requiredLevel: 20 },
+  "emberfall-ore-2": { id: "emberfall-ore-2", kind: "ore", skill: "mining", x: 1180, y: 4660, seconds: 18, gold: 46, xp: 156, itemId: "emberstone-ore", requiredLevel: 20 },
+  "emberfall-ore-3": { id: "emberfall-ore-3", kind: "ore", skill: "mining", x: 820, y: 4860, seconds: 22, gold: 62, xp: 210, itemId: "star-iron", requiredLevel: 24 },
+  "emberfall-fish-1": { id: "emberfall-fish-1", kind: "fish", skill: "fishing", x: 1180, y: 4220, seconds: 15, gold: 30, xp: 116, itemId: "ember-koi", requiredLevel: 18 },
+  "frostmere-ore-1": { id: "frostmere-ore-1", kind: "ore", skill: "mining", x: 360, y: 5240, seconds: 24, gold: 72, xp: 246, itemId: "frostglass-ore", requiredLevel: 26 },
+  "frostmere-ore-2": { id: "frostmere-ore-2", kind: "ore", skill: "mining", x: 1310, y: 5900, seconds: 25, gold: 76, xp: 260, itemId: "frostglass-ore", requiredLevel: 28 },
+  "frostmere-fish-1": { id: "frostmere-fish-1", kind: "fish", skill: "fishing", x: 1010, y: 5700, seconds: 18, gold: 38, xp: 144, itemId: "frosttrout", requiredLevel: 24 },
+  "sunscar-ore-1": { id: "sunscar-ore-1", kind: "ore", skill: "mining", x: 1320, y: 6500, seconds: 27, gold: 86, xp: 286, itemId: "suncrystal-ore", requiredLevel: 30 },
+  "sunscar-ore-2": { id: "sunscar-ore-2", kind: "ore", skill: "mining", x: 520, y: 6920, seconds: 28, gold: 92, xp: 302, itemId: "suncrystal-ore", requiredLevel: 32 },
+  "sunscar-fish-1": { id: "sunscar-fish-1", kind: "fish", skill: "fishing", x: 1090, y: 6740, seconds: 20, gold: 44, xp: 162, itemId: "sunscale-fish", requiredLevel: 29 },
 };
 
 function npcPositionsFromLayout(layout) {
@@ -397,8 +500,8 @@ function npcPositionsFromLayout(layout) {
 }
 
 function enemiesFromLayout(layout) {
-  return Array.isArray(layout.enemies) && layout.enemies.length
-    ? Object.fromEntries(layout.enemies.map((enemy) => {
+  if (Array.isArray(layout.enemies) && layout.enemies.length) {
+    const mapped = Object.fromEntries(layout.enemies.map((enemy) => {
       const base = BASE_RPG_ENEMIES[enemy.id] || {};
       const attackStyle = enemy.attackStyle || base.attackStyle || "melee";
       return [enemy.id, {
@@ -410,14 +513,17 @@ function enemiesFromLayout(layout) {
         attackRange: base.attackRange ?? (attackStyle === "melee" ? 52 : 205),
         attackCooldown: base.attackCooldown ?? 1500,
       }];
-    }))
-    : BASE_RPG_ENEMIES;
+    }));
+    return { ...BASE_RPG_ENEMIES, ...mapped };
+  }
+  return BASE_RPG_ENEMIES;
 }
 
 function resourcesFromLayout(layout) {
-  return Array.isArray(layout.resources) && layout.resources.length
-    ? Object.fromEntries(layout.resources.map((resource) => [resource.id, resource]))
-    : BASE_RPG_RESOURCES;
+  if (Array.isArray(layout.resources) && layout.resources.length) {
+    return { ...BASE_RPG_RESOURCES, ...Object.fromEntries(layout.resources.map((resource) => [resource.id, resource])) };
+  }
+  return BASE_RPG_RESOURCES;
 }
 
 let RPG_NPC_POSITIONS = npcPositionsFromLayout(EDITABLE_WORLD_LAYOUT);
@@ -635,6 +741,11 @@ function playerWithinRange(player, target, maxRange = RPG_INTERACTION_RANGE) {
 }
 
 function rpgRegionIdAt(x, y) {
+  if (y >= 7168) return "orehaven-guild-hall";
+  if (y >= 6144) return "sunscar-expanse";
+  if (y >= 5120) return "frostmere-coast";
+  if (y >= 4096) return "emberfall-highlands";
+  if (y >= 3072) return "moonfen-expanse";
   if (y >= 2048) return "sunstone-catacombs";
   if (y >= 1024) {
     if (y < 1360 && x > 820) return "moonfen-marsh";
@@ -667,12 +778,19 @@ function validRpgPlayerPosition(player) {
   );
 }
 
+function playerInsideWaystoneSanctuary(player) {
+  if (!validRpgPlayerPosition(player)) return false;
+  return Object.values(RPG_WAYSTONES).some((waystone) => (
+    Math.hypot(player.x - waystone.arrivalX, player.y - waystone.arrivalY) <= RPG_WAYSTONE_SANCTUARY_RADIUS
+  ));
+}
+
 function nearestEnemyTarget(room, enemy, definition) {
   const now = Date.now();
   const provokedPlayer = enemy.provokedUntil > now && enemy.targetPlayerId
     ? room.players.get(enemy.targetPlayerId)
     : null;
-  if (provokedPlayer && validRpgPlayerPosition(provokedPlayer)) {
+  if (provokedPlayer && validRpgPlayerPosition(provokedPlayer) && !playerInsideWaystoneSanctuary(provokedPlayer)) {
     const distanceFromHome = Math.hypot(provokedPlayer.x - definition.x, provokedPlayer.y - definition.y);
     const distance = Math.hypot(provokedPlayer.x - enemy.x, provokedPlayer.y - enemy.y);
     const leashRange = Math.max(definition.aggroRange * 1.75, 340);
@@ -691,6 +809,7 @@ function nearestEnemyTarget(room, enemy, definition) {
   let nearestDistance = Number.POSITIVE_INFINITY;
   for (const player of room.players.values()) {
     if (!validRpgPlayerPosition(player)) continue;
+    if (playerInsideWaystoneSanctuary(player)) continue;
     const distance = Math.hypot(player.x - enemy.x, player.y - enemy.y);
     const distanceFromHome = Math.hypot(player.x - definition.x, player.y - definition.y);
     if (distance > proximityAggroRange || distance >= nearestDistance) continue;
@@ -790,13 +909,17 @@ function playerDefenseStats(player) {
   return {
     level: Math.max(1, progress?.skills?.defense?.level || 1),
     armorPower: Math.max(0, RPG_ITEM_RULES[armorId]?.power || 0),
+    armorReduction: Math.max(0, Math.min(0.2, RPG_ITEM_RULES[armorId]?.armorTrait?.damageReduction || 0)),
     treeReduction: 1 - treeDefense,
   };
 }
 
 function mitigateEnemyDamage(rawDamage, defense) {
   const reduction = Math.floor(defense.armorPower / 8) + Math.floor(Math.max(0, defense.level - 1) / 8);
-  return Math.max(1, Math.floor((rawDamage - reduction) * (1 - Math.max(0, Math.min(0.35, defense.treeReduction || 0)))));
+  const totalReduction = 1
+    - (1 - Math.max(0, Math.min(0.35, defense.treeReduction || 0)))
+      * (1 - Math.max(0, Math.min(0.2, defense.armorReduction || 0)));
+  return Math.max(1, Math.floor((rawDamage - reduction) * (1 - Math.min(0.45, totalReduction))));
 }
 
 function enemySpecialAbility(definition, enemy) {
@@ -806,16 +929,23 @@ function enemySpecialAbility(definition, enemy) {
     "goblin-firestarter": { name: "Cinder Volley", radius: 76, castMs: 1_500, cooldownMs: 7_600, color: 0xff7a3d, multiplier: 1.62 },
     "ironhide-grukk": { name: "Ironquake", radius: 94, castMs: 1_800, cooldownMs: 8_400, color: 0xffc454, multiplier: 1.9 },
     "moonfen-oracle": { name: "Moonwell Rupture", radius: 108, castMs: 2_050, cooldownMs: 7_900, color: 0x7edcff, multiplier: 1.78 },
+    "emberfall-caldera-lord": { name: "Caldera Breaker", radius: 118, castMs: 2_200, cooldownMs: 8_600, color: 0xff7046, multiplier: 2.05 },
+  "frostmere-lighthouse-warden": { name: "Aurora Verdict", radius: 132, castMs: 2_400, cooldownMs: 9_200, color: 0x8bdfff, multiplier: 2.12 },
+    "sunscar-tomb-king": { name: "Solar Burial", radius: 145, castMs: 2_600, cooldownMs: 9_800, color: 0xffa33f, multiplier: 2.25 },
   };
   if (rareAbilities[definition.id]) return rareAbilities[definition.id];
   const abilities = {
     goblin: { name: "Powder Toss", radius: 62, castMs: 1_050, cooldownMs: 8_500, color: 0xf2a648, multiplier: 1.35 },
     wolf: { name: "Rending Pounce", radius: 54, castMs: 900, cooldownMs: 7_500, color: 0xe86a52, multiplier: 1.45 },
+    drake: { name: "Ashwing Meteor", radius: 94, castMs: 1_650, cooldownMs: 8_400, color: 0xff6b35, multiplier: 1.7 },
+    "dune-stalker": { name: "Sandveil Ambush", radius: 78, castMs: 1_300, cooldownMs: 8_200, color: 0xd8a04d, multiplier: 1.52 },
+    boar: { name: "Emberhorn Charge", radius: 66, castMs: 1_100, cooldownMs: 8_000, color: 0xe66d3e, multiplier: 1.48 },
     slime: { name: definition.id === "auric-slime" ? "Auric Detonation" : "Corrosive Burst", radius: definition.id === "auric-slime" ? 96 : 70, castMs: definition.id === "auric-slime" ? 1_650 : 1_250, cooldownMs: definition.id === "auric-slime" ? 7_000 : 8_800, color: definition.id === "auric-slime" ? 0xffd45d : 0x64d89c, multiplier: definition.id === "auric-slime" ? 1.7 : 1.4 },
     orc: { name: "Groundbreaker", radius: 74, castMs: 1_150, cooldownMs: 8_200, color: 0xe2724e, multiplier: 1.55 },
     lizard: { name: definition.attackStyle === "magic" ? "Marshlight Pool" : definition.attackStyle === "range" ? "Venom Volley" : "Scalequake", radius: 76, castMs: 1_300, cooldownMs: 8_600, color: definition.attackStyle === "magic" ? 0x55d8c2 : 0x94c85c, multiplier: 1.45 },
     skeleton: { name: definition.attackStyle === "range" ? "Grave Arrow Rain" : "Sunbone Cleave", radius: 68, castMs: 1_200, cooldownMs: 8_000, color: 0xd9d4af, multiplier: 1.5 },
     witch: { name: "Moonhex Nova", radius: 84, castMs: 1_450, cooldownMs: 8_200, color: 0xb06fe8, multiplier: 1.55 },
+    treant: { name: "Rootwake", radius: 86, castMs: 1_700, cooldownMs: 9_200, color: 0x72c67b, multiplier: 1.62 },
   };
   return abilities[definition.kind] || null;
 }
@@ -834,17 +964,31 @@ function deliverEnemyDamage(targetPlayer, attackPayload) {
         currentHp = Math.max(0, next.hp - damage);
         knockedOut = currentHp <= 0;
         next.hp = knockedOut ? next.maxHp : currentHp;
+        if (knockedOut) next.position = { ...RPG_PLAYER_START };
         return addProfileXp(next, "defense", attackPayload.defenseXp);
       },
       true,
     )
-      .then((saved) => send(targetPlayer.socket, "rpg_enemy_attack", {
-        ...attackPayload,
-        profileAuthoritative: true,
-        currentHp,
-        maxHp: saved.progress.maxHp,
-        knockedOut,
-      }))
+      .then((saved) => {
+        if (knockedOut) {
+          targetPlayer.x = RPG_PLAYER_START.x;
+          targetPlayer.y = RPG_PLAYER_START.y;
+          targetPlayer.action = "idle";
+          targetPlayer.lastAcceptedMoveAt = Date.now();
+        }
+        send(targetPlayer.socket, "rpg_enemy_attack", {
+          ...attackPayload,
+          profileAuthoritative: true,
+          currentHp,
+          maxHp: saved.progress.maxHp,
+          knockedOut,
+          respawnX: knockedOut ? RPG_PLAYER_START.x : undefined,
+          respawnY: knockedOut ? RPG_PLAYER_START.y : undefined,
+        });
+        if (knockedOut) {
+          broadcast(targetPlayer.socket.roomId || "lobby", { type: "player_moved", player: publicRpgPlayer(targetPlayer) }, targetPlayer.id);
+        }
+      })
       .catch((error) => {
         console.error("Failed to persist enemy damage", error);
         send(targetPlayer.socket, "rpg_action_error", {
@@ -870,6 +1014,14 @@ function abilityDamage(baseDamage, ability, enemy) {
     multiplier *= ability.executeMultiplier;
   }
   return Math.max(1, Math.ceil(baseDamage * multiplier));
+}
+
+function rpgCriticalChance(combatLevel, weaponPower) {
+  return Math.min(0.14, 0.05 + combatLevel * 0.0006 + weaponPower * 0.002);
+}
+
+function rpgCriticalDamage(damage, critical) {
+  return critical ? Math.ceil(damage * 1.5) : damage;
 }
 
 function rollRpgLoot(definition) {
@@ -1113,7 +1265,7 @@ function applyCombatProfileReward(progress, definition, combatStyle, reward, eve
   next.questStep = questStepAfterCombat(next.questStep, definition, combatStyle);
   next.activities = recordActivity(next.activities, "combat", 1, definition.kind);
   next.activities = recordLifetimeTarget(next.activities, definition.id);
-  next.sideQuests = advanceSideQuests(next.sideQuests, "combat", definition.kind);
+  next.sideQuests = advanceSideQuests(next.sideQuests, "combat", definition.kind, definition.id);
   if (eventCredit) next.activities = recordActivity(next.activities, "event");
   return next;
 }
@@ -1130,6 +1282,15 @@ async function applyTreeAbilityDamage(roomId, player, enemy, definition, damage,
     ? { gold: randomInteger(definition.gold), xp: definition.xp, itemId: rollRpgLoot(definition) }
     : { gold: 0, xp: 0, itemId: null };
   const featuredEvent = isFeaturedRpgPublicEvent(definition.id, now);
+  const appliedStatus = ability.status && !defeated && !options.effectTick
+    ? {
+        kind: ability.status.kind,
+        label: ability.status.label,
+        expiresAt: now + ability.status.durationMs,
+        strength: Math.max(0, Math.min(0.8, ability.status.strength || 0)),
+        sourcePlayerId: player.id,
+      }
+    : null;
 
   if (featuredEvent) {
     const prior = enemy.contributors?.[player.id] || { damage: 0 };
@@ -1193,6 +1354,7 @@ async function applyTreeAbilityDamage(roomId, player, enemy, definition, damage,
   }
 
   enemy.hp = nextHp;
+  if (appliedStatus) enemy.status = appliedStatus;
   enemy.targetPlayerId = player.id;
   enemy.provokedUntil = now + 10_000;
   if (defeated) {
@@ -1219,6 +1381,7 @@ async function applyTreeAbilityDamage(roomId, player, enemy, definition, damage,
     secondary: Boolean(options.secondary),
     effectTick: Boolean(options.effectTick),
     tickIndex: options.tickIndex || 0,
+    statusApplied: Boolean(appliedStatus),
     reward,
     profileAuthoritative: Boolean(player.profile),
   });
@@ -1254,7 +1417,7 @@ function applyGatherProfileReward(progress, definition) {
   next.questStep = questStepAfterGather(next.questStep, definition);
   next.activities = recordActivity(next.activities, "gather");
   next.activities = recordLifetimeTarget(next.activities, `resource-${definition.itemId}`);
-  next.sideQuests = advanceSideQuests(next.sideQuests, "gather", definition.kind);
+  next.sideQuests = advanceSideQuests(next.sideQuests, "gather", definition.kind, definition.id);
   return next;
 }
 
@@ -1458,13 +1621,14 @@ function checkProfileRequirement(progress, item) {
 function rpgSkillTreePointTotal(progress) {
   const combatLevels = ["attack", "defense", "hitpoints", "range", "magic"]
     .reduce((sum, id) => sum + Math.max(1, progress.skills[id]?.level || 1), 0);
-  return 3 + Math.floor(Math.max(0, combatLevels - 5) / 3);
+  return Math.min(36, 3 + Math.floor(Math.max(0, combatLevels - 5) / 3));
 }
 
 function rpgSkillTreeBonuses(progress, branch) {
   const unlocked = new Set(progress?.skillTree?.unlocked || []);
   return Object.values(RPG_SKILL_TREE).reduce((bonuses, node) => {
-    if (node.branch !== branch || node.kind !== "passive" || !unlocked.has(node.id) || !node.passive) return bonuses;
+    const affinities = node.affinities || [node.branch];
+    if (!affinities.includes(branch) || node.kind !== "passive" || !unlocked.has(node.id) || !node.passive) return bonuses;
     bonuses.damageMultiplier *= node.passive.damageMultiplier || 1;
     bonuses.cooldownMultiplier *= node.passive.cooldownMultiplier || 1;
     bonuses.areaMultiplier *= node.passive.areaMultiplier || 1;
@@ -1494,7 +1658,9 @@ function applyProfileAction(progress, message) {
     if (!node) throw profileActionError("That skill does not exist.");
     const unlocked = new Set(next.skillTree.unlocked);
     if (unlocked.has(node.id)) return { progress: next, message: `${node.name} is already unlocked.` };
-    if (node.prerequisite && !unlocked.has(node.prerequisite)) throw profileActionError("Unlock the previous skill in this branch first.");
+    const requirements = node.prerequisites || (node.prerequisite ? [node.prerequisite] : []);
+    const connected = !requirements.length || (node.requiresAll ? requirements.every((id) => unlocked.has(id)) : requirements.some((id) => unlocked.has(id)));
+    if (!connected) throw profileActionError(node.requiresAll ? "Unlock every connected path into that keystone first." : "Unlock a connected skill first.");
     const branchSkill = node.branch === "melee" ? "attack" : node.branch;
     if ((next.skills[branchSkill]?.level || 1) < node.requiredLevel) throw profileActionError(`${node.name} requires ${branchSkill} level ${node.requiredLevel}.`);
     if (unlocked.size >= rpgSkillTreePointTotal(next)) throw profileActionError("Earn more combat levels to gain another skill point.");
@@ -1550,8 +1716,11 @@ function applyProfileAction(progress, message) {
     if (!item?.healing || (next.inventory[itemId] || 0) <= 0) throw profileActionError("You do not have that consumable.");
     if (next.hp >= next.maxHp) throw profileActionError("Your hitpoints are already full.");
     removeProfileItem(next, itemId, 1);
-    next.hp = Math.min(next.maxHp, next.hp + item.healing);
-    return { progress: next, message: `Restored ${item.healing} hitpoints.` };
+    const armor = RPG_ITEM_RULES[next.equipped.armor];
+    const healing = Math.ceil(item.healing * Math.max(1, armor?.armorTrait?.healingMultiplier || 1));
+    const restored = Math.min(next.maxHp - next.hp, healing);
+    next.hp += restored;
+    return { progress: next, message: `Restored ${restored} hitpoints.` };
   }
 
   if (message.action === "rest") {
@@ -1680,7 +1849,7 @@ function applyProfileAction(progress, message) {
       next.questComplete = false;
       next.gold += 150;
       next = addProfileItem(next, "trout", 3);
-      resultMessage = "A New Acre complete. +150 gold and 3 river trout.";
+      resultMessage = "The First Spark complete. +150 gold and 3 river trout.";
     } else if (npcId === "guide" && next.questStep === 4) {
       next.questStep = 5;
       next.questComplete = false;
@@ -1733,6 +1902,46 @@ function applyProfileAction(progress, message) {
       next = addProfileItem(next, "sunforged-mail", 1);
       next = addProfileItem(next, "rune-blade", 1);
       next = addProfileItem(next, "healing-potion", 5);
+    } else if (npcId === "ranger" && next.questStep === 30) {
+      next.questStep = 31;
+      next.questComplete = false;
+      resultMessage = "Chapter IV begun: follow the drowned lantern road into Moonfen.";
+    } else if (npcId === "ranger" && next.questStep === 34) {
+      next.questStep = 35;
+      next.questComplete = true;
+      next.gold += 2_200;
+      next = addProfileItem(next, "moonweave-mantle", 1);
+      resultMessage = "The Moonfen Eclipse complete. +2,200 gold and a Moonweave Mantle.";
+    } else if (npcId === "smith" && next.questStep === 35) {
+      next.questStep = 36;
+      next.questComplete = false;
+      resultMessage = "Chapter V begun: hunt the Ashwing Drake on Emberfall's western road.";
+    } else if (npcId === "smith" && next.questStep === 39) {
+      next.questStep = 40;
+      next.questComplete = true;
+      next.gold += 2_800;
+      next = addProfileItem(next, "sunstone-pick", 1);
+      resultMessage = "The Emberfall Crown complete. +2,800 gold and a Sunstone Pickaxe.";
+    } else if (npcId === "frostkeeper" && next.questStep === 40) {
+      next.questStep = 41;
+      next.questComplete = false;
+      resultMessage = "Chapter VI begun: drive the Icefang from Frostmere's crossing.";
+    } else if (npcId === "frostkeeper" && next.questStep === 44) {
+      next.questStep = 45;
+      next.questComplete = true;
+      next.gold += 3_400;
+      next = addProfileItem(next, "frostspire-staff", 1);
+      resultMessage = "The Last Light complete. +3,400 gold and a Frostspire Staff.";
+    } else if (npcId === "sunscar-scholar" && next.questStep === 45) {
+      next.questStep = 46;
+      next.questComplete = false;
+      resultMessage = "Chapter VII begun: hunt the Dune Stalker along the oasis road.";
+    } else if (npcId === "sunscar-scholar" && next.questStep === 49) {
+      next.questStep = 50;
+      next.questComplete = true;
+      next.gold += 5_000;
+      next = addProfileItem(next, "nightguard-plate", 1);
+      resultMessage = "The Buried Sun complete. You are now Warden of Seven Roads.";
     } else {
       changed = false;
     }
@@ -2653,6 +2862,7 @@ setInterval(() => {
         const hit = Boolean(
           castTarget
           && validRpgPlayerPosition(castTarget)
+          && !playerInsideWaystoneSanctuary(castTarget)
           && Math.hypot(castTarget.x - cast.x, castTarget.y - cast.y) <= cast.radius,
         );
         if (hit) {
@@ -3172,7 +3382,8 @@ wss.on("connection", async (ws) => {
         const distance = Math.hypot(clampedX - player.x, clampedY - player.y);
         const maximumDistance = 40 + RPG_PLAYER_MOVE_SPEED * elapsedSeconds * 3;
         const speedAllowed = player.authMode === "guest" || RPG_ALLOW_TEST_WARP || distance <= maximumDistance;
-        const remainsInArea = (player.y >= 2048) === (clampedY >= 2048);
+        const areaAt = (worldY) => worldY >= 6144 ? "sunscar" : worldY >= 5120 ? "frostmere" : worldY >= 4096 ? "highlands" : worldY >= 3072 ? "marsh" : worldY >= 2048 ? "dungeon" : "overworld";
+        const remainsInArea = areaAt(player.y) === areaAt(clampedY);
         if (speedAllowed && remainsInArea && isWorldPositionWalkable(clampedX, clampedY, PLAYER_COLLISION_RADIUS)) {
           player.x = clampedX;
           player.y = clampedY;
@@ -3610,7 +3821,10 @@ wss.on("connection", async (ws) => {
       let healing = 0;
       try {
         await mutateAuthenticatedProfile(player, "combat_second_wind", (progress) => {
-          const restored = Math.max(8, Math.ceil(progress.maxHp * 0.24));
+          const armor = RPG_ITEM_RULES[progress.equipped.armor];
+          const restored = Math.ceil(
+            Math.max(8, Math.ceil(progress.maxHp * 0.24)) * Math.max(1, armor?.armorTrait?.healingMultiplier || 1),
+          );
           const nextHp = Math.min(progress.maxHp, progress.hp + restored);
           healing = nextHp - progress.hp;
           return {
@@ -3795,7 +4009,11 @@ wss.on("connection", async (ws) => {
           ? randomInteger([3, 6]) + combatLevel + weaponPower
           : randomInteger([2, 5]) + combatLevel + weaponPower;
       const treeBonuses = rpgSkillTreeBonuses(player.profile?.progress, combatStyle);
-      const damage = rpgSkillTreeDamage(abilityDamage(baseDamage, ability, enemy), treeBonuses, enemy);
+      const critical = !ability && Math.random() < rpgCriticalChance(combatLevel, weaponPower);
+      const damage = rpgCriticalDamage(
+        rpgSkillTreeDamage(abilityDamage(baseDamage, ability, enemy), treeBonuses, enemy),
+        critical,
+      );
       const nextEnemyHp = Math.max(0, enemy.hp - damage);
       const defeated = nextEnemyHp <= 0;
       const appliedStatus = ability?.status && !defeated
@@ -3845,6 +4063,7 @@ wss.on("connection", async (ws) => {
           enemy: publicEnemyState(enemy),
           sourcePlayerId: player.id,
           damage,
+          critical,
           retaliation,
           defeated: true,
           settling: true,
@@ -3905,6 +4124,7 @@ wss.on("connection", async (ws) => {
         enemy: publicEnemyState(enemy),
         sourcePlayerId: player.id,
         damage,
+        critical,
         retaliation,
         defeated,
         combatStyle,
@@ -4162,6 +4382,9 @@ wss.on("connection", async (ws) => {
     if (message.type === "rpg_identity_update") {
       const displayName = sanitizePlayerName(message.displayName);
       const appearance = RPG_APPEARANCES.has(message.appearance) ? message.appearance : null;
+      const requestedCustomization = message.customization && typeof message.customization === "object"
+        ? message.customization
+        : null;
       if (player.pendingProfileActions >= 1) {
         send(ws, "rpg_action_error", { action: "identity", message: "Your profile is already being updated. Try again in a moment.", retryable: true });
         return;
@@ -4169,18 +4392,30 @@ wss.on("connection", async (ws) => {
       player.pendingProfileActions += 1;
       try {
         if (player.profile && rpgProfileStore) {
-          await mutateAuthenticatedProfile(player, "profile_identity", (progress) => ({
-            progress: appearance
-              ? { ...progress, appearance, customization: customizationForRpgAppearance(appearance) }
-              : progress,
-            displayName,
-            message: "Adventurer identity saved.",
-          }));
+          await mutateAuthenticatedProfile(player, "profile_identity", (progress) => {
+            const nextAppearance = appearance || progress.appearance;
+            const customizationBase = appearance
+              ? customizationForRpgAppearance(nextAppearance)
+              : progress.customization;
+            const customization = requestedCustomization
+              ? normalizeRpgCustomization(requestedCustomization, customizationBase)
+              : customizationBase;
+            return {
+              progress: { ...progress, appearance: nextAppearance, customization },
+              displayName,
+              message: "Adventurer identity saved.",
+            };
+          });
         } else {
           player.name = displayName;
           if (appearance) {
             player.appearance = appearance;
-            player.customization = customizationForRpgAppearance(appearance);
+            const customizationBase = customizationForRpgAppearance(appearance);
+            player.customization = requestedCustomization
+              ? normalizeRpgCustomization(requestedCustomization, customizationBase)
+              : customizationBase;
+          } else if (requestedCustomization) {
+            player.customization = normalizeRpgCustomization(requestedCustomization, player.customization);
           }
         }
         send(ws, "rpg_identity_state", { displayName: player.name });

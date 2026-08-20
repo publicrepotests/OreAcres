@@ -12,7 +12,7 @@ import {
   isFeaturedRpgPublicEvent,
 } from "../server/src/publicEvents.js";
 
-assert.equal(PUBLIC_EVENTS.length, 3, "Three regional public rallies should rotate.");
+assert.equal(PUBLIC_EVENTS.length, 6, "Six regional public rallies should rotate.");
 assert.equal(PUBLIC_EVENT_ROTATION_MS, RPG_PUBLIC_EVENT_ROTATION_MS);
 assert.deepEqual(
   PUBLIC_EVENTS.map(({ enemyId, name, location, region }) => ({ enemyId, name, location, region })),
@@ -42,4 +42,4 @@ assert.match(shell, /Next rally in/, "The HUD does not expose the rotation count
 assert.match(server, /if \(featuredEvent\)/, "Combat contribution tracking is not gated to the featured rally.");
 assert.match(server, /grantWorldEventParticipationRewards\(roomId, definition, participants, player\.id\)/, "Skill-tree kills do not settle public-event helper rewards.");
 
-console.log("RPG public-event checks passed: three named bosses rotate with client/server parity, deterministic timing, contribution rewards, and HUD tracking.");
+console.log("RPG public-event checks passed: six regional bosses rotate with client/server parity, deterministic timing, contribution rewards, and HUD tracking.");

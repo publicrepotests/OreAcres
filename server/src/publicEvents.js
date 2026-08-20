@@ -4,6 +4,9 @@ export const RPG_PUBLIC_EVENTS = [
   { enemyId: "auric-slime", name: "Auric Slime", location: "Southroad anomaly", region: "Southroad" },
   { enemyId: "ironhide-grukk", name: "Ironhide Grukk", location: "Raider Dens", region: "Briarwild" },
   { enemyId: "moonfen-oracle", name: "Ssavra, Moonfen Oracle", location: "Moonfen ritual pool", region: "Moonfen Marsh" },
+  { enemyId: "emberfall-caldera-lord", name: "Varkul, Caldera Lord", location: "Emberfall crater throne", region: "Emberfall Highlands" },
+  { enemyId: "frostmere-lighthouse-warden", name: "Eira, Lighthouse Warden", location: "Frostmere lighthouse cliff", region: "Frostmere Coast" },
+  { enemyId: "sunscar-tomb-king", name: "Khepri, Tomb King", location: "Sealed tomb beneath the Sunscar dunes", region: "Sunscar Expanse" },
 ];
 
 export function featuredRpgPublicEvent(at = Date.now(), overrideEnemyId = process.env.RPG_PUBLIC_EVENT_ENEMY_ID || "") {

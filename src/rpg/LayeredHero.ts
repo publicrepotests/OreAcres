@@ -28,10 +28,11 @@ export type HeroVisualAction =
   | "fish"
   | "smith"
   | "hurt";
-export type ActorAppearanceId = AppearanceId | "mira" | "grent" | "korra" | "pip" | "clerk" | "lyra" | "goblin" | "orc" | "lizard";
+export type ActorAppearanceId = AppearanceId | "mira" | "grent" | "korra" | "pip" | "clerk" | "lyra" | "alden" | "juno" | "merris" | "pella" | "goblin" | "orc" | "lizard";
 
 export type ActorAppearanceStyle = {
   head: "human" | "goblin" | "orc" | "lizard";
+  face?: FaceStyleId;
   hair?: HairStyleId;
   skinTint: number;
   hairTint: number;
@@ -52,13 +53,14 @@ export type WeaponVisual = {
   kind: "sword" | "bow" | "staff";
   tint: number;
   aura?: number;
+  assetSet?: "sword" | "saber" | "glowsword-blue" | "glowsword-red" | "bow" | "recurve" | "greatbow";
 };
 
 export type ArmorVisual = {
   kind: "none" | "leather" | "chain" | "legion" | "plate";
   tint: number;
   helmet?: "barbuta" | "greathelm" | "sugarloaf" | "plate";
-  cape?: "solid" | "tattered";
+  cape?: "solid" | "tattered" | "briar";
   shield?: "crusader";
   aura?: number;
 };
@@ -91,12 +93,15 @@ type SpriteLayer =
   | "weaponFront";
 
 const LPC_ROOT = "/assets/rpg/characters/lpc";
-const HERO_SCALE = 0.75;
+// Keep the LPC art readable against the large authored maps without making
+// the actor overpower props or nearby NPCs.
+const HERO_SCALE = 0.86;
 const HERO_FRAME_OFFSET_Y = -23;
 
 const APPEARANCE_STYLES: Record<AppearanceId, ActorAppearanceStyle> = {
   vanguard: {
     head: "human",
+    face: "determined",
     hair: "plain",
     skinTint: 0xfff7ef,
     hairTint: 0xffffff,
@@ -106,6 +111,7 @@ const APPEARANCE_STYLES: Record<AppearanceId, ActorAppearanceStyle> = {
   },
   ranger: {
     head: "human",
+    face: "cheerful",
     hair: "shorthawk",
     skinTint: 0xd79d75,
     hairTint: 0xffffff,
@@ -115,6 +121,7 @@ const APPEARANCE_STYLES: Record<AppearanceId, ActorAppearanceStyle> = {
   },
   arcanist: {
     head: "human",
+    face: "wide-eyed",
     hair: "spiked2",
     skinTint: 0xf0c7ad,
     hairTint: 0xffffff,
@@ -122,13 +129,30 @@ const APPEARANCE_STYLES: Record<AppearanceId, ActorAppearanceStyle> = {
     pantsTint: 0x4d496f,
     bootsTint: 0x65728f,
   },
+  stonewarden: {
+    head: "orc",
+    skinTint: 0x8fa85c,
+    hairTint: 0xffffff,
+    shirtTint: 0x783f34,
+    pantsTint: 0x453b32,
+    bootsTint: 0x3e2e25,
+  },
+  marshborn: {
+    head: "lizard",
+    skinTint: 0x7fba83,
+    hairTint: 0xffffff,
+    shirtTint: 0x496b78,
+    pantsTint: 0x344b52,
+    bootsTint: 0x4b3c32,
+  },
 };
 
 export const ACTOR_APPEARANCE_STYLES: Record<ActorAppearanceId, ActorAppearanceStyle> = {
   ...APPEARANCE_STYLES,
   mira: {
     head: "human",
-    hair: "spiked2",
+    face: "cheerful",
+    hair: "bob",
     skinTint: 0xf2c5a7,
     hairTint: 0xd9e7ff,
     shirtTint: 0x5678b8,
@@ -137,7 +161,8 @@ export const ACTOR_APPEARANCE_STYLES: Record<ActorAppearanceId, ActorAppearanceS
   },
   grent: {
     head: "human",
-    hair: "plain",
+    face: "determined",
+    hair: "buzzcut",
     skinTint: 0xdca47f,
     hairTint: 0x6c5549,
     shirtTint: 0x8e6c3f,
@@ -146,7 +171,8 @@ export const ACTOR_APPEARANCE_STYLES: Record<ActorAppearanceId, ActorAppearanceS
   },
   korra: {
     head: "human",
-    hair: "shorthawk",
+    face: "determined",
+    hair: "cornrows",
     skinTint: 0xc78362,
     hairTint: 0xf1b451,
     shirtTint: 0xa44c3f,
@@ -155,7 +181,8 @@ export const ACTOR_APPEARANCE_STYLES: Record<ActorAppearanceId, ActorAppearanceS
   },
   pip: {
     head: "human",
-    hair: "plain",
+    face: "cheerful",
+    hair: "afro",
     skinTint: 0xe5b48d,
     hairTint: 0x6b4030,
     shirtTint: 0x4f9b72,
@@ -164,7 +191,8 @@ export const ACTOR_APPEARANCE_STYLES: Record<ActorAppearanceId, ActorAppearanceS
   },
   clerk: {
     head: "human",
-    hair: "spiked2",
+    face: "wide-eyed",
+    hair: "buzzcut",
     skinTint: 0xf0c3a1,
     hairTint: 0xb26f3f,
     shirtTint: 0x9b6c42,
@@ -173,12 +201,53 @@ export const ACTOR_APPEARANCE_STYLES: Record<ActorAppearanceId, ActorAppearanceS
   },
   lyra: {
     head: "human",
+    face: "determined",
     hair: "shorthawk",
     skinTint: 0xd8a47d,
     hairTint: 0xc6d5a3,
     shirtTint: 0x4f7452,
     pantsTint: 0x3f5144,
     bootsTint: 0x533c2d,
+  },
+  alden: {
+    head: "human",
+    face: "determined",
+    hair: "plain",
+    skinTint: 0xd8aa87,
+    hairTint: 0xd9dde2,
+    shirtTint: 0x315f9d,
+    pantsTint: 0x333d56,
+    bootsTint: 0x49372d,
+  },
+  juno: {
+    head: "human",
+    face: "determined",
+    hair: "spiked2",
+    skinTint: 0xe0aa82,
+    hairTint: 0xb95231,
+    shirtTint: 0xa84536,
+    pantsTint: 0x514239,
+    bootsTint: 0x3f3028,
+  },
+  merris: {
+    head: "human",
+    face: "neutral",
+    hair: "cornrows",
+    skinTint: 0x8f5f48,
+    hairTint: 0xb8b4ae,
+    shirtTint: 0x8f2947,
+    pantsTint: 0x3f3340,
+    bootsTint: 0x3c2c27,
+  },
+  pella: {
+    head: "human",
+    face: "cheerful",
+    hair: "bob",
+    skinTint: 0xe2b18f,
+    hairTint: 0x7d4daf,
+    shirtTint: 0x177b82,
+    pantsTint: 0x334e57,
+    bootsTint: 0x44332f,
   },
   goblin: {
     head: "goblin",
@@ -215,10 +284,11 @@ export function resolveActorAppearanceStyle(
   customization?: CharacterCustomization,
 ): ActorAppearanceStyle {
   const base = ACTOR_APPEARANCE_STYLES[appearance];
-  if (!customization || (appearance !== "vanguard" && appearance !== "ranger" && appearance !== "arcanist")) return base;
+  if (!customization) return base;
   return {
     ...base,
-    hair: customization.hairStyle,
+    face: base.head === "human" ? customization.faceStyle : undefined,
+    hair: base.head === "human" ? customization.hairStyle : undefined,
     skinTint: optionTint(SKIN_TONES, customization.skinTone, base.skinTint),
     hairTint: optionTint(HAIR_COLORS, customization.hairColor, base.hairTint),
     shirtTint: optionTint(DYES, customization.shirtColor, base.shirtTint),
@@ -240,12 +310,13 @@ const ACTIONS: Record<HeroVisualAction, AnimationSpec> = {
   gather: { source: "slash", columns: 6, sequence: [5, 5, 4, 4, 3, 1, 0, 0], frameRate: 10, repeat: -1 },
   mine: { source: "slash", columns: 6, sequence: [5, 5, 4, 4, 3, 1, 0, 0], frameRate: 10, repeat: -1 },
   chop: { source: "slash", columns: 6, sequence: [5, 4, 4, 3, 2, 1, 0, 0], frameRate: 9, repeat: -1 },
-  // Cast once, then linger on the settled pose before the next gentle line check.
+  // Use a gathering body pose. The fishing rod gets its cast strip below,
+  // so the character no longer looks like they are firing a bow.
   fish: {
-    source: "shoot",
-    columns: 13,
-    sequence: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12],
-    frameRate: 12,
+    source: "slash",
+    columns: 6,
+    sequence: [5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5],
+    frameRate: 9,
     repeat: -1,
   },
   smith: { source: "slash", columns: 6, sequence: [5, 4, 3, 2, 1, 0, 0], frameRate: 9, repeat: -1 },
@@ -253,6 +324,14 @@ const ACTIONS: Record<HeroVisualAction, AnimationSpec> = {
 };
 
 const DIRECTION_ROW: Record<Direction, number> = { up: 0, left: 1, down: 2, right: 3 };
+
+const FISHING_ROD_ACTION: AnimationSpec = {
+  source: "shoot",
+  columns: 13,
+  sequence: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 12, 12, 12, 12],
+  frameRate: 12,
+  repeat: -1,
+};
 
 const BASE_ASSETS = {
   body: "body",
@@ -275,17 +354,21 @@ const BASE_ASSETS = {
 export const WEAPON_VISUALS: Record<string, WeaponVisual> = {
   "bronze-sword": { kind: "sword", tint: 0xc99a68 },
   "iron-sword": { kind: "sword", tint: 0xd0d8e2 },
-  "rune-blade": { kind: "sword", tint: 0x72e6ff },
-  "dusk-sabre": { kind: "sword", tint: 0xc491ff, aura: 0x8e4fe6 },
-  "auric-cleaver": { kind: "sword", tint: 0xffd45d, aura: 0xffc84a },
+  "rune-blade": { kind: "sword", tint: 0xffffff, aura: 0x5be8ff, assetSet: "glowsword-blue" },
+  "dusk-sabre": { kind: "sword", tint: 0xc491ff, aura: 0x8e4fe6, assetSet: "saber" },
+  "auric-cleaver": { kind: "sword", tint: 0xffd45d, aura: 0xffc84a, assetSet: "saber" },
+  "aurex-sunblade": { kind: "sword", tint: 0xffd28a, aura: 0xffa92f, assetSet: "glowsword-red" },
   "oak-bow": { kind: "bow", tint: 0xd19a58 },
   "iron-bow": { kind: "bow", tint: 0xbfd3dc },
-  stormbow: { kind: "bow", tint: 0x79eaff, aura: 0x55dfff },
-  "fallen-recurve": { kind: "bow", tint: 0x9edfff, aura: 0x69c9ff },
+  stormbow: { kind: "bow", tint: 0x79eaff, aura: 0x55dfff, assetSet: "greatbow" },
+  "fallen-recurve": { kind: "bow", tint: 0x9edfff, aura: 0x69c9ff, assetSet: "recurve" },
   "ember-staff": { kind: "staff", tint: 0xffa34f },
   "arcane-staff": { kind: "staff", tint: 0x7edfff },
   "frostspire-staff": { kind: "staff", tint: 0xa7f4ff, aura: 0x6edff2 },
   "bonecaller-focus": { kind: "staff", tint: 0xc88cff, aura: 0xb66cff },
+  "sunscar-reaver": { kind: "sword", tint: 0xff9a58, aura: 0xff5b2e, assetSet: "glowsword-red" },
+  "aurora-longbow": { kind: "bow", tint: 0xaaf3ff, aura: 0x71dfff, assetSet: "greatbow" },
+  "eclipse-staff": { kind: "staff", tint: 0xf3a6ff, aura: 0x8f6dff },
 };
 
 export const ARMOR_VISUALS: Record<string, ArmorVisual> = {
@@ -294,9 +377,10 @@ export const ARMOR_VISUALS: Record<string, ArmorVisual> = {
   "sentinel-mail": { kind: "chain", tint: 0xd5e3f4, helmet: "barbuta", shield: "crusader" },
   "sunforged-mail": { kind: "legion", tint: 0xf1c75b, helmet: "sugarloaf", cape: "solid", shield: "crusader", aura: 0xffc84a },
   "warden-mail": { kind: "leather", tint: 0x93c878, cape: "solid" },
-  "briarhide-cloak": { kind: "leather", tint: 0x5ea861, cape: "tattered", aura: 0x67c96f },
+  "briarhide-cloak": { kind: "leather", tint: 0x5ea861, cape: "briar", aura: 0x67c96f },
   "moonweave-mantle": { kind: "chain", tint: 0x8b8fe8, cape: "solid", aura: 0x777cdd },
   "nightguard-plate": { kind: "plate", tint: 0x7195b8, helmet: "greathelm", cape: "tattered", shield: "crusader", aura: 0x5c82a8 },
+  "frostguard-aegis": { kind: "plate", tint: 0x8eddf4, helmet: "sugarloaf", cape: "solid", shield: "crusader", aura: 0x70dfff },
 };
 
 export function resolveWeaponVisual(itemId: string): WeaponVisual | null {
@@ -316,12 +400,155 @@ function loadSheet(scene: Phaser.Scene, key: string, path: string, frameSize: nu
   scene.load.spritesheet(key, path, { frameWidth: frameSize, frameHeight: frameSize });
 }
 
-export function preloadLayeredHeroAssets(scene: Phaser.Scene) {
+export const SWORD_ASSET_SETS = {
+  sword: { slashFrameSize: 128 },
+  saber: { slashFrameSize: 192 },
+  "glowsword-blue": { slashFrameSize: 192 },
+  "glowsword-red": { slashFrameSize: 192 },
+} as const;
+
+export const BOW_ASSET_SETS = {
+  bow: { walkFrameSize: 128, walkColumns: 13, walkSequence: [1, 2, 3, 4, 5, 6, 7, 8] },
+  recurve: { walkFrameSize: 128, walkColumns: 8, walkSequence: [0, 1, 2, 3, 4, 5, 6, 7] },
+  greatbow: { walkFrameSize: 128, walkColumns: 8, walkSequence: [0, 1, 2, 3, 4, 5, 6, 7] },
+} as const;
+
+type SwordAssetSet = keyof typeof SWORD_ASSET_SETS;
+export type BowAssetSet = keyof typeof BOW_ASSET_SETS;
+
+export function resolveSwordAssetSet(visual: WeaponVisual): SwordAssetSet {
+  return visual.assetSet === "saber" || visual.assetSet === "glowsword-blue" || visual.assetSet === "glowsword-red"
+    ? visual.assetSet
+    : "sword";
+}
+
+export function resolveBowAssetSet(visual: WeaponVisual): BowAssetSet {
+  return visual.assetSet === "recurve" || visual.assetSet === "greatbow" ? visual.assetSet : "bow";
+}
+
+function preloadSwordAssets(scene: Phaser.Scene, assetSet: keyof typeof SWORD_ASSET_SETS) {
+  const path = `${LPC_ROOT}/weapon/${assetSet}`;
+  loadSheet(scene, `lpc-${assetSet}-walk-bg`, `${path}/walk-bg.png`, 64);
+  loadSheet(scene, `lpc-${assetSet}-walk-fg`, `${path}/walk-fg.png`, 64);
+  loadSheet(scene, `lpc-${assetSet}-slash-bg`, `${path}/slash-bg.png`, SWORD_ASSET_SETS[assetSet].slashFrameSize);
+  loadSheet(scene, `lpc-${assetSet}-slash-fg`, `${path}/slash-fg.png`, SWORD_ASSET_SETS[assetSet].slashFrameSize);
+}
+
+function preloadBowAssets(scene: Phaser.Scene, assetSet: BowAssetSet) {
+  const path = `${LPC_ROOT}/weapon/${assetSet}`;
+  const config = BOW_ASSET_SETS[assetSet];
+  loadSheet(scene, `lpc-${assetSet}-walk-bg`, `${path}/walk-bg.png`, config.walkFrameSize);
+  loadSheet(scene, `lpc-${assetSet}-walk-fg`, `${path}/walk-fg.png`, config.walkFrameSize);
+  loadSheet(scene, `lpc-${assetSet}-shoot-bg`, `${path}/shoot-bg.png`, 64);
+  loadSheet(scene, `lpc-${assetSet}-shoot-fg`, `${path}/shoot-fg.png`, 64);
+}
+
+type HeroPreloadOptions = {
+  essentialOnly?: boolean;
+  appearance?: ActorAppearanceId;
+  customization?: CharacterCustomization;
+  weaponId?: string;
+  armorId?: string;
+};
+
+function preloadEssentialHeroAssets(scene: Phaser.Scene, options: HeroPreloadOptions, sources: readonly string[]) {
+  const add = (layer: string, path: string, actions = sources) => {
+    actions.forEach((action) => loadSheet(scene, textureKey(layer, action), `${LPC_ROOT}/${path}/${action}.png`, 64));
+  };
+  const style = resolveActorAppearanceStyle(options.appearance ?? "vanguard", options.customization);
+  [
+    ["body", BASE_ASSETS.body],
+    ["shirt", BASE_ASSETS.shirt],
+    ["pants", BASE_ASSETS.pants],
+    ["boots", BASE_ASSETS.boots],
+  ].forEach(([layer, path]) => add(layer, path));
+
+  // Keep every playable silhouette recognizable while only loading the selected
+  // cosmetic variants up front. The rest of the catalog streams after entry.
+  new Set([style.head, "human", "goblin", "orc", "lizard"]).forEach((head) => add(`head-${head}`, `head/${head}`));
+  const hair = style.hair ?? "plain";
+  add(`hair-${hair}`, `hair/${hair}`);
+  const face = options.customization?.faceStyle ?? "neutral";
+  add(`face-${face}`, `face/${face}`, ["idle", "walk", "slash", "shoot", "spellcast"]);
+  const beard = options.customization?.beardStyle;
+  if (beard && beard !== "none") add(`beard-${beard}`, `beard/${beard}`);
+
+  const armor = resolveArmorVisual(options.armorId ?? "trailguard-vest");
+  if (armor.kind !== "none") {
+    const armorLayer = armor.kind === "leather" ? "leatherTorso" : armor.kind === "chain" ? "chainTorso" : armor.kind === "legion" ? "legionTorso" : "plateTorso";
+    add(armorLayer, BASE_ASSETS[armorLayer]);
+    if (armor.kind === "plate") {
+      add("plateArms", BASE_ASSETS.plateArms);
+      add("plateLegs", BASE_ASSETS.plateLegs);
+      add("plateFeet", BASE_ASSETS.plateFeet);
+    }
+    if (armor.helmet) {
+      const helmetLayer = `${armor.helmet}Helmet` as keyof typeof BASE_ASSETS;
+      add(helmetLayer, BASE_ASSETS[helmetLayer]);
+    }
+    if (armor.cape) {
+      const capePath = armor.cape === "briar" ? "armor/briar-cape" : `armor/cape-${armor.cape}`;
+      add(`cape-${armor.cape}-bg`, `${capePath}/bg`);
+      add(`cape-${armor.cape}-fg`, `${capePath}/fg`);
+    }
+    if (armor.shield) {
+      (["bg", "fg"] as const).forEach((layer) => {
+        (["walk", "slash", "shoot", "spellcast", "hurt"] as const).forEach((action) =>
+          loadSheet(scene, textureKey(`shield-${armor.shield}-${layer}`, action), `${LPC_ROOT}/shield/${armor.shield}/${layer}/${action}.png`, 64),
+        );
+      });
+    }
+  }
+  const helmetOverride = options.customization?.helmetStyle;
+  if (helmetOverride && helmetOverride !== "auto") {
+    const helmetLayer = `${helmetOverride}Helmet` as keyof typeof BASE_ASSETS;
+    add(helmetLayer, BASE_ASSETS[helmetLayer]);
+  }
+  const capeOverride = options.customization?.capeStyle;
+  if (capeOverride && capeOverride !== "auto") {
+    const capePath = capeOverride === "briar" ? "armor/briar-cape" : `armor/cape-${capeOverride}`;
+    add(`cape-${capeOverride}-bg`, `${capePath}/bg`);
+    add(`cape-${capeOverride}-fg`, `${capePath}/fg`);
+  }
+  const shieldOverride = options.customization?.shieldStyle;
+  if (shieldOverride && shieldOverride !== "auto") {
+    (["bg", "fg"] as const).forEach((layer) => {
+      sources.forEach((action) => loadSheet(scene, textureKey(`shield-${shieldOverride}-${layer}`, action), `${LPC_ROOT}/shield/${shieldOverride}/${layer}/${action}.png`, 64));
+    });
+  }
+
+  const weapon = resolveWeaponVisual(options.weaponId ?? "bronze-sword");
+  if (weapon?.kind === "sword") {
+    preloadSwordAssets(scene, resolveSwordAssetSet(weapon));
+  } else if (weapon?.kind === "bow") {
+    preloadBowAssets(scene, resolveBowAssetSet(weapon));
+  } else {
+    loadSheet(scene, "lpc-staff-walk-bg", `${LPC_ROOT}/weapon/staff/walk-bg.png`, 64);
+    loadSheet(scene, "lpc-staff-walk-fg", `${LPC_ROOT}/weapon/staff/walk-fg.png`, 64);
+    loadSheet(scene, "lpc-staff-spellcast-bg", `${LPC_ROOT}/weapon/staff/spellcast-bg.png`, 64);
+    loadSheet(scene, "lpc-staff-spellcast-fg", `${LPC_ROOT}/weapon/staff/spellcast-fg.png`, 64);
+  }
+
+  loadSheet(scene, "lpc-pickaxe-slash-bg", `${LPC_ROOT}/tool/pickaxe/slash-bg.png`, 128);
+  loadSheet(scene, "lpc-pickaxe-slash-fg", `${LPC_ROOT}/tool/pickaxe/slash-fg.png`, 128);
+  loadSheet(scene, "lpc-axe-slash-bg", `${LPC_ROOT}/tool/axe/slash-bg.png`, 128);
+  loadSheet(scene, "lpc-axe-slash-fg", `${LPC_ROOT}/tool/axe/slash-fg.png`, 128);
+  loadSheet(scene, "lpc-hammer-slash-bg", `${LPC_ROOT}/tool/hammer/slash-bg.png`, 128);
+  loadSheet(scene, "lpc-hammer-slash-fg", `${LPC_ROOT}/tool/hammer/slash-fg.png`, 128);
+  loadSheet(scene, "lpc-fishing-rod-shoot-bg", `${LPC_ROOT}/tool/fishing-rod/shoot-bg.png`, 128);
+  loadSheet(scene, "lpc-fishing-rod-shoot-fg", `${LPC_ROOT}/tool/fishing-rod/shoot-fg.png`, 128);
+}
+
+export function preloadLayeredHeroAssets(scene: Phaser.Scene, options: HeroPreloadOptions = {}) {
   const sources = ["idle", "walk", "slash", "shoot", "spellcast", "hurt"] as const;
+  if (options.essentialOnly) {
+    preloadEssentialHeroAssets(scene, options, sources);
+    return;
+  }
   Object.entries(BASE_ASSETS).forEach(([layer, path]) => {
     sources.forEach((action) => loadSheet(scene, textureKey(layer, action), `${LPC_ROOT}/${path}/${action}.png`, 64));
   });
-  (["plain", "spiked2", "shorthawk"] as HairStyleId[]).forEach((hair) => {
+  (["plain", "spiked2", "shorthawk", "afro", "bob", "cornrows", "buzzcut"] as HairStyleId[]).forEach((hair) => {
     sources.forEach((action) => loadSheet(scene, textureKey(`hair-${hair}`, action), `${LPC_ROOT}/hair/${hair}/${action}.png`, 64));
   });
   (["stubble", "trimmed", "winter"] as Exclude<BeardStyleId, "none">[]).forEach((beard) => {
@@ -338,10 +565,11 @@ export function preloadLayeredHeroAssets(scene: Phaser.Scene) {
     );
   });
 
-  (["solid", "tattered"] as const).forEach((cape) => {
+  (["solid", "tattered", "briar"] as const).forEach((cape) => {
+    const capePath = cape === "briar" ? "armor/briar-cape" : `armor/cape-${cape}`;
     sources.forEach((action) => {
-      loadSheet(scene, textureKey(`cape-${cape}-bg`, action), `${LPC_ROOT}/armor/cape-${cape}/bg/${action}.png`, 64);
-      loadSheet(scene, textureKey(`cape-${cape}-fg`, action), `${LPC_ROOT}/armor/cape-${cape}/fg/${action}.png`, 64);
+      loadSheet(scene, textureKey(`cape-${cape}-bg`, action), `${LPC_ROOT}/${capePath}/bg/${action}.png`, 64);
+      loadSheet(scene, textureKey(`cape-${cape}-fg`, action), `${LPC_ROOT}/${capePath}/fg/${action}.png`, 64);
     });
   });
   (["bg", "fg"] as const).forEach((layer) => {
@@ -350,17 +578,9 @@ export function preloadLayeredHeroAssets(scene: Phaser.Scene) {
     );
   });
 
-  loadSheet(scene, "lpc-sword-idle-bg", `${LPC_ROOT}/weapon/sword/idle-bg.png`, 64);
-  loadSheet(scene, "lpc-sword-idle-fg", `${LPC_ROOT}/weapon/sword/idle-fg.png`, 64);
-  loadSheet(scene, "lpc-sword-walk-bg", `${LPC_ROOT}/weapon/sword/walk-bg.png`, 64);
-  loadSheet(scene, "lpc-sword-walk-fg", `${LPC_ROOT}/weapon/sword/walk-fg.png`, 64);
-  loadSheet(scene, "lpc-sword-slash-bg", `${LPC_ROOT}/weapon/sword/slash-bg.png`, 128);
-  loadSheet(scene, "lpc-sword-slash-fg", `${LPC_ROOT}/weapon/sword/slash-fg.png`, 128);
+  (Object.keys(SWORD_ASSET_SETS) as Array<keyof typeof SWORD_ASSET_SETS>).forEach((assetSet) => preloadSwordAssets(scene, assetSet));
 
-  loadSheet(scene, "lpc-bow-walk-bg", `${LPC_ROOT}/weapon/bow/walk-bg.png`, 128);
-  loadSheet(scene, "lpc-bow-walk-fg", `${LPC_ROOT}/weapon/bow/walk-fg.png`, 128);
-  loadSheet(scene, "lpc-bow-shoot-bg", `${LPC_ROOT}/weapon/bow/shoot-bg.png`, 64);
-  loadSheet(scene, "lpc-bow-shoot-fg", `${LPC_ROOT}/weapon/bow/shoot-fg.png`, 64);
+  (Object.keys(BOW_ASSET_SETS) as BowAssetSet[]).forEach((assetSet) => preloadBowAssets(scene, assetSet));
 
   loadSheet(scene, "lpc-staff-walk-bg", `${LPC_ROOT}/weapon/staff/walk-bg.png`, 64);
   loadSheet(scene, "lpc-staff-walk-fg", `${LPC_ROOT}/weapon/staff/walk-fg.png`, 64);
@@ -400,6 +620,7 @@ export class LayeredHero {
   private action: HeroVisualAction = "idle";
   private direction: Direction = "down";
   private signature = "";
+  private motionSequence = 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -498,6 +719,21 @@ export class LayeredHero {
     return this;
   }
 
+  setSimulationActive(active: boolean) {
+    this.root.setVisible(active);
+    Object.values(this.layers).forEach((sprite) => {
+      if (active) sprite.anims.resume();
+      else sprite.anims.pause();
+    });
+    [this.visualRoot, this.aura].forEach((target) => {
+      this.scene.tweens.getTweensOf(target).forEach((tween) => {
+        if (active) tween.resume();
+        else tween.pause();
+      });
+    });
+    return this;
+  }
+
   setAngle(angle: number) {
     this.root.setAngle(angle);
     return this;
@@ -538,6 +774,8 @@ export class LayeredHero {
     this.action = action;
     this.direction = direction;
     this.signature = nextSignature;
+    this.scene.tweens.killTweensOf(this.visualRoot);
+    this.visualRoot.setPosition(0, 0).setScale(1).setAngle(0);
     const spec = ACTIONS[action];
     const style = resolveActorAppearanceStyle(this.appearance, this.customization);
 
@@ -550,7 +788,7 @@ export class LayeredHero {
       direction,
       style.head === "human" ? style.skinTint : 0xffffff,
     );
-    const faceStyle = this.customization?.faceStyle ?? "neutral";
+    const faceStyle = this.customization?.faceStyle ?? style.face ?? "neutral";
     const showFace = style.head === "human" && action !== "hurt";
     this.layers.face.setVisible(showFace);
     if (showFace) {
@@ -571,6 +809,18 @@ export class LayeredHero {
     this.syncArmor(spec, direction);
     this.syncWeapon(action, direction);
     this.syncAura();
+    if (action === "idle") {
+      this.scene.tweens.add({
+        targets: this.visualRoot,
+        y: -1.4,
+        scaleX: 1.012,
+        scaleY: 0.992,
+        duration: 880,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+    }
   }
 
   playSignatureMotion(style: "melee" | "range" | "magic", direction: Direction, heavy = false) {
@@ -581,6 +831,7 @@ export class LayeredHero {
       right: { x: 1, y: 0, tilt: 9 },
     }[direction];
     const pose = this.visualRoot;
+    const swingSide = heavy ? 1 : this.motionSequence++ % 2 === 0 ? 1 : -1;
     this.scene.tweens.killTweensOf(pose);
     pose.setPosition(0, 0).setAngle(0).setScale(1);
 
@@ -603,7 +854,7 @@ export class LayeredHero {
         targets: pose,
         x: -vector.x * (heavy ? 8 : 5),
         y: -vector.y * 4 - 2,
-        angle: -vector.tilt,
+        angle: -vector.tilt * swingSide,
         scaleX: 0.9,
         scaleY: 1.08,
         duration: heavy ? 105 : 80,
@@ -614,7 +865,7 @@ export class LayeredHero {
             targets: pose,
             x: vector.x * (heavy ? 23 : 17),
             y: vector.y * (heavy ? 14 : 10) - 3,
-            angle: vector.tilt * (heavy ? 1.55 : 1.2),
+            angle: vector.tilt * (heavy ? 1.55 : 1.2) * swingSide,
             scaleX: 1.1,
             scaleY: 0.93,
             duration: heavy ? 125 : 95,
@@ -686,6 +937,9 @@ export class LayeredHero {
   private syncArmor(spec: AnimationSpec, direction: Direction) {
     const visual = resolveArmorVisual(this.armorId);
     const tint = gearDyeTint(visual.tint, this.customization?.armorDye);
+    const helmet = this.customization?.helmetStyle && this.customization.helmetStyle !== "auto" ? this.customization.helmetStyle : visual.helmet;
+    const cape = this.customization?.capeStyle && this.customization.capeStyle !== "auto" ? this.customization.capeStyle : visual.cape;
+    const shield = this.customization?.shieldStyle && this.customization.shieldStyle !== "auto" ? this.customization.shieldStyle : visual.shield;
     const showCape = this.customization?.showCape !== false;
     const showHelmet = this.customization?.showHelmet !== false;
     const showShield = this.customization?.showShield !== false;
@@ -693,12 +947,12 @@ export class LayeredHero {
     const leather = visual.kind === "leather";
     const chain = visual.kind === "chain";
     const legion = visual.kind === "legion";
-    const helmetLayer = visual.helmet ? this.layers[`${visual.helmet}Helmet` as SpriteLayer] : null;
+    const helmetLayer = helmet ? this.layers[`${helmet}Helmet` as SpriteLayer] : null;
 
-    this.layers.capeBack.setVisible(Boolean(visual.cape && showCape));
-    this.layers.capeFront.setVisible(Boolean(visual.cape && showCape));
-    this.layers.shieldBack.setVisible(Boolean(visual.shield && showShield));
-    this.layers.shieldFront.setVisible(Boolean(visual.shield && showShield));
+    this.layers.capeBack.setVisible(Boolean(cape && showCape));
+    this.layers.capeFront.setVisible(Boolean(cape && showCape));
+    this.layers.shieldBack.setVisible(Boolean(shield && showShield));
+    this.layers.shieldFront.setVisible(Boolean(shield && showShield));
     this.layers.leatherTorso.setVisible(leather);
     this.layers.chainTorso.setVisible(chain);
     this.layers.legionTorso.setVisible(legion);
@@ -706,26 +960,26 @@ export class LayeredHero {
     this.layers.plateArms.setVisible(plate);
     this.layers.plateLegs.setVisible(plate);
     this.layers.plateFeet.setVisible(plate);
-    this.layers.plateHelmet.setVisible(showHelmet && visual.helmet === "plate");
-    this.layers.barbutaHelmet.setVisible(showHelmet && visual.helmet === "barbuta");
-    this.layers.greathelmHelmet.setVisible(showHelmet && visual.helmet === "greathelm");
-    this.layers.sugarloafHelmet.setVisible(showHelmet && visual.helmet === "sugarloaf");
+    this.layers.plateHelmet.setVisible(showHelmet && helmet === "plate");
+    this.layers.barbutaHelmet.setVisible(showHelmet && helmet === "barbuta");
+    this.layers.greathelmHelmet.setVisible(showHelmet && helmet === "greathelm");
+    this.layers.sugarloafHelmet.setVisible(showHelmet && helmet === "sugarloaf");
     const style = resolveActorAppearanceStyle(this.appearance, this.customization);
-    this.layers.hair.setVisible(Boolean(style.hair) && !(visual.helmet && showHelmet));
-    this.layers.beard.setVisible(this.layers.beard.visible && !(visual.helmet && showHelmet));
-    this.layers.face.setVisible(this.layers.face.visible && !(visual.helmet && showHelmet));
+    this.layers.hair.setVisible(Boolean(style.hair) && !(helmet && showHelmet));
+    this.layers.beard.setVisible(this.layers.beard.visible && !(helmet && showHelmet));
+    this.layers.face.setVisible(this.layers.face.visible && !(helmet && showHelmet));
 
-    if (visual.cape && showCape) {
-      this.playLayer(this.layers.capeBack, textureKey(`cape-${visual.cape}-bg`, spec.source), spec, direction, tint);
-      this.playLayer(this.layers.capeFront, textureKey(`cape-${visual.cape}-fg`, spec.source), spec, direction, tint);
+    if (cape && showCape) {
+      this.playLayer(this.layers.capeBack, textureKey(`cape-${cape}-bg`, spec.source), spec, direction, tint);
+      this.playLayer(this.layers.capeFront, textureKey(`cape-${cape}-fg`, spec.source), spec, direction, tint);
     }
-    if (visual.shield && showShield) {
+    if (shield && showShield) {
       if (spec.source === "idle") {
-        this.setStaticLayer(this.layers.shieldBack, textureKey(`shield-${visual.shield}-bg`, "walk"), 9, direction, tint);
-        this.setStaticLayer(this.layers.shieldFront, textureKey(`shield-${visual.shield}-fg`, "walk"), 9, direction, tint);
+        this.setStaticLayer(this.layers.shieldBack, textureKey(`shield-${shield}-bg`, "walk"), 9, direction, tint);
+        this.setStaticLayer(this.layers.shieldFront, textureKey(`shield-${shield}-fg`, "walk"), 9, direction, tint);
       } else {
-        this.playLayer(this.layers.shieldBack, textureKey(`shield-${visual.shield}-bg`, spec.source), spec, direction, tint);
-        this.playLayer(this.layers.shieldFront, textureKey(`shield-${visual.shield}-fg`, spec.source), spec, direction, tint);
+        this.playLayer(this.layers.shieldBack, textureKey(`shield-${shield}-bg`, spec.source), spec, direction, tint);
+        this.playLayer(this.layers.shieldFront, textureKey(`shield-${shield}-fg`, spec.source), spec, direction, tint);
       }
     }
     if (leather) this.playLayer(this.layers.leatherTorso, textureKey("leatherTorso", spec.source), spec, direction, tint);
@@ -737,8 +991,8 @@ export class LayeredHero {
       this.playLayer(this.layers.plateLegs, textureKey("plateLegs", spec.source), spec, direction, tint);
       this.playLayer(this.layers.plateFeet, textureKey("plateFeet", spec.source), spec, direction, tint);
     }
-    if (helmetLayer && visual.helmet && showHelmet) {
-      this.playLayer(helmetLayer, textureKey(`${visual.helmet}Helmet`, spec.source), spec, direction, tint);
+    if (helmetLayer && helmet && showHelmet) {
+      this.playLayer(helmetLayer, textureKey(`${helmet}Helmet`, spec.source), spec, direction, tint);
     }
   }
 
@@ -749,7 +1003,7 @@ export class LayeredHero {
     if (action === "hurt") return;
     if (action === "gather" || action === "mine" || action === "chop" || action === "fish" || action === "smith") {
       const activity = action === "gather" ? "mine" : action;
-      const spec = ACTIONS[activity];
+      const spec = activity === "fish" ? FISHING_ROD_ACTION : ACTIONS[activity];
       if (activity === "fish") {
         back.setVisible(true);
         front.setVisible(true);
@@ -776,29 +1030,37 @@ export class LayeredHero {
     if (!visual) return;
     const tint = gearDyeTint(visual.tint, this.customization?.weaponDye);
     if (visual.kind === "sword" && (action === "idle" || action === "walk" || action === "melee" || action === "meleeSignature")) {
-      const source = action === "melee" || action === "meleeSignature" ? "slash" : action;
-      const spec = ACTIONS[action];
+      const assetSet = resolveSwordAssetSet(visual);
       back.setVisible(true);
       front.setVisible(true);
-      this.playLayer(back, `lpc-sword-${source}-bg`, spec, direction, tint);
-      this.playLayer(front, `lpc-sword-${source}-fg`, spec, direction, tint);
+      if (action === "idle") {
+        this.setStaticLayer(back, `lpc-${assetSet}-walk-bg`, 9, direction, tint);
+        this.setStaticLayer(front, `lpc-${assetSet}-walk-fg`, 9, direction, tint);
+      } else {
+        const source = action === "melee" || action === "meleeSignature" ? "slash" : "walk";
+        const spec = ACTIONS[action];
+        this.playLayer(back, `lpc-${assetSet}-${source}-bg`, spec, direction, tint);
+        this.playLayer(front, `lpc-${assetSet}-${source}-fg`, spec, direction, tint);
+      }
       return;
     }
 
     if (visual.kind === "bow" && (action === "idle" || action === "walk" || action === "range" || action === "rangeSignature")) {
+      const assetSet = resolveBowAssetSet(visual);
+      const bowConfig = BOW_ASSET_SETS[assetSet];
       back.setVisible(true);
       front.setVisible(true);
       if (action === "idle") {
-        this.setStaticLayer(back, "lpc-bow-walk-bg", 13, direction, tint);
-        this.setStaticLayer(front, "lpc-bow-walk-fg", 13, direction, tint);
+        this.setStaticLayer(back, `lpc-${assetSet}-walk-bg`, bowConfig.walkColumns, direction, tint);
+        this.setStaticLayer(front, `lpc-${assetSet}-walk-fg`, bowConfig.walkColumns, direction, tint);
       } else if (action === "walk") {
-        const bowWalk = { ...ACTIONS.walk, columns: 13 };
-        this.playLayer(back, "lpc-bow-walk-bg", bowWalk, direction, tint);
-        this.playLayer(front, "lpc-bow-walk-fg", bowWalk, direction, tint);
+        const bowWalk = { ...ACTIONS.walk, columns: bowConfig.walkColumns, sequence: [...bowConfig.walkSequence] };
+        this.playLayer(back, `lpc-${assetSet}-walk-bg`, bowWalk, direction, tint);
+        this.playLayer(front, `lpc-${assetSet}-walk-fg`, bowWalk, direction, tint);
       } else {
         const spec = ACTIONS[action];
-        this.playLayer(back, "lpc-bow-shoot-bg", spec, direction, tint);
-        this.playLayer(front, "lpc-bow-shoot-fg", spec, direction, tint);
+        this.playLayer(back, `lpc-${assetSet}-shoot-bg`, spec, direction, tint);
+        this.playLayer(front, `lpc-${assetSet}-shoot-fg`, spec, direction, tint);
       }
       return;
     }
@@ -836,6 +1098,10 @@ export class LayeredHero {
     direction: Direction,
     tint: number,
   ) {
+    if (!this.scene.textures.exists(key)) {
+      sprite.setVisible(false);
+      return;
+    }
     const row = spec.source === "hurt" ? 0 : DIRECTION_ROW[direction];
     const animationKey = `${key}-${direction}-${spec.sequence.join(".")}-${spec.repeat}`;
     if (!this.scene.anims.exists(animationKey)) {
@@ -856,6 +1122,10 @@ export class LayeredHero {
     direction: Direction,
     tint: number,
   ) {
+    if (!this.scene.textures.exists(key)) {
+      sprite.setVisible(false);
+      return;
+    }
     sprite.anims.stop();
     sprite.setTexture(key, DIRECTION_ROW[direction] * columns).setTint(tint).setAngle(0).setFlipX(false);
   }

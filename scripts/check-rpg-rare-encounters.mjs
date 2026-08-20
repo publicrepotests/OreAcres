@@ -7,12 +7,12 @@ const scene = await readFile(new URL("../src/rpg/OrehavenScene.ts", import.meta.
 const portrait = await readFile(new URL("../src/PhaserRpgGame.tsx", import.meta.url), "utf8");
 const publicEvents = await readFile(new URL("../src/rpg/publicEvents.ts", import.meta.url), "utf8");
 
-const rareIds = ["goblin-firestarter", "ironhide-grukk", "moonfen-oracle"];
+const rareIds = ["goblin-firestarter", "ironhide-grukk", "moonfen-oracle", "emberfall-caldera-lord", "frostmere-lighthouse-warden", "sunscar-tomb-king"];
 for (const id of rareIds) {
   const clientEntry = gameData.match(new RegExp(`id: "${id}"[\\s\\S]*?\\n  },`))?.[0] ?? "";
   assert.ok(clientEntry, `missing client encounter ${id}`);
   assert.match(clientEntry, /rare: true/);
-  assert.match(clientEntry, /respawnMs: (?:420|540|600)_000/);
+  assert.match(clientEntry, /respawnMs: (?:420|540|600|900|1_080|1_200|1_320)_000/);
   assert.match(clientEntry, /visual: \{ weapon:/);
   assert.ok(server.includes(`"${id}": { id: "${id}"`), `missing authoritative server encounter ${id}`);
 }
@@ -33,7 +33,14 @@ assert.ok(portrait.includes("WORLD_RARE_MARKERS.map"), "the world map must rende
 assert.match(server, /"goblin-firestarter": \{ name: "Cinder Volley"/);
 assert.match(server, /"ironhide-grukk": \{ name: "Ironquake"/);
 assert.match(server, /"moonfen-oracle": \{ name: "Moonwell Rupture"/);
+assert.match(server, /"emberfall-caldera-lord": \{ name: "Caldera Breaker"/);
+assert.match(server, /"frostmere-lighthouse-warden": \{ name: "Aurora Verdict"/);
+assert.match(server, /"sunscar-tomb-king": \{ name: "Solar Burial"/);
+assert.match(server, /drake: \{ name: "Ashwing Meteor"/);
+assert.match(server, /"dune-stalker": \{ name: "Sandveil Ambush"/);
+assert.match(server, /boar: \{ name: "Emberhorn Charge"/);
 assert.ok(scene.includes("incomingCast: this.incomingCast"), "targeted rare casts must reach the HUD");
+assert.match(scene, /private showCreatureSpecialImpact\(/, "creature specials need authored impact presentation");
 assert.ok(portrait.includes("rpg-threat-cast"), "dangerous casts need a readable countdown outside the canvas");
 
 console.log(JSON.stringify({ rareEncounters: rareIds.length, animatedGear: true, rareAuras: true, longRespawns: true, signatureAbilities: true, castHud: true, journalDossiers: true, mapTerritories: true, featuredEventIsolation: true, result: "PASS" }, null, 2));

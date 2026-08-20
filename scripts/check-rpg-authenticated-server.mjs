@@ -101,13 +101,14 @@ const mockSupabase = http.createServer(async (request, response) => {
   sendJson(response, 405, { message: "unsupported" });
 });
 
-await new Promise((resolve) => mockSupabase.listen(54329, "127.0.0.1", resolve));
+await new Promise((resolve) => mockSupabase.listen(0, "127.0.0.1", resolve));
+const mockSupabasePort = mockSupabase.address().port;
 const server = spawn(process.execPath, ["src/index.js"], {
   cwd: path.join(root, "server"),
   env: {
     ...process.env,
     PORT: "8082",
-    SUPABASE_URL: "http://127.0.0.1:54329",
+    SUPABASE_URL: `http://127.0.0.1:${mockSupabasePort}`,
     SUPABASE_SECRET_KEY: "mock-server-secret",
     REQUIRE_RPG_AUTH: "true",
     STATE_FILE: path.join(os.tmpdir(), `ore-acres-auth-${process.pid}.json`),
@@ -163,7 +164,16 @@ try {
   assert.equal(welcome.profile.progress.gold, 75);
 
   let startAt = first.messages.length;
-  first.send({ type: "rpg_identity_update", displayName: "Persistent Warden", appearance: "ranger" });
+  first.send({
+    type: "rpg_identity_update",
+    displayName: "Persistent Warden",
+    appearance: "ranger",
+    customization: {
+      hairStyle: "afro",
+      faceStyle: "cheerful",
+      hairColor: "copper",
+    },
+  });
   const identitySaved = await first.waitFor(
     (message) => message.type === "rpg_profile_state" && message.reason === "profile_identity",
     3_000,
@@ -172,6 +182,9 @@ try {
   await first.waitFor((message) => message.type === "rpg_identity_state" && message.displayName === "Persistent Warden", 3_000, startAt);
   assert.equal(identitySaved.profile.displayName, "Persistent Warden");
   assert.equal(identitySaved.profile.progress.appearance, "ranger");
+  assert.equal(identitySaved.profile.progress.customization.hairStyle, "afro");
+  assert.equal(identitySaved.profile.progress.customization.faceStyle, "cheerful");
+  assert.equal(identitySaved.profile.progress.customization.hairColor, "copper");
 
   startAt = first.messages.length;
   first.send({ type: "rpg_profile_action", action: "buy", itemId: "healing-potion" });
@@ -366,7 +379,8 @@ try {
     startAt,
   );
   assert.equal(strike.combatStyle, "melee", "authenticated combat style must come from equipped profile gear");
-  assert.ok(strike.damage >= 4 && strike.damage <= 8, `starter melee damage was outside the server-owned range: ${strike.damage}`);
+  assert.equal(typeof strike.critical, "boolean", "combat results should explicitly identify critical strikes");
+  assert.ok(strike.damage >= 4 && strike.damage <= 12, `starter melee damage was outside the server-owned range: ${strike.damage}`);
 
   let ratHp = strike.enemy.hp;
   while (ratHp > 8) {

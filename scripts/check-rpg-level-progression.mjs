@@ -29,7 +29,7 @@ assert.match(shell, /XP remaining/, "Skills panel does not explain progress towa
 assert.match(styles, /\.rpg-level-celebration\s*\{/, "level-up celebration styling is missing");
 assert.match(styles, /\.rpg-skill-grid \.rpg-skill-next\s*\{/, "next skill milestone styling is missing");
 assert.match(styles, /\.rpg-skills-panel\s*\{[^}]*grid-auto-rows: max-content/, "Skills panel may collapse its talent tree into the skill list");
-assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.rpg-talent-tree__branches\s*\{[\s\S]*?grid-auto-flow: column;[\s\S]*?scroll-snap-type: x mandatory;/, "mobile talent branches are not presented as a horizontal carousel");
+assert.match(styles, /@media \(max-width: 700px\)[\s\S]*?\.rpg-talent-tree__tabs\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/, "mobile passive-tree filters do not collapse into a usable grid");
 assert.match(styles, /prefers-reduced-motion:[\s\S]*?\.rpg-level-celebration/, "level-up presentation does not honor reduced motion");
 
 console.log("RPG level progression checks passed: shared milestones, dual authority paths, and non-overlapping HUD feedback are wired.");

@@ -12,12 +12,12 @@ import {
 import { isWorldPositionWalkable } from "./rpg/worldCollision";
 
 const WORLD_WIDTH = 1536;
-const WORLD_HEIGHT = 3072;
+const WORLD_HEIGHT = 9216;
 const SAVE_ENDPOINT = "/__oreacres_admin/world-layout";
-const MAP_REVISION = "crisp-seam-portal-20260803";
+const MAP_REVISION = "icefang-vault-20260819";
 
 type Category = "npcs" | "enemies" | "resources" | "decorations";
-type MapArea = "surface" | "dungeon" | "all";
+type MapArea = "surface" | "dungeon" | "marsh" | "highlands" | "frostmere" | "sunscar" | "guildhall" | "icefang" | "all";
 type Entity = (NpcDefinition | EnemyDefinition | ResourceDefinition | DecorationDefinition) & { kind: string };
 type Layout = {
   version: number;
@@ -31,6 +31,12 @@ type Selection = { category: Category; id: string } | null;
 const MAP_AREAS: Record<MapArea, { label: string; y: number; height: number }> = {
   surface: { label: "Surface", y: 0, height: 2048 },
   dungeon: { label: "Dungeon", y: 2048, height: 1024 },
+  marsh: { label: "Moonfen Expanse", y: 3072, height: 1024 },
+  highlands: { label: "Emberfall Highlands", y: 4096, height: 1024 },
+  frostmere: { label: "Frostmere Coast", y: 5120, height: 1024 },
+  sunscar: { label: "Sunscar Expanse", y: 6144, height: 1024 },
+  guildhall: { label: "Orehaven Guild Hall", y: 7168, height: 1024 },
+  icefang: { label: "Icefang Vault", y: 8192, height: 1024 },
   all: { label: "Full atlas", y: 0, height: WORLD_HEIGHT },
 };
 const CATEGORY_META: Record<Category, { label: string; badge: string; color: string }> = {
@@ -305,6 +311,12 @@ export function WorldEditor() {
                 <image href={`/assets/rpg/world/orehaven-overworld.png?v=${MAP_REVISION}`} x="0" y="0" width="1536" height="1024" opacity={mapOpacity} />
                 <image href={`/assets/rpg/world/briarwild-south.png?v=${MAP_REVISION}`} x="0" y="1024" width="1536" height="1024" opacity={mapOpacity} />
                 <image href={`/assets/rpg/world/sunstone-catacombs.png?v=${MAP_REVISION}`} x="0" y="2048" width="1536" height="1024" opacity={mapOpacity} />
+                <image href={`/assets/rpg/world/moonfen-marsh.png?v=${MAP_REVISION}`} x="0" y="3072" width="1536" height="1024" opacity={mapOpacity} />
+                <image href={`/assets/rpg/world/emberfall-highlands.png?v=${MAP_REVISION}`} x="0" y="4096" width="1536" height="1024" opacity={mapOpacity} />
+            <image href={`/assets/rpg/world/frostmere-coast.png?v=${MAP_REVISION}`} x="0" y="5120" width="1536" height="1024" opacity={mapOpacity} />
+            <image href={`/assets/rpg/world/sunscar-expanse.png?v=${MAP_REVISION}`} x="0" y="6144" width="1536" height="1024" opacity={mapOpacity} />
+            <image href={`/assets/rpg/world/orehaven-guildhall.png?v=${MAP_REVISION}`} x="0" y="7168" width="1536" height="1024" opacity={mapOpacity} />
+            <image href={`/assets/rpg/world/icefang-vault.png?v=${MAP_REVISION}`} x="0" y="8192" width="1536" height="1024" opacity={mapOpacity} />
                 {(Object.keys(CATEGORY_META) as Category[]).flatMap((key) => categoryEntities(layout, key).map((entity) => {
                   const active = selection?.category === key && selection.id === entity.id;
                   const size = markerSize(entity, key);

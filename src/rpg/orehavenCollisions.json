@@ -218,6 +218,14 @@
       "x2": 920,
       "y2": 2720,
       "radius": 82
+    },
+    {
+      "id": "moonfen-floodgate-approach",
+      "x1": 768,
+      "y1": 2995,
+      "x2": 768,
+      "y2": 3136,
+      "radius": 48
     }
   ],
   "rectangles": [

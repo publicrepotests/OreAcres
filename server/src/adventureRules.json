@@ -58,5 +58,25 @@
     "target": 8,
     "rewardGold": 650,
     "rewardItems": [{ "itemId": "sunstone-shard", "quantity": 1 }]
+  },
+  {
+    "id": "veins-below-frostmere",
+    "chapter": "Icefang Chronicle",
+    "title": "Veins Below Frostmere",
+    "description": "Mine 10 Frostglass Veins from the frozen chambers beneath Frostmere Coast.",
+    "metric": "target:resource-frostglass-ore",
+    "target": 10,
+    "rewardGold": 900,
+    "rewardItems": [{ "itemId": "frostglass-ore", "quantity": 4 }]
+  },
+  {
+    "id": "the-rimebound-oath",
+    "chapter": "Icefang Chronicle",
+    "title": "The Rimebound Oath",
+    "description": "Cross Icefang Vault and break Hroth's oath at the Rime Throne.",
+    "metric": "target:icefang-rimebound-king",
+    "target": 1,
+    "rewardGold": 1400,
+    "rewardItems": [{ "itemId": "frostguard-aegis", "quantity": 1 }]
   }
 ]

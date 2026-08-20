@@ -1,6 +1,7 @@
 import fs from "node:fs";
+import { isWorldPositionWalkable as isAuthoritativeWorldPositionWalkable } from "../server/src/worldCollision.js";
 
-const WORLD = { width: 1536, height: 3072 };
+const WORLD = { width: 1536, height: 9216 };
 const PLAYER_RADIUS = 6;
 const GRID_SIZE = 16;
 const layout = JSON.parse(
@@ -70,19 +71,7 @@ function pointBlocked(x, y) {
 }
 
 function isWalkable(x, y) {
-  const diagonal = PLAYER_RADIUS * 0.72;
-  const samples = [
-    [0, 0],
-    [PLAYER_RADIUS, 0],
-    [-PLAYER_RADIUS, 0],
-    [0, PLAYER_RADIUS],
-    [0, -PLAYER_RADIUS],
-    [diagonal, diagonal],
-    [diagonal, -diagonal],
-    [-diagonal, diagonal],
-    [-diagonal, -diagonal],
-  ];
-  return samples.every(([offsetX, offsetY]) => !pointBlocked(x + offsetX, y + offsetY));
+  return isAuthoritativeWorldPositionWalkable(x, y, PLAYER_RADIUS);
 }
 
 function gridPoint(x, y) {
@@ -124,6 +113,39 @@ const destinations = [
   ["Moonfen Marsh", 1060, 1340],
   ["Ranger Camp", 500, 1600],
   ["Raider Dens", 1180, 1600],
+  ["Frostmere Coast gate", 768, 5168],
+  ["Frostmere lighthouse road", 1160, 5360],
+  ["Sunstone boss chamber", 768, 2694],
+  ["Moonfen drowned altar", 768, 3890],
+  ["Emberfall caldera throne", 768, 4930],
+  ["Sunscar solar tomb", 330, 6270],
+  ["Guild Hall entry", 1080, 7420],
+  ["Guild Hall waystone", 608, 7788],
+  ["Guild Hall exit", 768, 8120],
+  ["Icefang entrance", 768, 9120],
+  ["Icefang runic confluence", 768, 8672],
+  ["Icefang frostglass mine", 270, 8520],
+  ["Icefang icewater bridge", 1220, 8500],
+  ["Icefang southwest chamber", 280, 8965],
+  ["Icefang southeast chamber", 1190, 8960],
+  ["Icefang Rime Throne", 768, 8345],
+];
+
+const portalTransitions = [
+  [330, 1300, 768, 2140],
+  [768, 2104, 330, 1332],
+  [1310, 2880, 768, 3310],
+  [138, 3150, 768, 2228],
+  [1320, 4080, 768, 4350],
+  [160, 4170, 768, 3260],
+  [768, 5165, 768, 5300],
+  [768, 6020, 768, 5050],
+  [768, 6165, 768, 6320],
+  [768, 7050, 768, 6050],
+  [930, 200, 1080, 7420],
+  [768, 8120, 1010, 392],
+  [1350, 5850, 768, 9120],
+  [768, 9128, 1310, 5840],
 ];
 
 const ambientCitizenWaypoints = [
@@ -135,6 +157,16 @@ const ambientCitizenWaypoints = [
   ["Western scout", [[270, 590], [350, 680], [455, 720]]],
   ["Southroad traveler", [[720, 820], [760, 950], [760, 1090], [700, 1185]]],
   ["Briarwild patrol", [[550, 1500], [660, 1590], [700, 1735], [545, 1820]]],
+  ["Moonfen lantern runner", [[620, 3340], [650, 3420], [540, 3480], [620, 3560]]],
+  ["Moonfen wayfinder", [[900, 3350], [860, 3460], [760, 3510], [700, 3420]]],
+  ["Emberfall ore runner", [[900, 4420], [820, 4500], [720, 4480], [620, 4400]]],
+  ["Emberfall watch", [[1020, 4440], [940, 4360], [850, 4420], [930, 4500]]],
+  ["Frostmere beacon runner", [[700, 5520], [820, 5520], [860, 5620], [720, 5650]]],
+  ["Frostmere net mender", [[980, 5650], [1080, 5670], [1040, 5760], [950, 5750]]],
+  ["Sunscar observatory aide", [[980, 6470], [1100, 6460], [1140, 6550], [1010, 6590]]],
+  ["Sunscar caravan guard", [[330, 6520], [430, 6580], [510, 6650], [390, 6700]]],
+  ["Guildhall steward", [[660, 7480], [780, 7460], [920, 7500], [1010, 7580]]],
+  ["Guildhall dispatch runner", [[520, 7840], [680, 7910], [900, 7900], [1030, 7820]]],
 ];
 
 const legacyEnemySpawns = [
@@ -216,6 +248,11 @@ const waystones = [
   ["Briarwild Waystone", 760, 1250, 760, 1290],
   ["Moonfen Waystone", 1060, 1340, 1096, 1340],
   ["Ranger Camp Waystone", 246, 1640, 266, 1640],
+  ["Catacomb Waystone", 768, 2192, 768, 2228],
+  ["Moonfen Expanse Waystone", 768, 3260, 768, 3310],
+  ["Emberfall Waystone", 768, 4300, 768, 4350],
+  ["Frostmere Waystone", 260, 5500, 310, 5500],
+  ["Guild Hall Waystone", 608, 7788, 608, 7820],
 ];
 
 const obstacleCenters = [
@@ -378,9 +415,21 @@ const directions = [
   [0, 1],
   [0, -1],
 ];
+const activatedPortals = new Set();
 
 for (let cursor = 0; cursor < queue.length; cursor += 1) {
   const [gridX, gridY] = queue[cursor];
+  const [currentX, currentY] = worldPoint(gridX, gridY);
+  portalTransitions.forEach(([sourceX, sourceY, destinationX, destinationY], portalIndex) => {
+    if (activatedPortals.has(portalIndex) || Math.hypot(currentX - sourceX, currentY - sourceY) > 104) return;
+    activatedPortals.add(portalIndex);
+    const destination = findNearestWalkable(destinationX, destinationY);
+    const destinationKey = key(...destination);
+    if (!visited.has(destinationKey)) {
+      visited.add(destinationKey);
+      queue.push(destination);
+    }
+  });
   for (const [offsetX, offsetY] of directions) {
     const nextX = gridX + offsetX;
     const nextY = gridY + offsetY;

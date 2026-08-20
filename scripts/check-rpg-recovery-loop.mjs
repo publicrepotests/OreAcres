@@ -31,5 +31,10 @@ assert.match(scene, /kind: "sanctuary"/, "the sanctuary is not part of click-to-
 assert.match(scene, /this\.showSanctuaryFx\(\)/, "sanctuary recovery lacks visible world feedback");
 assert.match(server, /profileAction === "rest"[\s\S]*?enemy\.targetPlayerId === player\.id/, "server does not block fountain recovery while threatened");
 assert.match(server, /profileAction === "rest"[\s\S]*?RPG_SANCTUARY/, "server does not distance-check fountain recovery");
+assert.match(server, /if \(knockedOut\) next\.position = \{ \.\.\.RPG_PLAYER_START \}/, "authenticated knockouts do not persist the town respawn position");
+assert.match(server, /respawnX: knockedOut \? RPG_PLAYER_START\.x/, "the knockout response does not identify the authoritative respawn point");
+assert.match(scene, /private respawning = false/, "the client lacks a guarded recovery state");
+assert.match(scene, /"KNOCKED OUT"/, "knockouts have no readable player feedback");
+assert.match(scene, /this\.cameras\.main\.fadeOut\([\s\S]*?this\.cameras\.main\.fadeIn/, "knockout recovery lacks a scene transition");
 
 console.log("RPG recovery checks passed: consumables share explicit healing values and the safe-town sanctuary is authoritative.");

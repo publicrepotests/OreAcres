@@ -3991,6 +3991,11 @@ function App() {
   const gamePanelRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    document.body.classList.toggle("game-route", page === "game");
+    return () => document.body.classList.remove("game-route");
+  }, [page]);
+
+  useEffect(() => {
     const metadata = page === "game"
       ? { title: "Play Ore Acres | Pixel Online RPG", description: "Enter the shared world of Orehaven to quest, fight, gather, craft, and adventure with other players." }
       : page === "economy"
@@ -6721,6 +6726,23 @@ function finishMiningOre(plotId: string, oreId: string) {
                   View coin on Pump.fun
                 </a>
               </div>
+              <div
+                className="hero__map-preview"
+                role="button"
+                tabIndex={0}
+                aria-label="Enter the Orehaven world map"
+                onClick={() => goToPage("game")}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") goToPage("game");
+                }}
+              >
+                <img src="/assets/rpg/world/orehaven-overworld.png" alt="Orehaven town and surrounding frontier" />
+                <div className="hero__map-preview-scrim" />
+                <span className="hero__map-preview-title">OREHAVEN FRONTIER</span>
+                <span className="hero__map-preview-label hero__map-preview-label--town">OREHAVEN</span>
+                <span className="hero__map-preview-label hero__map-preview-label--woods">BRIARWILD SOUTH</span>
+                <span className="hero__map-preview-cta">LIVE WORLD • ENTER TO EXPLORE</span>
+              </div>
             </div>
 
             <aside className="wallet-card world-card">
@@ -6758,14 +6780,15 @@ function finishMiningOre(plotId: string, oreId: string) {
               <span className="landing-card__eyebrow">A world worth exploring</span>
               <h2>Quest together. Fight your way forward. Build a real adventurer.</h2>
               <p>
-                Orehaven and Briarwild form one connected multiplayer province filled
-                with NPC services, hostile camps, skill nodes, rare drops, daily
-                bounties, story chapters, and cooperative world events.
+                Orehaven, Briarwild, and the Sunstone Catacombs form one connected
+                multiplayer province filled with NPC services, hostile camps, skill
+                nodes, rare drops, daily bounties, story chapters, and cooperative
+                world events.
               </p>
               <div className="landing-card__pills">
                 <span>31-step story</span>
                 <span>10 trainable skills</span>
-                <span>3 combat paths</span>
+                <span>48-node skill web</span>
                 <span>Live multiplayer events</span>
               </div>
             </article>
@@ -6916,7 +6939,7 @@ function finishMiningOre(plotId: string, oreId: string) {
                 <p>
                   Melee, range, and magic each support distinct weapons, signature
                   attacks, area effects, damage-over-time skills, passives, executes,
-                  and eight-node specialization paths.
+                  and a 48-node interconnected skill constellation with hybrid keystones.
                 </p>
               </article>
               <article className="whitepaper-card">
@@ -7077,7 +7100,13 @@ function finishMiningOre(plotId: string, oreId: string) {
       ) : null}
 
       {page === "game" ? (
-        <Suspense fallback={<div className="rpg-route-loading"><strong>Entering Orehaven...</strong><span>Loading world and adventurers</span></div>}>
+        <Suspense fallback={<div className="rpg-route-loading" role="status" aria-live="polite">
+          <div className="rpg-route-loading__crest" aria-hidden="true"><span>OA</span></div>
+          <div className="rpg-route-loading__eyebrow">OREHAVEN FRONTIER</div>
+          <strong>Entering Orehaven</strong>
+          <span>Preparing world, adventurers, and quest log</span>
+          <div className="rpg-route-loading__steps" aria-hidden="true"><i>WORLD</i><b /><i>GEAR</i><b /><i>QUESTS</i></div>
+        </div>}>
           <PhaserRpgGame
             onExit={() => goToPage("home")}
             walletAddress={walletPublicKey?.toBase58() ?? null}

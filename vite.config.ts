@@ -6,6 +6,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 const COLLISION_SAVE_PATH = "/__oreacres_admin/collisions";
 const WORLD_LAYOUT_SAVE_PATH = "/__oreacres_admin/world-layout";
+const RPG_WORLD_WIDTH = 1536;
+const RPG_WORLD_HEIGHT = 9216;
 
 function validNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value);
@@ -57,7 +59,12 @@ function validateWorldLayout(value: unknown) {
       ids.add(rawEntity.id);
       if (typeof rawEntity.name !== "string" || !rawEntity.name.trim()) return `${rawEntity.id} needs a display name.`;
       if (![rawEntity.x, rawEntity.y].every(validNumber)) return `${rawEntity.id} has invalid coordinates.`;
-      if ((rawEntity.x as number) < 0 || (rawEntity.x as number) > 1536 || (rawEntity.y as number) < 0 || (rawEntity.y as number) > 3072) return `${rawEntity.id} is outside the world bounds.`;
+      if (
+        (rawEntity.x as number) < 0 ||
+        (rawEntity.x as number) > RPG_WORLD_WIDTH ||
+        (rawEntity.y as number) < 0 ||
+        (rawEntity.y as number) > RPG_WORLD_HEIGHT
+      ) return `${rawEntity.id} is outside the world bounds.`;
     }
   }
   return null;
@@ -178,6 +185,15 @@ export default defineConfig({
         collisionEditor: resolve(__dirname, "collision-editor.html"),
         worldEditor: resolve(__dirname, "world-editor.html"),
         admin: resolve(__dirname, "admin.html"),
+      },
+      output: {
+        manualChunks(id) {
+          const normalized = id.replaceAll("\\", "/");
+          if (!normalized.includes("/node_modules/")) return undefined;
+          if (normalized.includes("/node_modules/phaser/")) return "phaser-engine";
+          if (normalized.includes("/node_modules/react/") || normalized.includes("/node_modules/react-dom/") || normalized.includes("/node_modules/scheduler/")) return "react-runtime";
+          return undefined;
+        },
       },
     },
   },

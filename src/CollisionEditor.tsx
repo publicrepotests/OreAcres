@@ -2,14 +2,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import initialCollisionLayout from "./rpg/orehavenCollisions.json";
 
 const WORLD_WIDTH = 1536;
-const WORLD_HEIGHT = 3072;
+const WORLD_HEIGHT = 9216;
 const SAVE_ENDPOINT = "/__oreacres_admin/collisions";
-const MAP_REVISION = "crisp-seam-portal-20260803";
+const MAP_REVISION = "icefang-vault-20260819";
 
-type MapArea = "surface" | "dungeon" | "all";
+type MapArea = "surface" | "dungeon" | "marsh" | "highlands" | "frostmere" | "sunscar" | "guildhall" | "icefang" | "all";
 const MAP_AREAS: Record<MapArea, { label: string; y: number; height: number }> = {
   surface: { label: "Surface", y: 0, height: 2048 },
   dungeon: { label: "Dungeon", y: 2048, height: 1024 },
+  marsh: { label: "Moonfen Expanse", y: 3072, height: 1024 },
+  highlands: { label: "Emberfall Highlands", y: 4096, height: 1024 },
+  frostmere: { label: "Frostmere Coast", y: 5120, height: 1024 },
+  sunscar: { label: "Sunscar Expanse", y: 6144, height: 1024 },
+  guildhall: { label: "Orehaven Guild Hall", y: 7168, height: 1024 },
+  icefang: { label: "Icefang Vault", y: 8192, height: 1024 },
   all: { label: "Full atlas", y: 0, height: WORLD_HEIGHT },
 };
 
@@ -496,8 +502,20 @@ export function CollisionEditor() {
                 <image href={`/assets/rpg/world/orehaven-overworld.png?v=${MAP_REVISION}`} x="0" y="0" width={WORLD_WIDTH} height="1024" opacity={mapOpacity} />
                 <image href={`/assets/rpg/world/briarwild-south.png?v=${MAP_REVISION}`} x="0" y="1024" width={WORLD_WIDTH} height="1024" opacity={mapOpacity} />
                 <image href={`/assets/rpg/world/sunstone-catacombs.png?v=${MAP_REVISION}`} x="0" y="2048" width={WORLD_WIDTH} height="1024" opacity={mapOpacity} />
+                <image href={`/assets/rpg/world/moonfen-marsh.png?v=${MAP_REVISION}`} x="0" y="3072" width={WORLD_WIDTH} height="1024" opacity={mapOpacity} />
+                <image href={`/assets/rpg/world/emberfall-highlands.png?v=${MAP_REVISION}`} x="0" y="4096" width={WORLD_WIDTH} height="1024" opacity={mapOpacity} />
+                <image href={`/assets/rpg/world/frostmere-coast.png?v=${MAP_REVISION}`} x="0" y="5120" width={WORLD_WIDTH} height="1024" opacity={mapOpacity} />
+                <image href={`/assets/rpg/world/sunscar-expanse.png?v=${MAP_REVISION}`} x="0" y="6144" width={WORLD_WIDTH} height="1024" opacity={mapOpacity} />
+                <image href={`/assets/rpg/world/orehaven-guildhall.png?v=${MAP_REVISION}`} x="0" y="7168" width={WORLD_WIDTH} height="1024" opacity={mapOpacity} />
+                <image href={`/assets/rpg/world/icefang-vault.png?v=${MAP_REVISION}`} x="0" y="8192" width={WORLD_WIDTH} height="1024" opacity={mapOpacity} />
                 <line className="map-seam-guide" x1="0" y1="1024" x2={WORLD_WIDTH} y2="1024" />
                 <line className="map-seam-guide" x1="0" y1="2048" x2={WORLD_WIDTH} y2="2048" />
+                <line className="map-seam-guide" x1="0" y1="3072" x2={WORLD_WIDTH} y2="3072" />
+                <line className="map-seam-guide" x1="0" y1="4096" x2={WORLD_WIDTH} y2="4096" />
+                <line className="map-seam-guide" x1="0" y1="5120" x2={WORLD_WIDTH} y2="5120" />
+                <line className="map-seam-guide" x1="0" y1="6144" x2={WORLD_WIDTH} y2="6144" />
+                <line className="map-seam-guide" x1="0" y1="7168" x2={WORLD_WIDTH} y2="7168" />
+                <line className="map-seam-guide" x1="0" y1="8192" x2={WORLD_WIDTH} y2="8192" />
                 {(Object.keys(CATEGORY_LABELS) as Category[]).flatMap((key) => layout[key].map((shape) => renderShape(shape, key)))}
                 {renderHandles()}
               </svg>

@@ -14,6 +14,8 @@ tsconfig.tsbuildinfo
 ore-acres-state.json
 server/ore-acres-state.json
 server/ore-acres-admin-audit.jsonl
+/ore-acres-admin-audit.jsonl
+/NUL
 
 # Local asset-working directories and transfer bundles
 .venv-img/

@@ -1,4 +1,8 @@
 {
+  "ember-tusk-boar-1": [
+    { "itemId": "ember-hide", "chance": 0.48 },
+    { "itemId": "healing-potion", "chance": 0.04 }
+  ],
   "rat-west": [
     { "itemId": "rat-tail", "chance": 0.55 },
     { "itemId": "trout", "chance": 0.06 }
@@ -45,7 +49,7 @@
     { "itemId": "auric-cleaver", "chance": 0.015 },
     { "itemId": "rune-blade", "chance": 0.05 },
     { "itemId": "sentinel-mail", "chance": 0.08 },
-    { "itemId": "healing-potion", "chance": 0.22 }
+    { "itemId": "healing-potion", "chance": 0.21 }
   ],
   "briar-wolf-1": [
     { "itemId": "briar-hide", "chance": 0.35 },
@@ -58,6 +62,11 @@
   "briar-wolf-3": [
     { "itemId": "briar-hide", "chance": 0.44 },
     { "itemId": "briarhide-cloak", "chance": 0.014 }
+  ],
+  "briar-treant": [
+    { "itemId": "briarhide-cloak", "chance": 0.06 },
+    { "itemId": "briar-hide", "chance": 0.72 },
+    { "itemId": "healing-potion", "chance": 0.18 }
   ],
   "bog-slime-1": [
     { "itemId": "mire-essence", "chance": 0.4 },
@@ -162,5 +171,110 @@
     { "itemId": "sunforged-mail", "chance": 0.035 },
     { "itemId": "arcane-staff", "chance": 0.025 },
     { "itemId": "healing-potion", "chance": 0.12 }
+  ],
+  "moonfen-wraith-1": [
+    { "itemId": "witch-thread", "chance": 0.58 },
+    { "itemId": "bonecaller-focus", "chance": 0.018 }
+  ],
+  "moonfen-stalker-1": [
+    { "itemId": "marshscale", "chance": 0.48 },
+    { "itemId": "healing-potion", "chance": 0.04 }
+  ],
+  "moonfen-sentinel-1": [
+    { "itemId": "sunbone-fragment", "chance": 0.66 },
+    { "itemId": "sunstone-ore", "chance": 0.14 }
+  ],
+  "moonfen-archon": [
+    { "itemId": "marshscale", "chance": 0.75 },
+    { "itemId": "moonweave-mantle", "chance": 0.035 },
+    { "itemId": "frostspire-staff", "chance": 0.025 },
+    { "itemId": "healing-potion", "chance": 0.14 }
+  ],
+  "emberfall-ashwing-1": [
+    { "itemId": "briar-hide", "chance": 0.62 },
+    { "itemId": "fallen-recurve", "chance": 0.018 }
+  ],
+  "emberfall-cinder-guard-1": [
+    { "itemId": "orc-totem", "chance": 0.68 },
+    { "itemId": "sunforged-mail", "chance": 0.012 }
+  ],
+  "emberfall-emberseer-1": [
+    { "itemId": "witch-thread", "chance": 0.72 },
+    { "itemId": "arcane-staff", "chance": 0.022 }
+  ],
+  "emberfall-caldera-lord": [
+    { "itemId": "sunstone-ore", "chance": 0.72 },
+    { "itemId": "auric-cleaver", "chance": 0.02 },
+    { "itemId": "sunforged-mail", "chance": 0.035 },
+    { "itemId": "healing-potion", "chance": 0.16 }
+  ],
+  "frostmere-lighthouse-warden": [
+    { "itemId": "sunstone-ore", "chance": 0.66 },
+    { "itemId": "frostspire-staff", "chance": 0.018 },
+    { "itemId": "moonweave-mantle", "chance": 0.032 },
+    { "itemId": "aurora-longbow", "chance": 0.018 },
+    { "itemId": "frostguard-aegis", "chance": 0.012 },
+    { "itemId": "healing-potion", "chance": 0.2 }
+  ],
+  "frostmere-icewolf-1": [
+    { "itemId": "briar-hide", "chance": 0.64 },
+    { "itemId": "pinefang", "chance": 0.018 }
+  ],
+  "frostmere-raider-1": [
+    { "itemId": "orc-totem", "chance": 0.68 },
+    { "itemId": "sunforged-mail", "chance": 0.012 }
+  ],
+  "frostmere-witch-1": [
+    { "itemId": "witch-thread", "chance": 0.72 },
+    { "itemId": "arcane-staff", "chance": 0.022 }
+  ],
+  "sunscar-tomb-king": [
+    { "itemId": "sunstone-ore", "chance": 0.68 },
+    { "itemId": "frostspire-staff", "chance": 0.024 },
+    { "itemId": "sunforged-mail", "chance": 0.04 },
+    { "itemId": "sunscar-reaver", "chance": 0.016 },
+    { "itemId": "eclipse-staff", "chance": 0.016 },
+    { "itemId": "frostguard-aegis", "chance": 0.006 },
+    { "itemId": "healing-potion", "chance": 0.21 }
+  ],
+  "sunscar-dune-stalker-1": [
+    { "itemId": "briar-hide", "chance": 0.65 },
+    { "itemId": "pinefang", "chance": 0.02 }
+  ],
+  "sunscar-sand-raider-1": [
+    { "itemId": "orc-totem", "chance": 0.69 },
+    { "itemId": "sunforged-mail", "chance": 0.014 }
+  ],
+  "sunscar-astral-seer-1": [
+    { "itemId": "witch-thread", "chance": 0.73 },
+    { "itemId": "arcane-staff", "chance": 0.024 }
+  ],
+  "icefang-wolf-1": [
+    { "itemId": "briar-hide", "chance": 0.68 },
+    { "itemId": "frostglass-ore", "chance": 0.12 }
+  ],
+  "icefang-wolf-2": [
+    { "itemId": "briar-hide", "chance": 0.7 },
+    { "itemId": "frostglass-ore", "chance": 0.14 }
+  ],
+  "icefang-sentinel-1": [
+    { "itemId": "sunbone-fragment", "chance": 0.72 },
+    { "itemId": "frostglass-ore", "chance": 0.18 }
+  ],
+  "icefang-sentinel-2": [
+    { "itemId": "sunbone-fragment", "chance": 0.74 },
+    { "itemId": "fallen-recurve", "chance": 0.018 }
+  ],
+  "icefang-seer-1": [
+    { "itemId": "witch-thread", "chance": 0.76 },
+    { "itemId": "frostspire-staff", "chance": 0.018 }
+  ],
+  "icefang-rimebound-king": [
+    { "itemId": "frostglass-ore", "chance": 0.78 },
+    { "itemId": "aurora-longbow", "chance": 0.02 },
+    { "itemId": "frostspire-staff", "chance": 0.026 },
+    { "itemId": "frostguard-aegis", "chance": 0.018 },
+    { "itemId": "nightguard-plate", "chance": 0.012 },
+    { "itemId": "healing-potion", "chance": 0.24 }
   ]
 }

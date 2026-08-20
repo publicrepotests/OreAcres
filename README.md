@@ -1,6 +1,6 @@
 # Ore Acres
 
-A browser-based fantasy MMO playtest with a Solana-themed optional economy. Players explore Orehaven and Briarwild together, complete quests, fight roaming creatures, gather resources, craft equipment, customize layered characters, participate in cooperative rare-spawn events, and chase permanent collection-log discoveries.
+A browser-based fantasy MMO playtest with a Solana-themed optional economy. Players explore Orehaven and Briarwild together, complete quests, fight roaming creatures, gather resources, craft equipment, customize layered characters, participate in cooperative rare-spawn events, and chase permanent collection-log discoveries. The frontier includes animated rats, wolves, ember tusk boars, slimes, skeletons, treants, and spell-casting witches.
 
 ## What to deploy where
 

@@ -7,6 +7,13 @@ import WebSocket from "ws";
 
 import { hasWorldLineOfSight, isWorldPositionWalkable } from "../server/src/worldCollision.js";
 
+const serverSource = await import("node:fs/promises").then(({ readFile }) => readFile(new URL("../server/src/index.js", import.meta.url), "utf8"));
+const sceneSource = await import("node:fs/promises").then(({ readFile }) => readFile(new URL("../src/rpg/OrehavenScene.ts", import.meta.url), "utf8"));
+assert.match(serverSource, /Math\.min\(0\.14, 0\.05 \+ combatLevel \* 0\.0006 \+ weaponPower \* 0\.002\)/, "critical chance should remain capped and progression-based");
+assert.match(serverSource, /critical \? Math\.ceil\(damage \* 1\.5\) : damage/, "critical damage should use the restrained 1.5x multiplier");
+assert.match(sceneSource, /Boolean\(data\.critical\)/, "the client should render server-authoritative critical feedback");
+assert.match(sceneSource, /CRIT -\$\{damage\}/, "critical hits should have distinct combat text");
+
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const port = 8084;
@@ -19,6 +26,23 @@ const enemyLocations = {
   "fallen-ranger": { x: 610, y: 1720 },
   "moonfen-hexer": { x: 870, y: 1390 },
 };
+const waystoneSanctuaries = [
+  { x: 698, y: 820 },
+  { x: 302, y: 872 },
+  { x: 1248, y: 204 },
+  { x: 760, y: 1290 },
+  { x: 1096, y: 1340 },
+  { x: 266, y: 1640 },
+  { x: 768, y: 2228 },
+  { x: 768, y: 3310 },
+  { x: 768, y: 4350 },
+  { x: 310, y: 5500 },
+  { x: 280, y: 6620 },
+  { x: 608, y: 7820 },
+];
+const outsideWaystoneSanctuary = (point) => waystoneSanctuaries.every(
+  (waystone) => Math.hypot(point.x - waystone.x, point.y - waystone.y) > 168,
+);
 
 function ringPoint(target, minimumDistance, maximumDistance, predicate) {
   for (let distance = minimumDistance; distance <= maximumDistance; distance += 8) {
@@ -40,7 +64,7 @@ function clearPoint(target, minimumDistance, maximumDistance) {
     target,
     minimumDistance,
     maximumDistance,
-    (point) => hasWorldLineOfSight(point.x, point.y, target.x, target.y),
+    (point) => outsideWaystoneSanctuary(point) && hasWorldLineOfSight(point.x, point.y, target.x, target.y),
   );
 }
 

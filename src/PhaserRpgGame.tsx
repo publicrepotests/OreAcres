@@ -10,6 +10,9 @@ import {
   EXPEDITIONS,
   FACE_STYLES,
   GEAR_DYES,
+  HELMET_STYLES,
+  CAPE_STYLES,
+  SHIELD_STYLES,
   HAIR_COLORS,
   HAIR_STYLES,
   NPCS,
@@ -27,20 +30,27 @@ import {
   TREASURE_CLUES,
   WAYSTONES,
   WORLD,
+  armorDamageReduction,
+  armorTrait,
   customizationForAppearance,
   guildRankForRenown,
   itemById,
+  maxHpForProgress,
   nextSkillUnlock,
   nextGuildRankForRenown,
   skillTreePointTotal,
   skillTreePointsAvailable,
+  skillTreeNodeConnected,
+  skillTreeRequirements,
   unlockedTreeAbilities,
   weaponAbility,
+  skillLabel,
   xpForLevel,
   type AppearanceId,
   type CharacterCustomization,
   type CombatStyle,
   type Direction,
+  type EnemyDefinition,
   type ItemDefinition,
   type Panel,
   type PlayerProgress,
@@ -48,6 +58,7 @@ import {
 } from "./rpg/gameData";
 import {
   OrehavenScene,
+  type BossIntroState,
   type ChatMessage,
   type CombatAbilitySlot,
   type HotbarEntry,
@@ -59,8 +70,10 @@ import {
   type SocialState,
   type TargetState,
 } from "./rpg/OrehavenScene";
-import { HeroPortrait } from "./rpg/HeroPortrait";
+import { HeroPortrait, type HeroPortraitAction } from "./rpg/HeroPortrait";
+import type { ActorAppearanceId } from "./rpg/LayeredHero";
 import { GameAudioEngine } from "./rpg/gameAudio";
+import { WORLD_AREAS, WORLD_AREA_ORDER, worldAreaForY, type WorldAreaId } from "./rpg/worldAreas";
 import { loadPlayerProgress, playerDisplayName, savePlayerProgress } from "./rpg/playerStorage";
 import {
   ACTIVITY_MILESTONES,
@@ -92,9 +105,11 @@ type GameApi = {
   claimAdventure: (adventureId: string) => void;
   setAppearance: (appearance: AppearanceId) => void;
   setCustomization: (customization: CharacterCustomization) => void;
+  setIdentity: (displayName: string, appearance: AppearanceId, customization: CharacterCustomization) => void;
   setDisplayName: (displayName: string) => void;
   centerCamera: () => void;
   navigateToQuestTarget: () => void;
+  navigateToWorldTarget: (x: number, y: number, label: string) => void;
   adjustCameraZoom: (delta: number) => void;
   sendChat: (text: string, channel?: "world" | "party" | "guild") => void;
   inviteToParty: (targetPlayerId: string) => void;
@@ -114,6 +129,30 @@ type GameApi = {
   unlockSkill: (nodeId: string) => void;
   respecSkills: () => void;
 };
+
+function starterProgressForAppearance(appearance: AppearanceId, base: PlayerProgress): PlayerProgress {
+  const loadout = appearance === "ranger"
+    ? { weapon: "oak-bow", tool: "bronze-pick", armor: "trailguard-vest" }
+    : appearance === "arcanist" || appearance === "marshborn"
+      ? { weapon: "ember-staff", tool: "bronze-pick", armor: "trailguard-vest" }
+    : appearance === "stonewarden"
+        ? { weapon: "bronze-sword", tool: "bronze-pick", armor: "trailguard-vest" }
+        : { weapon: "bronze-sword", tool: "bronze-pick", armor: "trailguard-vest" };
+  const inventory = {
+    ...base.inventory,
+    [loadout.weapon]: Math.max(1, base.inventory[loadout.weapon] ?? 0),
+    ...(loadout.armor ? { [loadout.armor]: Math.max(1, base.inventory[loadout.armor] ?? 0) } : {}),
+  };
+  const next = { ...base, inventory, equipped: loadout };
+  return { ...next, maxHp: maxHpForProgress(next), hp: Math.min(base.hp, maxHpForProgress(next)) };
+}
+
+function starterKitLabel(appearance: AppearanceId) {
+  if (appearance === "ranger") return "Oak Shortbow + Trailguard Vest";
+  if (appearance === "arcanist" || appearance === "marshborn") return "Ember Staff + Trailguard Vest";
+  if (appearance === "stonewarden") return "Bronze Longsword + Trailguard Vest";
+  return "Bronze Longsword + Trailguard Vest";
+}
 
 type ToastEntry = GameToast & { id: number };
 
@@ -135,6 +174,7 @@ const TUTORIAL_SAVE_KEY = "ore-acres-rpg-tutorial-v1";
 const ONBOARDING_SAVE_KEY = "ore-acres-rpg-onboarding-v1";
 const HOTBAR_SAVE_KEY = "ore-acres-rpg-hotbar-v1";
 const HUD_LAYOUT_SAVE_KEY = "ore-acres-rpg-hud-layout-v1";
+const TRACKED_SIDE_QUEST_SAVE_KEY = "ore-acres-rpg-tracked-side-quest-v1";
 type HudWidgetId = "status" | "objectives" | "chat" | "minimap" | "menu" | "target" | "actionbar";
 type HudWidgetConfig = { x: number; y: number; scale: number; visible: boolean };
 const HUD_WIDGETS: ReadonlyArray<{ id: HudWidgetId; label: string }> = [
@@ -183,7 +223,7 @@ function normalizeHotbarLayout(value: unknown): Array<HotbarEntry | null> {
   return Array.from({ length: 5 }, (_, index) => {
     const entry = value[index];
     if (!entry || typeof entry !== "object") return null;
-    if (entry.kind === "ability" && ["signature", "second-wind", "tree-primary", "tree-secondary"].includes(entry.slot)) {
+    if (entry.kind === "ability" && typeof entry.slot === "string" && (["signature", "second-wind", "tree-primary", "tree-secondary"].includes(entry.slot) || (entry.slot.startsWith("tree:") && SKILL_TREE_NODES.some((node) => node.kind === "active" && node.id === entry.slot.slice(5))))) {
       return { kind: "ability", slot: entry.slot as CombatAbilitySlot };
     }
     if (entry.kind === "consumable" && typeof entry.itemId === "string" && itemById(entry.itemId)?.category === "consumable") {
@@ -220,26 +260,17 @@ const MENU_ITEMS: Array<{ panel: Exclude<Panel, null>; label: string; hotkey: st
   { panel: "equipment", label: "Equipment", hotkey: "G" },
   { panel: "skills", label: "Skills", hotkey: "K" },
   { panel: "quests", label: "Quests", hotkey: "Q" },
+  { panel: "bestiary", label: "Bestiary", hotkey: "V" },
   { panel: "activities", label: "Activities", hotkey: "J" },
   { panel: "social", label: "Party", hotkey: "P" },
   { panel: "shop", label: "Shops", hotkey: "B" },
   { panel: "map", label: "World Map", hotkey: "M" },
 ];
 
-const LOCATION_SUBTITLES: Record<string, string> = {
-  "Orehaven Square": "Heart of the frontier realm",
-  Orehaven: "Walls, workshops, and wayfarers",
-  "Western Woods": "Old timber beneath a restless canopy",
-  "Moonwater Pond": "Quiet waters and patient anglers",
-  "Eastern Quarry": "Stone, ore, and ringing steel",
-  "Goblin Camp": "Hostile ground beyond the eastern road",
-  Southroad: "The trail into untamed Briarwild",
-  "Briarwild Crossing": "Where Orehaven's protection ends",
-  "Moonfen Marsh": "Cold lights drift over black water",
-  "Briarwild Ranger Camp": "A hard-won frontier foothold",
-  "Raider Dens": "Axes stir behind the thorn wall",
-  "Old Sun Shrine": "Ancient stone remembers the dawn",
-};
+function regionForLocation(location: string) {
+  const normalized = location === "Orehaven Square" ? "Orehaven" : location;
+  return REGIONS.find((region) => region.name === normalized);
+}
 
 function MenuGlyph({ panel }: { panel: Exclude<Panel, null> }) {
   const paths: Record<Exclude<Panel, null>, React.ReactNode> = {
@@ -247,6 +278,7 @@ function MenuGlyph({ panel }: { panel: Exclude<Panel, null> }) {
     equipment: <><path d="m5 4 6 6-2 2-6-6V3h3Z" /><path d="m19 4-7 7" /><path d="m14 13 6 6" /><path d="m12 16-7 4 4-7" /></>,
     skills: <><path d="m12 3 2.2 5.2L20 10l-4.5 3.5.2 5.8L12 16l-3.7 3.3.2-5.8L4 10l5.8-1.8L12 3Z" /><path d="M12 8v5" /></>,
     quests: <><path d="M7 4h10v16H7Z" /><path d="M9 8h6M9 12h6M9 16h4" /><path d="M5 6h2m10 12h2" /></>,
+    bestiary: <><path d="M5 5h14v14H5Z" /><path d="M8 9h2m4 0h2M8 14c2 2 6 2 8 0" /><circle cx="9" cy="9" r="1" /><circle cx="15" cy="9" r="1" /></>,
     activities: <><path d="M5 5h14v15H5Z" /><path d="M8 3v4m8-4v4M8 11l2 2 4-4M8 17h7" /></>,
     social: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="10" r="2" /><path d="M3 20c0-4 2-7 6-7s6 3 6 7M15 15c3 0 5 2 5 5" /></>,
     shop: <><path d="M4 9h16l-2-5H6L4 9Z" /><path d="M6 9v11h12V9M9 20v-6h6v6" /><path d="M4 9c0 3 4 3 4 0 0 3 4 3 4 0 0 3 4 3 4 0 0 3 4 3 4 0" /></>,
@@ -271,11 +303,15 @@ type TargetPortraitSpec = {
 };
 
 const TARGET_PORTRAIT_SPECS: Partial<Record<TargetState["kind"], TargetPortraitSpec>> = {
-  rat: { path: "/assets/rpg/creatures/field-rat.png", frame: 0, frameWidth: 128, frameHeight: 128, columns: 6 },
-  wolf: { path: "/assets/rpg/creatures/wolfpack.png", frame: 20, frameWidth: 32, frameHeight: 32, columns: 8 },
-  slime: { path: "/assets/rpg/creatures/slime.png", frame: 0, frameWidth: 32, frameHeight: 32, columns: 4 },
+  rat: { path: "/assets/rpg/creatures/field-rat-sheet-1024.png", frame: 0, frameWidth: 256, frameHeight: 256, columns: 4 },
+  wolf: { path: "/assets/rpg/creatures/forest-wolf-sheet-1024.png", frame: 0, frameWidth: 256, frameHeight: 256, columns: 4 },
+  drake: { path: "/assets/rpg/creatures/ashwing-drake-sheet-1024.png", frame: 8, frameWidth: 256, frameHeight: 256, columns: 4 },
+  "dune-stalker": { path: "/assets/rpg/creatures/dune-stalker-sheet-1024.png", frame: 8, frameWidth: 256, frameHeight: 256, columns: 4 },
+  boar: { path: "/assets/rpg/creatures/ember-tusk-boar-sheet-1024.png", frame: 0, frameWidth: 256, frameHeight: 256, columns: 4 },
+  slime: { path: "/assets/rpg/creatures/ore-slime-sheet-1024.png", frame: 0, frameWidth: 256, frameHeight: 256, columns: 4 },
   skeleton: { path: "/assets/rpg/creatures/skeleton-idle.png", frame: 0, frameWidth: 128, frameHeight: 128, columns: 4 },
   witch: { path: "/assets/rpg/creatures/witch-doctor-idle.png", frame: 0, frameWidth: 128, frameHeight: 128, columns: 4 },
+  treant: { path: "/assets/rpg/creatures/briar-treant-idle.png", frame: 0, frameWidth: 543, frameHeight: 724, columns: 4 },
 };
 
 const targetPortraitImageCache = new Map<string, Promise<HTMLImageElement>>();
@@ -342,7 +378,7 @@ function SpriteTargetPortrait({ kind, rare }: Pick<TargetState, "kind" | "rare">
 
         const width = maxX - minX + 1;
         const height = maxY - minY + 1;
-        const maxPaintedSize = kind === "rat" ? 112 : 106;
+        const maxPaintedSize = kind === "rat" ? 112 : kind === "boar" ? 126 : kind === "drake" || kind === "dune-stalker" ? 122 : 106;
         const scale = Math.min(maxPaintedSize / width, maxPaintedSize / height);
         const drawWidth = Math.round(width * scale);
         const drawHeight = Math.round(height * scale);
@@ -397,9 +433,28 @@ function EnemyTargetPortrait({ target }: { target: TargetState }) {
       tool: "iron-pick",
       armor: definition?.visual?.armor ?? (target.kind === "orc" || target.kind === "lizard" ? "warden-mail" : ""),
     };
-    return <HeroPortrait appearance={target.kind} equipped={equipped} className="rpg-target-portrait__hero" />;
+    return <HeroPortrait appearance={target.kind} equipped={equipped} className="rpg-target-portrait__hero" animated zoom={1.32} />;
   }
   return <SpriteTargetPortrait kind={target.kind} rare={target.rare} />;
+}
+
+function BestiaryPortrait({ enemy }: { enemy: EnemyDefinition }) {
+  if (TARGET_PORTRAIT_SPECS[enemy.kind]) {
+    return <SpriteTargetPortrait kind={enemy.kind} rare={Boolean(enemy.rare)} />;
+  }
+  if (enemy.kind === "goblin" || enemy.kind === "orc" || enemy.kind === "lizard") {
+    return (
+      <HeroPortrait
+        appearance={enemy.kind}
+        equipped={{ weapon: enemy.visual?.weapon ?? "bronze-sword", tool: "bronze-pick", armor: enemy.visual?.armor ?? "" }}
+        className="rpg-bestiary__hero"
+        animated
+        direction={enemy.attackStyle === "range" ? "right" : "down"}
+        zoom={1.42}
+      />
+    );
+  }
+  return <div className="rpg-bestiary__silhouette" aria-label={`${enemy.name} portrait`}><b>{enemy.kind.slice(0, 3).toUpperCase()}</b></div>;
 }
 
 const MINIMAP_VIEW = { width: 174, height: 128, mapWidth: 264 };
@@ -415,7 +470,7 @@ type MapMarker = {
   label: string;
   x: number;
   y: number;
-  kind: "quest" | "event" | "rare" | "service" | "bounty" | "treasure" | "party" | "guild";
+  kind: "quest" | "sidequest" | "event" | "rare" | "service" | "bounty" | "treasure" | "party" | "guild";
 };
 
 const WORLD_SERVICE_MARKERS: MapMarker[] = [
@@ -427,13 +482,27 @@ const WORLD_SERVICE_MARKERS: MapMarker[] = [
   { id: "bounties", label: "Adventurer Board", x: NPCS.find((npc) => npc.id === "marshal")?.x ?? 846, y: NPCS.find((npc) => npc.id === "marshal")?.y ?? 690, kind: "service" },
   { id: "expeditions", label: "Expedition Captain", x: NPCS.find((npc) => npc.id === "captain")?.x ?? 800, y: NPCS.find((npc) => npc.id === "captain")?.y ?? 640, kind: "service" },
   { id: "sunstone-descent", label: "Sunstone Descent", x: DUNGEON_PORTALS[0].x, y: DUNGEON_PORTALS[0].y, kind: "service" },
+  { id: "moonfen-descent", label: "Moonfen Floodgate", x: DUNGEON_PORTALS[2].x, y: DUNGEON_PORTALS[2].y, kind: "service" },
+  { id: "moonfen-ascent", label: "Moonfen Return", x: DUNGEON_PORTALS[3].x, y: DUNGEON_PORTALS[3].y, kind: "service" },
+  { id: "emberfall-ascent", label: "Emberfall Lift", x: DUNGEON_PORTALS[4].x, y: DUNGEON_PORTALS[4].y, kind: "service" },
+  { id: "emberfall-descent", label: "Emberfall Return", x: DUNGEON_PORTALS[5].x, y: DUNGEON_PORTALS[5].y, kind: "service" },
+  { id: "frostmere-ascent", label: "Frostmere Gate", x: DUNGEON_PORTALS[6].x, y: DUNGEON_PORTALS[6].y, kind: "service" },
+  { id: "frostmere-descent", label: "Frostmere Return", x: DUNGEON_PORTALS[7].x, y: DUNGEON_PORTALS[7].y, kind: "service" },
+  { id: "frostkeeper", label: "Keeper Elowen", x: NPCS.find((npc) => npc.id === "frostkeeper")?.x ?? 742, y: NPCS.find((npc) => npc.id === "frostkeeper")?.y ?? 5570, kind: "quest" },
+  { id: "sunscar-ascent", label: "Sunscar Gate", x: DUNGEON_PORTALS[8].x, y: DUNGEON_PORTALS[8].y, kind: "service" },
+  { id: "sunscar-descent", label: "Sunscar Return", x: DUNGEON_PORTALS[9].x, y: DUNGEON_PORTALS[9].y, kind: "service" },
+  { id: "sunscar-scholar", label: "Scholar Samira", x: NPCS.find((npc) => npc.id === "sunscar-scholar")?.x ?? 1010, y: NPCS.find((npc) => npc.id === "sunscar-scholar")?.y ?? 6520, kind: "quest" },
+  { id: "guildhall-entry", label: "Guild Hall Doors", x: DUNGEON_PORTALS[10].x, y: DUNGEON_PORTALS[10].y, kind: "service" },
+  { id: "guildhall-exit", label: "Guild Hall Exit", x: DUNGEON_PORTALS[11].x, y: DUNGEON_PORTALS[11].y, kind: "service" },
+  { id: "icefang-descent", label: "Icefang Vault Descent", x: DUNGEON_PORTALS[12].x, y: DUNGEON_PORTALS[12].y, kind: "service" },
+  { id: "icefang-ascent", label: "Icefang Vault Ascent", x: DUNGEON_PORTALS[13].x, y: DUNGEON_PORTALS[13].y, kind: "service" },
 ];
 const WORLD_RARE_MARKERS: MapMarker[] = ENEMIES
   .filter((enemy) => enemy.rare && enemy.id !== "auric-slime")
   .map((enemy) => ({ id: `rare-${enemy.id}`, label: `${enemy.name} territory`, x: enemy.x, y: enemy.y, kind: "rare" }));
 
 type RareHuntDossier = {
-  enemyId: "goblin-firestarter" | "ironhide-grukk" | "moonfen-oracle" | "sunstone-revenant";
+  enemyId: "goblin-firestarter" | "ironhide-grukk" | "moonfen-oracle" | "sunstone-revenant" | "moonfen-archon" | "emberfall-caldera-lord" | "frostmere-lighthouse-warden" | "sunscar-tomb-king" | "icefang-rimebound-king";
   region: string;
   signature: string;
   fieldNote: string;
@@ -444,14 +513,22 @@ const RARE_HUNT_DOSSIERS: readonly RareHuntDossier[] = [
   { enemyId: "ironhide-grukk", region: "Raider Dens", signature: "Ironquake", fieldNote: "Search the thorn-wall clearings south of the ranger foothold." },
   { enemyId: "moonfen-oracle", region: "Moonfen Marsh", signature: "Moonwell Rupture", fieldNote: "Cold witch-lights gather near the marshscale ritual stones." },
   { enemyId: "sunstone-revenant", region: "Sunstone Catacombs", signature: "Fallen Sun Eruption", fieldNote: "Descend through the Old Sun Shrine. Aurex waits inside the lowest ritual ring." },
+  { enemyId: "moonfen-archon", region: "Moonfen Expanse", signature: "Drowned Eclipse", fieldNote: "Follow the lantern road to the flooded altar at the end of the Expanse." },
+  { enemyId: "emberfall-caldera-lord", region: "Emberfall Highlands", signature: "Caldera Breaker", fieldNote: "Follow the ember road to the crater throne beyond the highland settlement." },
+  { enemyId: "frostmere-lighthouse-warden", region: "Frostmere Coast", signature: "Aurora Verdict", fieldNote: "Climb the ice road to the lighthouse cliff and break the warden's frozen oath." },
+  { enemyId: "sunscar-tomb-king", region: "Sunscar Expanse", signature: "Solar Burial", fieldNote: "Find the sealed tomb in the red cliffs and break Khepri's sun-cursed crown." },
+  { enemyId: "icefang-rimebound-king", region: "Icefang Vault", signature: "Rimefall Judgment", fieldNote: "Enter the eastern Frostmere cave and cross the vault bridges to the northern throne." },
 ];
 
 const RARE_HUNT_LOOT = lootRules as Record<string, Array<{ itemId: string; chance: number }>>;
 
-type WorldMapArea = "overworld" | "dungeon";
+type WorldMapArea = WorldAreaId;
+type ZoneArrivalState = { location: string; regionId: string; firstVisit: boolean };
+
+const WORLD_MAP_AREAS: ReadonlyArray<{ id: WorldMapArea; name: string; subtitle: string }> = WORLD_AREA_ORDER.map((id) => WORLD_AREAS[id]);
 
 function worldMapAreaForY(y: number): WorldMapArea {
-  return y >= 2048 ? "dungeon" : "overworld";
+  return worldAreaForY(y);
 }
 
 function markerIsInArea(y: number, area: WorldMapArea) {
@@ -459,11 +536,10 @@ function markerIsInArea(y: number, area: WorldMapArea) {
 }
 
 function mapMarkerStyle(x: number, y: number, area: WorldMapArea): React.CSSProperties {
-  const areaTop = area === "dungeon" ? 2048 : 0;
-  const areaHeight = area === "dungeon" ? 1024 : 2048;
+  const areaDefinition = WORLD_AREAS[area];
   return {
     left: `${(x / WORLD.width) * 100}%`,
-    top: `${((y - areaTop) / areaHeight) * 100}%`,
+    top: `${((y - areaDefinition.top) / areaDefinition.height) * 100}%`,
   };
 }
 
@@ -483,6 +559,37 @@ function questMapMarker(step: QuestStepDefinition): MapMarker | null {
   return null;
 }
 
+function sideQuestMapMarker(quest: (typeof SIDE_QUESTS)[number], state: PlayerProgress["sideQuests"][string] | undefined): MapMarker | null {
+  const giver = NPCS.find((candidate) => candidate.id === quest.giverNpcId);
+  if (!state || state.status === "ready") {
+    return giver ? { id: `sidequest-giver-${giver.id}`, label: giver.name, x: giver.x, y: giver.y, kind: "sidequest" } : null;
+  }
+  if (state.status === "claimed") return null;
+
+  if (quest.objective.kind === "combat") {
+    const enemyId = quest.objective.targetKey === "frostmere-warden"
+      ? "frostmere-lighthouse-warden"
+      : quest.objective.targetKey;
+    const enemy = ENEMIES.find((candidate) => candidate.id === enemyId)
+      ?? ENEMIES.find((candidate) => candidate.kind === quest.objective.targetKey);
+    return enemy ? { id: `sidequest-enemy-${enemy.id}`, label: enemy.name, x: enemy.x, y: enemy.y, kind: "sidequest" } : null;
+  }
+
+  const resourcePrefix = quest.objective.targetKey === "ember-ore"
+    ? "emberfall-ore-"
+    : quest.objective.targetKey === "moonfen-ore"
+      ? "moonfen-ore-"
+      : quest.objective.targetKey === "frost-ore"
+        ? "frostmere-ore-"
+        : quest.objective.targetKey === "sunscar-fish"
+          ? "sunscar-fish-"
+          : "";
+  const resource = resourcePrefix
+    ? RESOURCES.find((candidate) => candidate.id.startsWith(resourcePrefix))
+    : RESOURCES.find((candidate) => candidate.id === quest.objective.targetKey || candidate.kind === quest.objective.targetKey);
+  return resource ? { id: `sidequest-resource-${resource.id}`, label: resource.name, x: resource.x, y: resource.y, kind: "sidequest" } : null;
+}
+
 function compassDirection(dx: number, dy: number) {
   const directions = ["E", "SE", "S", "SW", "W", "NW", "N", "NE"];
   const index = Math.round((Math.atan2(dy, dx) / (Math.PI / 4) + 8)) % 8;
@@ -495,25 +602,31 @@ function WorldMapArtwork({
   questTarget,
   eventTarget,
   bountyTarget,
+  sideQuestTarget,
   treasureTarget,
   socialMarkers = [],
   waystoneIds = [],
   minimap = false,
+  areaOverride,
 }: {
   playerX: number;
   playerY: number;
   questTarget?: MapMarker | null;
   eventTarget?: MapMarker | null;
   bountyTarget?: MapMarker | null;
+  sideQuestTarget?: MapMarker | null;
   treasureTarget?: MapMarker | null;
   socialMarkers?: MapMarker[];
   waystoneIds?: string[];
   minimap?: boolean;
+  areaOverride?: WorldMapArea;
 }) {
-  const area = worldMapAreaForY(playerY);
-  const areaTop = area === "dungeon" ? 2048 : 0;
-  const areaHeight = area === "dungeon" ? 1024 : 2048;
-  const minimapHeight = area === "dungeon" ? 176 : 352;
+  const playerArea = worldMapAreaForY(playerY);
+  const area = minimap ? playerArea : areaOverride ?? playerArea;
+  const areaDefinition = WORLD_AREAS[area];
+  const areaTop = areaDefinition.top;
+  const areaHeight = areaDefinition.height;
+  const minimapHeight = area === "overworld" ? 352 : 176;
   const visibleSocialMarkers = socialMarkers.filter((marker) => markerIsInArea(marker.y, area));
   const mapStyle = minimap
     ? {
@@ -532,19 +645,12 @@ function WorldMapArtwork({
 
   return (
     <div className={`rpg-world-art rpg-world-art--${area} ${minimap ? "rpg-world-art--minimap" : ""}`} style={mapStyle}>
-      {area === "dungeon" ? (
-        <img src="/assets/rpg/world/sunstone-catacombs.png" alt="" />
-      ) : (
-        <>
-          <img src="/assets/rpg/world/orehaven-overworld.png" alt="" />
-          <img src="/assets/rpg/world/briarwild-south.png" alt="" />
-        </>
-      )}
+      {areaDefinition.images.map((src) => <img key={src} src={src} alt="" />)}
       {!minimap ? <i className="rpg-world-art__north" aria-hidden="true"><b>N</b><span /></i> : null}
       {!minimap ? WORLD_SERVICE_MARKERS.filter((marker) => markerIsInArea(marker.y, area)).map((marker) => (
         <i
           key={marker.id}
-          className="rpg-world-art__marker rpg-world-art__marker--service"
+          className={`rpg-world-art__marker rpg-world-art__marker--${marker.kind}`}
           style={mapMarkerStyle(marker.x, marker.y, area)}
           title={marker.label}
           aria-label={marker.label}
@@ -597,6 +703,16 @@ function WorldMapArtwork({
           <span>{questTarget.label}</span>
         </i>
       ) : null}
+      {sideQuestTarget && markerIsInArea(sideQuestTarget.y, area) ? (
+        <i
+          className="rpg-world-art__marker rpg-world-art__marker--sidequest"
+          style={mapMarkerStyle(sideQuestTarget.x, sideQuestTarget.y, area)}
+          title={`Tracked regional tale: ${sideQuestTarget.label}`}
+          aria-label={`Tracked regional tale: ${sideQuestTarget.label}`}
+        >
+          <span>{sideQuestTarget.label}</span>
+        </i>
+      ) : null}
       {bountyTarget && markerIsInArea(bountyTarget.y, area) ? (
         <i
           className="rpg-world-art__marker rpg-world-art__marker--bounty"
@@ -628,9 +744,11 @@ function WorldMapArtwork({
           <span>{marker.label}</span>
         </i>
       ))}
-      <i className="rpg-world-art__player" style={mapMarkerStyle(playerX, playerY, area)}>
-        {!minimap ? <span>You</span> : null}
-      </i>
+      {playerArea === area ? (
+        <i className="rpg-world-art__player" style={mapMarkerStyle(playerX, playerY, area)}>
+          {!minimap ? <span>You</span> : null}
+        </i>
+      ) : null}
       {!minimap && area === "overworld" ? (
         <div className="rpg-world-art__labels" aria-hidden="true">
           <span style={{ left: "49%", top: "18%" }}>Orehaven</span>
@@ -648,6 +766,49 @@ function WorldMapArtwork({
           <span style={{ left: "50%", top: "8%" }}>Sunstone Entrance</span>
           <span style={{ left: "50%", top: "52%" }}>Buried Halls</span>
           <span style={{ left: "50%", top: "86%" }}>Aurex's Chamber</span>
+        </div>
+      ) : null}
+      {!minimap && area === "marsh" ? (
+        <div className="rpg-world-art__labels" aria-hidden="true">
+          <span style={{ left: "50%", top: "13%" }}>Lantern Road</span>
+          <span style={{ left: "17%", top: "31%" }}>Moon Shrine</span>
+          <span style={{ left: "79%", top: "34%" }}>Fenwater Village</span>
+          <span style={{ left: "50%", top: "83%" }}>Drowned Altar</span>
+        </div>
+      ) : null}
+      {!minimap && area === "highlands" ? (
+        <div className="rpg-world-art__labels" aria-hidden="true">
+          <span style={{ left: "50%", top: "13%" }}>Emberfall Gate</span>
+          <span style={{ left: "18%", top: "28%" }}>Highland Forge</span>
+          <span style={{ left: "82%", top: "28%" }}>Ashen Observatory</span>
+          <span style={{ left: "50%", top: "82%" }}>Caldera Throne</span>
+        </div>
+      ) : null}
+      {!minimap && area === "frostmere" ? (
+        <div className="rpg-world-art__labels" aria-hidden="true">
+          <span style={{ left: "50%", top: "10%" }}>Frostmere Gate</span>
+          <span style={{ left: "20%", top: "22%" }}>Crystal Cavern</span>
+          <span style={{ left: "50%", top: "50%" }}>Raider Watchfire</span>
+          <span style={{ left: "81%", top: "15%" }}>Last Lighthouse</span>
+          <span style={{ left: "65%", top: "62%" }}>Icewater Pond</span>
+        </div>
+      ) : null}
+      {!minimap && area === "sunscar" ? (
+        <div className="rpg-world-art__labels" aria-hidden="true">
+          <span style={{ left: "50%", top: "10%" }}>Sunscar Gate</span>
+          <span style={{ left: "18%", top: "18%" }}>Sealed Tomb</span>
+          <span style={{ left: "75%", top: "17%" }}>Star Observatory</span>
+          <span style={{ left: "50%", top: "48%" }}>Raider Watchfire</span>
+          <span style={{ left: "71%", top: "70%" }}>Glasswater Oasis</span>
+        </div>
+      ) : null}
+      {!minimap && area === "icefang" ? (
+        <div className="rpg-world-art__labels" aria-hidden="true">
+          <span style={{ left: "50%", top: "89%" }}>Frostmere Ascent</span>
+          <span style={{ left: "50%", top: "48%" }}>Runic Confluence</span>
+          <span style={{ left: "18%", top: "34%" }}>Frostglass Mine</span>
+          <span style={{ left: "82%", top: "35%" }}>Vault Icewater</span>
+          <span style={{ left: "50%", top: "14%" }}>Rime Throne</span>
         </div>
       ) : null}
     </div>
@@ -702,10 +863,13 @@ function itemArtStyle(item: ItemDefinition): React.CSSProperties | undefined {
 }
 
 function ItemIcon({ item, className = "" }: { item?: ItemDefinition; className?: string }) {
+  const tintStyle = item?.tint
+    ? ({ "--item-accent": `#${item.tint.toString(16).padStart(6, "0")}` } as React.CSSProperties)
+    : undefined;
   return (
     <b
-      className={`rpg-item-icon rpg-item-icon--${item?.category ?? "empty"} rpg-item-icon--rarity-${item?.rarity ?? "standard"} ${item?.artIndex !== undefined ? "rpg-item-icon--art" : ""} ${className}`.trim()}
-      style={item ? itemArtStyle(item) : undefined}
+      className={`rpg-item-icon rpg-item-icon--${item?.category ?? "empty"} rpg-item-icon--rarity-${item?.rarity ?? "standard"} ${item?.artIndex !== undefined ? "rpg-item-icon--art" : ""} ${item?.tint ? "rpg-item-icon--tinted" : ""} ${className}`.trim()}
+      style={item ? { ...itemArtStyle(item), ...tintStyle } : undefined}
       aria-hidden="true"
     >
       {item?.artIndex === undefined ? item?.badge ?? "-" : ""}
@@ -713,15 +877,18 @@ function ItemIcon({ item, className = "" }: { item?: ItemDefinition; className?:
   );
 }
 
-function NpcPortrait({ npcId }: { npcId: string }) {
+function NpcPortrait({ npcId, appearance, equipped }: { npcId: string; appearance?: ActorAppearanceId; equipped?: PlayerProgress["equipped"] }) {
   const frame = NPC_PORTRAIT_FRAMES[npcId];
+  if (!Number.isFinite(frame) && appearance && equipped) {
+    return <HeroPortrait appearance={appearance} equipped={equipped} animated direction="down" />;
+  }
   const column = Number.isFinite(frame) ? frame % 4 : 0;
   const row = Number.isFinite(frame) ? Math.floor(frame / 4) : 0;
   return (
     <div
       className="rpg-npc-portrait"
       style={{
-        backgroundPosition: `${(column / 3) * 100}% ${row * 100}%`,
+        backgroundPosition: `${(column / 3) * 100}% ${(row / 2) * 100}%`,
       }}
       role="img"
       aria-label={`${NPCS.find((npc) => npc.id === npcId)?.name ?? "NPC"} portrait`}
@@ -747,9 +914,14 @@ function EquipmentComparison({ item, progress }: { item: ItemDefinition; progres
   const delta = nextPower - currentPower;
   const equippedNow = equipped?.id === item.id;
   const metric = item.slot === "armor" ? "Bonus HP" : item.slot === "tool" ? "Tool tier" : "Weapon power";
-  const state = equippedNow ? "equipped" : delta > 0 ? "upgrade" : delta < 0 ? "downgrade" : "sidegrade";
+  const currentTrait = equipped?.armorTrait;
+  const nextTrait = item.armorTrait;
+  const swapsArmorPassive = item.slot === "armor" && Boolean(currentTrait && nextTrait && currentTrait.id !== nextTrait.id);
+  const state = equippedNow ? "equipped" : swapsArmorPassive ? "sidegrade" : delta > 0 ? "upgrade" : delta < 0 ? "downgrade" : "sidegrade";
   const stateLabel = equippedNow
     ? "Currently equipped"
+    : swapsArmorPassive
+      ? `${delta > 0 ? "+" : ""}${delta} HP • passive swap`
     : delta > 0
       ? `+${delta} upgrade`
       : delta < 0
@@ -762,6 +934,14 @@ function EquipmentComparison({ item, progress }: { item: ItemDefinition; progres
       <div><span>{metric}</span><b>{currentPower}<i>→</i>{nextPower}</b></div>
       <small>Compared with {equipped?.name ?? "an empty slot"}</small>
       <em>{stateLabel}</em>
+      {item.slot === "armor" && nextTrait ? (
+        <div className="rpg-item-compare__trait">
+          <span>Passive</span>
+          <b style={{ color: `#${nextTrait.color.toString(16).padStart(6, "0")}` }}>{nextTrait.name}</b>
+          <small>{nextTrait.detail}</small>
+          {currentTrait && currentTrait.id !== nextTrait.id ? <i>Replaces {currentTrait.name}</i> : null}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -794,8 +974,10 @@ export function PhaserRpgGame({
   const audioRef = useRef<GameAudioEngine | null>(null);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const skillTreeScrollRef = useRef<HTMLDivElement | null>(null);
   const hudDragRef = useRef<{ id: HudWidgetId; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const initialProgressRef = useRef(loadPlayerProgress());
+  const previousQuestStepRef = useRef(initialProgressRef.current.questStep);
   const readyContractIdsRef = useRef(new Set(
     DAILY_CONTRACTS
       .filter((contract) => activityContractCount(initialProgressRef.current.activities, contract) >= contract.target)
@@ -806,7 +988,12 @@ export function PhaserRpgGame({
   const [identityOpen, setIdentityOpen] = useState(() => window.localStorage.getItem(ONBOARDING_SAVE_KEY) !== "complete");
   const [identityName, setIdentityName] = useState(playerNameRef.current);
   const [identityAppearance, setIdentityAppearance] = useState<AppearanceId>(initialProgressRef.current.appearance);
+  const [identityCustomization, setIdentityCustomization] = useState<CharacterCustomization>(() => (
+    customizationForAppearance(initialProgressRef.current.appearance)
+  ));
   const [identityError, setIdentityError] = useState("");
+  const [sceneReady, setSceneReady] = useState(false);
+  const [sceneLoadProgress, setSceneLoadProgress] = useState(0);
   const [panel, setPanel] = useState<Panel>(null);
   const [dialogue, setDialogue] = useState<DialogueState | null>(null);
   const [dialoguePage, setDialoguePage] = useState(0);
@@ -814,15 +1001,25 @@ export function PhaserRpgGame({
   const [clock, setClock] = useState(() => Date.now());
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const [questCelebration, setQuestCelebration] = useState<GameToast | null>(null);
+  const [bossIntro, setBossIntro] = useState<BossIntroState | null>(null);
+  const [objectiveUpdate, setObjectiveUpdate] = useState<(typeof QUEST_STEPS)[number] | null>(null);
   const [levelCelebration, setLevelCelebration] = useState<SkillLevelEvent | null>(null);
   const [paperdollDirection, setPaperdollDirection] = useState<Direction>("down");
-  const [chatOpen, setChatOpen] = useState(() => window.innerWidth > 700);
-  const [questTrackerOpen, setQuestTrackerOpen] = useState(() => window.innerWidth > 700);
+  const [paperdollAction, setPaperdollAction] = useState<HeroPortraitAction>("idle");
+  // Keep the first gameplay view focused; players can open World Chat from the HUD.
+  const [chatOpen, setChatOpen] = useState(false);
+  // Keep the first playable view focused. The active quest remains one click
+  // away without covering the town square or the player's route.
+  const [questTrackerOpen, setQuestTrackerOpen] = useState(false);
+  const [worldEventOpen, setWorldEventOpen] = useState(false);
+  const [statusExpanded, setStatusExpanded] = useState(false);
   const [chatFocused, setChatFocused] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
   const [chatChannel, setChatChannel] = useState<"world" | "party" | "guild">("world");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [trackedBountyKey, setTrackedBountyKey] = useState<string | null>(null);
+  const [trackedSideQuestId, setTrackedSideQuestId] = useState<string | null>(() => window.localStorage.getItem(TRACKED_SIDE_QUEST_SAVE_KEY));
+  const [sideQuestTrackerOpen, setSideQuestTrackerOpen] = useState(false);
   const [social, setSocial] = useState<SocialState>({ selfId: null, online: [], party: null, invite: null, guildInvite: null });
   const [guildName, setGuildName] = useState("");
   const [guildTag, setGuildTag] = useState("");
@@ -834,7 +1031,11 @@ export function PhaserRpgGame({
   const [hotbarLayout, setHotbarLayout] = useState<Array<HotbarEntry | null>>(loadHotbarLayout);
   const [hotbarEditing, setHotbarEditing] = useState(false);
   const [selectedHotbarSlot, setSelectedHotbarSlot] = useState(0);
-  const [selectedTreeBranch, setSelectedTreeBranch] = useState<CombatStyle>("melee");
+  const [selectedTreeBranch, setSelectedTreeBranch] = useState<CombatStyle | "all">("all");
+  const [skillTreeZoom, setSkillTreeZoom] = useState(0.9);
+  const [bestiaryFilter, setBestiaryFilter] = useState<EnemyDefinition["kind"] | "all">("all");
+  const [worldMapArea, setWorldMapArea] = useState<WorldMapArea>("overworld");
+  const [zoneArrival, setZoneArrival] = useState<ZoneArrivalState | null>(null);
   const [hudEditing, setHudEditing] = useState(false);
   const [hudLayout, setHudLayout] = useState<Record<HudWidgetId, HudWidgetConfig>>(loadHudLayout);
   const [hud, setHud] = useState<HudState>({
@@ -864,6 +1065,47 @@ export function PhaserRpgGame({
   useEffect(() => {
     window.localStorage.setItem(HUD_LAYOUT_SAVE_KEY, JSON.stringify(hudLayout));
   }, [hudLayout]);
+
+  useEffect(() => {
+    if (panel === "map") setWorldMapArea(worldMapAreaForY(hud.playerY));
+  }, [panel]);
+
+  useEffect(() => {
+    const region = regionForLocation(hud.location);
+    if (!region) return;
+    setZoneArrival({
+      location: hud.location,
+      regionId: region.id,
+      firstVisit: !hud.progress.discoveries.includes(region.id),
+    });
+  }, [hud.location]);
+
+  useEffect(() => {
+    if (trackedSideQuestId) window.localStorage.setItem(TRACKED_SIDE_QUEST_SAVE_KEY, trackedSideQuestId);
+    else window.localStorage.removeItem(TRACKED_SIDE_QUEST_SAVE_KEY);
+  }, [trackedSideQuestId]);
+
+  useEffect(() => {
+    if (!trackedSideQuestId) return;
+    const quest = SIDE_QUESTS.find((candidate) => candidate.id === trackedSideQuestId);
+    const state = hud.progress.sideQuests[trackedSideQuestId];
+    if (!quest || state?.status === "claimed") setTrackedSideQuestId(null);
+  }, [hud.progress.sideQuests, trackedSideQuestId]);
+
+  useEffect(() => {
+    setWorldEventOpen(false);
+  }, [hud.worldEvent?.id]);
+
+  useEffect(() => {
+    if (panel !== "skills" || !skillTreeScrollRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const element = skillTreeScrollRef.current;
+      if (!element) return;
+      element.scrollLeft = Math.max(0, 850 * skillTreeZoom - element.clientWidth / 2);
+      element.scrollTop = Math.max(0, 610 * skillTreeZoom - element.clientHeight / 2);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [panel]);
 
   useEffect(() => {
     let active = true;
@@ -924,8 +1166,16 @@ export function PhaserRpgGame({
     if (!identityReady || !hostRef.current || gameRef.current) return;
     const host = hostRef.current;
     let cancelled = false;
-    const frame = window.requestAnimationFrame(() => {
-      if (cancelled) return;
+    let startInProgress = false;
+    let retryTimer: number | null = null;
+    setSceneReady(false);
+    setSceneLoadProgress(0);
+    const startGame = () => {
+      if (cancelled || gameRef.current || startInProgress || !host.isConnected) return;
+      // The animation-frame start and the bounded retry can land in the same
+      // turn on restored tabs. Lock construction before Phaser creates a
+      // canvas so only one scene can own the host and the ready callback.
+      startInProgress = true;
       const bounds = host.getBoundingClientRect();
       const scene = new OrehavenScene(
         {
@@ -955,6 +1205,7 @@ export function PhaserRpgGame({
             toastTimersRef.current.push(timer);
           },
           onQuestComplete: setQuestCelebration,
+          onBossIntro: setBossIntro,
           onLevelUp: setLevelCelebration,
           onChat: (message) => {
             setChatMessages((current) => current.some((entry) => entry.id === message.id)
@@ -963,6 +1214,9 @@ export function PhaserRpgGame({
           },
           onSocial: (next) => setSocial((current) => ({ ...current, ...next })),
           onAudio: (cue) => audioRef.current?.play(cue),
+          onMusic: (state) => audioRef.current?.setMusic(state),
+          onLoadProgress: setSceneLoadProgress,
+          onReady: () => setSceneReady(true),
         },
         initialProgressRef.current,
         playerNameRef.current,
@@ -982,9 +1236,11 @@ export function PhaserRpgGame({
         claimAdventure: (adventureId) => scene.claimAdventure(adventureId),
         setAppearance: (appearance) => scene.setAppearance(appearance),
         setCustomization: (customization) => scene.setCustomization(customization),
+        setIdentity: (displayName, appearance, customization) => scene.setIdentity(displayName, appearance, customization),
         setDisplayName: (displayName) => scene.setDisplayName(displayName),
         centerCamera: () => scene.centerCamera(),
         navigateToQuestTarget: () => scene.navigateToQuestTarget(),
+        navigateToWorldTarget: (x, y, label) => scene.navigateToWorldTarget(x, y, label),
         adjustCameraZoom: (delta) => scene.adjustCameraZoom(delta),
         sendChat: (text, channel) => scene.sendChat(text, channel),
         inviteToParty: (targetPlayerId) => scene.inviteToParty(targetPlayerId),
@@ -1014,19 +1270,28 @@ export function PhaserRpgGame({
         pixelArt: true,
         roundPixels: true,
         scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH },
+        loader: { maxParallelDownloads: 32 },
         render: { antialias: false, pixelArt: true },
         scene,
       });
-    });
+    };
+    const frame = window.requestAnimationFrame(startGame);
+    // A restored/crashed tab can miss its first animation frame while React has
+    // already mounted the shell. Give the Phaser host one bounded retry instead
+    // of leaving players with a working HUD over an empty world.
+    retryTimer = window.setTimeout(startGame, 180);
     return () => {
       cancelled = true;
+      startInProgress = false;
       window.cancelAnimationFrame(frame);
+      if (retryTimer) window.clearTimeout(retryTimer);
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
       toastTimersRef.current.forEach((timer) => window.clearTimeout(timer));
       toastTimersRef.current = [];
       gameRef.current?.destroy(true);
       gameRef.current = null;
       apiRef.current = null;
+      setSceneReady(false);
     };
   }, [identityReady]);
 
@@ -1058,6 +1323,23 @@ export function PhaserRpgGame({
     const timer = window.setTimeout(() => setLevelCelebration(null), 9_000);
     return () => window.clearTimeout(timer);
   }, [levelCelebration]);
+
+  useEffect(() => {
+    if (!bossIntro) return;
+    const timer = window.setTimeout(() => setBossIntro(null), 5_200);
+    return () => window.clearTimeout(timer);
+  }, [bossIntro]);
+
+  useEffect(() => {
+    const nextStep = Math.min(hud.progress.questStep, QUEST_STEPS.length - 1);
+    const previousStep = previousQuestStepRef.current;
+    previousQuestStepRef.current = nextStep;
+    if (nextStep <= previousStep) return;
+
+    setObjectiveUpdate(QUEST_STEPS[nextStep]);
+    const timer = window.setTimeout(() => setObjectiveUpdate(null), 4_800);
+    return () => window.clearTimeout(timer);
+  }, [hud.progress.questStep]);
 
   useEffect(() => {
     if (chatChannel === "party" && !social.party) setChatChannel("world");
@@ -1169,6 +1451,15 @@ export function PhaserRpgGame({
   }, [dialogue, dialoguePage, hotbarEditing]);
 
   const activeQuest = QUEST_STEPS[Math.min(hud.progress.questStep, QUEST_STEPS.length - 1)];
+  const trackedSideQuest = trackedSideQuestId ? SIDE_QUESTS.find((quest) => quest.id === trackedSideQuestId) : undefined;
+  const trackedSideQuestState = trackedSideQuest ? hud.progress.sideQuests[trackedSideQuest.id] : undefined;
+  const trackedSideQuestTarget = trackedSideQuest ? sideQuestMapMarker(trackedSideQuest, trackedSideQuestState) : null;
+  const trackedSideQuestProgress = trackedSideQuestState?.progress ?? 0;
+  const sideQuestDeltaX = trackedSideQuestTarget ? trackedSideQuestTarget.x - hud.playerX : 0;
+  const sideQuestDeltaY = trackedSideQuestTarget ? trackedSideQuestTarget.y - hud.playerY : 0;
+  const sideQuestDistance = trackedSideQuestTarget ? Math.hypot(sideQuestDeltaX, sideQuestDeltaY) : 0;
+  const sideQuestBearing = trackedSideQuestTarget ? Math.atan2(sideQuestDeltaY, sideQuestDeltaX) * 180 / Math.PI + 90 : 0;
+  const sideQuestDirection = trackedSideQuestTarget ? compassDirection(sideQuestDeltaX, sideQuestDeltaY) : "";
   const catacombChronicle = ADVENTURE_CHRONICLES.find((entry) => entry.id === "beneath-the-fallen-sun");
   const catacombMiningChronicle = ADVENTURE_CHRONICLES.find((entry) => entry.id === "embers-below");
   const catacombBossKills = catacombChronicle ? adventureProgress(hud.progress, catacombChronicle) : 0;
@@ -1224,9 +1515,18 @@ export function PhaserRpgGame({
   const equippedWeapon = itemById(hud.progress.equipped.weapon);
   const equippedArmor = itemById(hud.progress.equipped.armor);
   const equippedCombatStyle = equippedWeapon?.combatStyle ?? "melee";
+  const combatSkillId = equippedCombatStyle === "melee" ? "attack" : equippedCombatStyle;
+  const combatSkill = hud.progress.skills[combatSkillId];
   const signatureAbility = weaponAbility(hud.progress.equipped.weapon);
   const defenseReduction = Math.floor((equippedArmor?.power ?? 0) / 8)
     + Math.floor(Math.max(0, hud.progress.skills.defense.level - 1) / 8);
+  const equippedArmorTrait = armorTrait(hud.progress.equipped.armor);
+  const equippedArmorWard = armorDamageReduction(hud.progress.equipped.armor);
+  const transmogLayers = [
+    hud.progress.customization.helmetStyle !== "auto" ? HELMET_STYLES.find((option) => option.id === hud.progress.customization.helmetStyle)?.name : null,
+    hud.progress.customization.capeStyle !== "auto" ? CAPE_STYLES.find((option) => option.id === hud.progress.customization.capeStyle)?.name : null,
+    hud.progress.customization.shieldStyle !== "auto" ? SHIELD_STYLES.find((option) => option.id === hud.progress.customization.shieldStyle)?.name : null,
+  ].filter((label): label is string => Boolean(label));
   const signatureRemainingMs = Math.max(0, hud.abilityCooldowns.signatureReadyAt - clock);
   const secondWindRemainingMs = Math.max(0, hud.abilityCooldowns.secondWindReadyAt - clock);
   const activeTreeAbilities = unlockedTreeAbilities(hud.progress, equippedCombatStyle);
@@ -1234,6 +1534,22 @@ export function PhaserRpgGame({
   const secondaryTreeAbility = activeTreeAbilities[1];
   const treePointsTotal = skillTreePointTotal(hud.progress);
   const treePointsAvailable = skillTreePointsAvailable(hud.progress);
+  const unlockedTreeNodeIds = new Set(hud.progress.skillTree.unlocked);
+  const learnedTreeCounts = (["melee", "range", "magic"] as const).map((branch) => ({
+    branch,
+    count: SKILL_TREE_NODES.filter((node) => (node.affinities ?? [node.branch]).includes(branch) && unlockedTreeNodeIds.has(node.id)).length,
+  }));
+  const dominantTreePath = [...learnedTreeCounts].sort((a, b) => b.count - a.count)[0];
+  const secondaryTreePath = [...learnedTreeCounts].sort((a, b) => b.count - a.count)[1];
+  const buildTitle = dominantTreePath.count === 0
+    ? "Unshaped Adventurer"
+    : secondaryTreePath.count >= Math.max(2, dominantTreePath.count - 2)
+      ? (dominantTreePath.branch === "melee" && secondaryTreePath.branch === "magic") || (dominantTreePath.branch === "magic" && secondaryTreePath.branch === "melee")
+        ? "Spellblade"
+        : (dominantTreePath.branch === "range" && secondaryTreePath.branch === "magic") || (dominantTreePath.branch === "magic" && secondaryTreePath.branch === "range")
+          ? "Arcane Marksman"
+          : "Shadow Skirmisher"
+      : dominantTreePath.branch === "melee" ? "Warden" : dominantTreePath.branch === "range" ? "Ranger" : "Arcanist";
   const targetStatusRemainingMs = Math.max(0, (hud.target?.status?.expiresAt ?? 0) - clock);
   const actionClock = hud.activeAction ? Math.max(clock, hud.activeAction.startedAt) : clock;
   const actionProgress = hud.activeAction
@@ -1247,6 +1563,10 @@ export function PhaserRpgGame({
     .filter(([, quantity]) => quantity > 0)
     .map(([id, quantity]) => ({ item: itemById(id), quantity }))
     .filter((entry): entry is { item: NonNullable<ReturnType<typeof itemById>>; quantity: number } => Boolean(entry.item));
+  const bestiaryEnemies = ENEMIES
+    .filter((enemy) => bestiaryFilter === "all" || enemy.kind === bestiaryFilter)
+    .filter((enemy, index, list) => list.findIndex((candidate) => candidate.name === enemy.name && candidate.kind === enemy.kind) === index)
+    .sort((a, b) => Number(Boolean(b.rare)) - Number(Boolean(a.rare)) || a.level - b.level || a.name.localeCompare(b.name));
   const bankItems = Object.entries(hud.progress.bank)
     .filter(([, quantity]) => quantity > 0)
     .map(([id, quantity]) => ({ item: itemById(id), quantity }))
@@ -1327,8 +1647,12 @@ export function PhaserRpgGame({
   const hotbarAbilityPalette: Array<{ entry: HotbarEntry; label: string; badge: string; detail: string }> = [
     { entry: { kind: "ability", slot: "signature" }, label: signatureAbility.name, badge: signatureAbility.badge, detail: signatureAbility.detail },
     { entry: { kind: "ability", slot: "second-wind" }, label: "Second Wind", badge: "SW", detail: "Restore 24% of maximum hitpoints" },
-    { entry: { kind: "ability", slot: "tree-primary" }, label: primaryTreeAbility?.name ?? "Primary skill", badge: primaryTreeAbility?.badge ?? "P", detail: primaryTreeAbility?.detail ?? "Uses your first unlocked weapon-tree skill" },
-    { entry: { kind: "ability", slot: "tree-secondary" }, label: secondaryTreeAbility?.name ?? "Secondary skill", badge: secondaryTreeAbility?.badge ?? "S", detail: secondaryTreeAbility?.detail ?? "Uses your second unlocked weapon-tree skill" },
+    ...activeTreeAbilities.map((ability) => ({
+      entry: { kind: "ability" as const, slot: `tree:${ability.id}` as CombatAbilitySlot },
+      label: ability.name,
+      badge: ability.badge,
+      detail: ability.detail,
+    })),
   ];
   const hotbarConsumables = [...new Set([
     ...SHOP_ITEMS.filter((item) => item.category === "consumable").map((item) => item.id),
@@ -1338,6 +1662,8 @@ export function PhaserRpgGame({
   const currentTutorial = TUTORIAL_STEPS[Math.min(tutorialStep, TUTORIAL_STEPS.length - 1)];
   const worldTime = worldTimeAt(clock);
   const regionAtmosphere = hud.location.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const arrivalRegion = zoneArrival ? REGIONS.find((region) => region.id === zoneArrival.regionId) : undefined;
+  const selectedWorldMapArea = WORLD_MAP_AREAS.find((area) => area.id === worldMapArea) ?? WORLD_MAP_AREAS[0];
   const finishTutorial = () => {
     window.localStorage.setItem(TUTORIAL_SAVE_KEY, "complete");
     tutorialAudioRef.current?.pause();
@@ -1397,6 +1723,7 @@ export function PhaserRpgGame({
   const openIdentityEditor = () => {
     setIdentityName(playerNameRef.current);
     setIdentityAppearance(hud.progress.appearance);
+    setIdentityCustomization({ ...hud.progress.customization });
     setIdentityError("");
     setIdentityOpen(true);
     apiRef.current?.setInputPaused(true);
@@ -1414,18 +1741,20 @@ export function PhaserRpgGame({
       return;
     }
 
-    const customization = customizationForAppearance(identityAppearance);
+    const customization = { ...identityCustomization };
+    const starterProgress = starterProgressForAppearance(identityAppearance, initialProgressRef.current);
     playerNameRef.current = displayName;
     window.localStorage.setItem("ore-acres-rpg-name", displayName);
     window.localStorage.setItem(ONBOARDING_SAVE_KEY, "complete");
     window.localStorage.setItem("ore-acres-rpg-identity-sync-pending", JSON.stringify({
       displayName,
       appearance: identityAppearance,
+      customization,
     }));
 
     if (!identityReady) {
       const nextProgress = {
-        ...initialProgressRef.current,
+        ...starterProgress,
         appearance: identityAppearance,
         customization,
       };
@@ -1434,9 +1763,8 @@ export function PhaserRpgGame({
       setHud((current) => ({ ...current, progress: nextProgress }));
       setIdentityReady(true);
     } else {
-      apiRef.current?.setDisplayName(displayName);
+      apiRef.current?.setIdentity(displayName, identityAppearance, customization);
       window.localStorage.removeItem("ore-acres-rpg-identity-sync-pending");
-      if (identityAppearance !== hud.progress.appearance) apiRef.current?.setAppearance(identityAppearance);
       apiRef.current?.setInputPaused(false);
     }
 
@@ -1455,6 +1783,18 @@ export function PhaserRpgGame({
       onPointerCancel={endHudDrag}
     >
       <div className="rpg-host" ref={hostRef} />
+      {!sceneReady ? (
+        <div className="rpg-scene-loading" role="status" aria-live="polite">
+          <div className="rpg-scene-loading__crest" aria-hidden="true">OA</div>
+          <span>OREHAVEN FRONTIER</span>
+          <strong>Preparing the world</strong>
+          <small>Loading maps, characters, and frontier encounters</small>
+          <div className="rpg-scene-loading__track" aria-hidden="true">
+            <i style={{ width: `${Math.max(4, Math.round(sceneLoadProgress * 100))}%` }} />
+          </div>
+          <em>{Math.round(sceneLoadProgress * 100)}%</em>
+        </div>
+      ) : null}
       <div className="rpg-world-light" aria-hidden="true"><i /><b /></div>
 
       {identityOpen ? (
@@ -1477,14 +1817,15 @@ export function PhaserRpgGame({
             <div className="rpg-identity-body">
               <div className={`rpg-identity-preview rpg-identity-preview--${identityAppearance}`}>
                 <i aria-hidden="true" />
-                <HeroPortrait
-                  appearance={identityAppearance}
-                  equipped={initialProgressRef.current.equipped}
-                  customization={customizationForAppearance(identityAppearance)}
-                  className="rpg-identity-portrait"
-                />
+                  <HeroPortrait
+                    appearance={identityAppearance}
+                    equipped={starterProgressForAppearance(identityAppearance, initialProgressRef.current).equipped}
+                    customization={identityCustomization}
+                    className="rpg-identity-portrait"
+                  />
                 <strong>{identityName.trim() || "Your name"}</strong>
                 <span>{APPEARANCES.find((entry) => entry.id === identityAppearance)?.role}</span>
+                <small className="rpg-identity-preview__kit">Starter kit: {starterKitLabel(identityAppearance)}</small>
               </div>
 
               <div className="rpg-identity-form">
@@ -1511,11 +1852,14 @@ export function PhaserRpgGame({
                       key={appearance.id}
                       type="button"
                       className={identityAppearance === appearance.id ? "active" : ""}
-                      onClick={() => setIdentityAppearance(appearance.id)}
+                      onClick={() => {
+                        setIdentityAppearance(appearance.id);
+                        setIdentityCustomization(customizationForAppearance(appearance.id));
+                      }}
                     >
                       <HeroPortrait
                         appearance={appearance.id}
-                        equipped={initialProgressRef.current.equipped}
+                        equipped={starterProgressForAppearance(appearance.id, initialProgressRef.current).equipped}
                         customization={customizationForAppearance(appearance.id)}
                         className="rpg-identity-choice-portrait"
                       />
@@ -1523,6 +1867,71 @@ export function PhaserRpgGame({
                     </button>
                   ))}
                 </div>
+
+                <section className="rpg-identity-customizer" aria-label="Customize your starter character">
+                  <div className="rpg-identity-customizer__heading">
+                    <div><span>MAKE IT YOURS</span><strong>Quick character customizer</strong></div>
+                    <small>Fine-tune it later in Equipment.</small>
+                  </div>
+                  <div className="rpg-identity-customizer__row">
+                    <b>Face</b>
+                    <div>
+                      {FACE_STYLES.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className={identityCustomization.faceStyle === option.id ? "active" : ""}
+                          onClick={() => setIdentityCustomization((current) => ({ ...current, faceStyle: option.id }))}
+                        >
+                          {option.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rpg-identity-customizer__row">
+                    <b>Hair</b>
+                    <div>
+                      {HAIR_STYLES.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className={identityCustomization.hairStyle === option.id ? "active" : ""}
+                          onClick={() => setIdentityCustomization((current) => ({ ...current, hairStyle: option.id }))}
+                        >
+                          {option.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rpg-identity-customizer__row rpg-identity-customizer__row--swatches">
+                    <b>Palette</b>
+                    <div>
+                      {SKIN_TONES.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className={identityCustomization.skinTone === option.id ? "active" : ""}
+                          style={{ "--swatch": option.swatch } as CSSProperties}
+                          aria-label={`Skin tone: ${option.name}`}
+                          title={option.name}
+                          onClick={() => setIdentityCustomization((current) => ({ ...current, skinTone: option.id }))}
+                        />
+                      ))}
+                      <i aria-hidden="true" />
+                      {HAIR_COLORS.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className={identityCustomization.hairColor === option.id ? "active" : ""}
+                          style={{ "--swatch": option.swatch } as CSSProperties}
+                          aria-label={`Hair color: ${option.name}`}
+                          title={option.name}
+                          onClick={() => setIdentityCustomization((current) => ({ ...current, hairColor: option.id }))}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </section>
 
                 {identityError ? <p className="rpg-identity-error" role="alert">{identityError}</p> : null}
                 <div className="rpg-identity-wallet">
@@ -1546,12 +1955,14 @@ export function PhaserRpgGame({
         </div>
       ) : null}
 
-      {!panel && !dialogue && !hud.activeAction ? (
-        <aside key={hud.location} className="rpg-zone-arrival" aria-live="polite">
+      {!panel && !dialogue && !hud.activeAction && zoneArrival && arrivalRegion ? (
+        <aside key={`${zoneArrival.location}-${zoneArrival.firstVisit ? "new" : "known"}`} className={`rpg-zone-arrival danger-${arrivalRegion.danger} ${zoneArrival.firstVisit ? "new" : "known"}`} aria-live="polite">
           <i aria-hidden="true" />
-          <span>AREA DISCOVERED</span>
-          <strong>{hud.location}</strong>
-          <small>{LOCATION_SUBTITLES[hud.location] ?? "The frontier stretches onward"}</small>
+          <span>{zoneArrival.firstVisit ? "NEW REGION DISCOVERED" : "ENTERING"} • {arrivalRegion.danger}</span>
+          <strong>{arrivalRegion.name}</strong>
+          <small>{arrivalRegion.subtitle}</small>
+          <div><b>Recommended Lv {arrivalRegion.recommendedLevel}+</b><em>{arrivalRegion.landmark}</em></div>
+          {zoneArrival.firstVisit ? <p>Codex recorded • +{REGION_DISCOVERY_REWARD_GOLD} gold</p> : null}
         </aside>
       ) : null}
 
@@ -1584,6 +1995,33 @@ export function PhaserRpgGame({
             ) : null}
             {currentTutorial.manual ? <button type="button" className="primary" onClick={advanceTutorial}>{tutorialStep === TUTORIAL_STEPS.length - 1 ? "Finish" : "Continue"}</button> : <em>Tracking...</em>}
           </footer>
+        </aside>
+      ) : null}
+
+      {bossIntro && !questCelebration ? (
+        <aside
+          key={bossIntro.enemyId}
+          className="rpg-boss-intro"
+          style={{ "--boss-accent": `#${bossIntro.accent.toString(16).padStart(6, "0")}` } as React.CSSProperties}
+          aria-live="assertive"
+          aria-label={`Boss encountered: ${bossIntro.enemyName}`}
+        >
+          <i className="rpg-boss-intro__line" aria-hidden="true" />
+          <span>WORLD ENCOUNTER • LEVEL {bossIntro.level}</span>
+          <strong>{bossIntro.enemyName}</strong>
+          <em>{bossIntro.epithet}</em>
+          <div><b>{bossIntro.signature}</b><small>{bossIntro.warning}</small></div>
+        </aside>
+      ) : null}
+
+      {objectiveUpdate && !bossIntro && !questCelebration && !levelCelebration && !panel && !dialogue ? (
+        <aside className="rpg-objective-update" aria-live="polite">
+          <i aria-hidden="true" />
+          <div>
+            <span>OBJECTIVE UPDATED • {objectiveUpdate.chapter}</span>
+            <strong>{objectiveUpdate.title}</strong>
+            <p>{objectiveUpdate.detail}</p>
+          </div>
         </aside>
       ) : null}
 
@@ -1639,6 +2077,10 @@ export function PhaserRpgGame({
             <small>EDIT</small>
           </button>
           <span>{hud.location}</span>
+          <div className="rpg-combat-progress" title={`${combatStyleLabel(equippedCombatStyle)} level ${combatSkill.level}: ${combatSkill.xp.toLocaleString()} XP`}>
+            <div><b>{combatStyleLabel(equippedCombatStyle)} LV {combatSkill.level}</b><span>{combatSkill.xp.toLocaleString()} XP</span></div>
+            <i><em style={{ width: `${xpPercent(combatSkill.level, combatSkill.xp)}%` }} /></i>
+          </div>
         </div>
         <div className="rpg-vital">
           <span>HP</span>
@@ -1646,39 +2088,54 @@ export function PhaserRpgGame({
           <b>{hud.progress.hp}/{hud.progress.maxHp}</b>
         </div>
         <div className="rpg-currency"><span>GOLD</span><strong>{hud.progress.gold.toLocaleString()}</strong></div>
-        <div className="rpg-currency"><span>TOTAL</span><strong>{totalLevel(hud.progress)}</strong></div>
-        {onConnectWallet ? (
-          <button
-            type="button"
-            className={`rpg-wallet-toggle ${walletAddress ? "connected" : ""}`}
-            title={walletAddress || "Connect an optional Solana wallet"}
-            onClick={walletAddress ? onDisconnectWallet : onConnectWallet}
-          >
-            <span>{walletAddress ? "WALLET" : "WEB3"}</span>
-            <strong>{walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-3)}` : "CONNECT"}</strong>
-          </button>
-        ) : null}
-        {(["localhost", "127.0.0.1"].includes(window.location.hostname)) ? (
-          <div className="rpg-admin-tool-links">
-            <a className="rpg-admin-tool-link" href="/world-editor.html" target="_blank" rel="noreferrer">WORLD</a>
-            <a className="rpg-admin-tool-link" href="/collision-editor.html" target="_blank" rel="noreferrer">COLLISIONS</a>
-          </div>
-        ) : null}
+        <span className={`rpg-online rpg-online--${hud.online}`}>{hud.online === "online" ? `${hud.players} ONLINE` : hud.online.toUpperCase()}</span>
         <button
           type="button"
-          className={`rpg-sound-toggle ${soundOn ? "active" : ""}`}
-          aria-label={soundOn ? "Mute game sound" : "Enable game sound"}
-          onClick={() => {
-            setSoundOn((current) => {
-              const next = !current;
-              window.localStorage.setItem("ore-acres-rpg-sound", next ? "on" : "off");
-              return next;
-            });
-          }}
-        >
-          {soundOn ? "SOUND ON" : "SOUND OFF"}
-        </button>
-        <span className={`rpg-online rpg-online--${hud.online}`}>{hud.online === "online" ? `${hud.players} ONLINE` : hud.online.toUpperCase()}</span>
+          className={`rpg-status__more ${statusExpanded ? "active" : ""}`}
+          aria-expanded={statusExpanded}
+          aria-label={statusExpanded ? "Hide secondary status controls" : "Show secondary status controls"}
+          onClick={() => setStatusExpanded((current) => !current)}
+        >{statusExpanded ? "LESS" : "MORE"}</button>
+        {statusExpanded ? (
+          <div className="rpg-status__secondary">
+            <div className="rpg-currency"><span>TOTAL</span><strong>{totalLevel(hud.progress)}</strong></div>
+            <div className="rpg-build-badge" title="Your current skill-tree identity">
+              <span>BUILD</span>
+              <strong>{buildTitle}</strong>
+            </div>
+            {onConnectWallet ? (
+              <button
+                type="button"
+                className={`rpg-wallet-toggle ${walletAddress ? "connected" : ""}`}
+                title={walletAddress || "Connect an optional Solana wallet"}
+                onClick={walletAddress ? onDisconnectWallet : onConnectWallet}
+              >
+                <span>{walletAddress ? "WALLET" : "WEB3"}</span>
+                <strong>{walletAddress ? `${walletAddress.slice(0, 4)}...${walletAddress.slice(-3)}` : "CONNECT"}</strong>
+              </button>
+            ) : null}
+            {(["localhost", "127.0.0.1"].includes(window.location.hostname)) ? (
+              <div className="rpg-admin-tool-links">
+                <a className="rpg-admin-tool-link" href="/world-editor.html" target="_blank" rel="noreferrer">WORLD</a>
+                <a className="rpg-admin-tool-link" href="/collision-editor.html" target="_blank" rel="noreferrer">COLLISIONS</a>
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className={`rpg-sound-toggle ${soundOn ? "active" : ""}`}
+              aria-label={soundOn ? "Mute game sound" : "Enable game sound"}
+              onClick={() => {
+                setSoundOn((current) => {
+                  const next = !current;
+                  window.localStorage.setItem("ore-acres-rpg-sound", next ? "on" : "off");
+                  return next;
+                });
+              }}
+            >
+              {soundOn ? "SOUND ON" : "SOUND OFF"}
+            </button>
+          </div>
+        ) : null}
       </header>
 
       <div className="rpg-objective-stack" {...hudWidgetProps("objectives")}>
@@ -1708,6 +2165,36 @@ export function PhaserRpgGame({
           ) : null}
         </aside>
 
+        {trackedSideQuest && trackedSideQuestState ? (
+          <aside className={`rpg-side-quest-pin ${sideQuestTrackerOpen ? "open" : "collapsed"}`}>
+            <header>
+              <span>REGIONAL TALE • {trackedSideQuest.chapter.replace(" Tale", "")}</span>
+              <div>
+                <button type="button" onClick={() => setSideQuestTrackerOpen((current) => !current)}>{sideQuestTrackerOpen ? "Hide" : "Show"}</button>
+                <button type="button" aria-label="Stop tracking regional tale" title="Stop tracking" onClick={() => setTrackedSideQuestId(null)}>×</button>
+              </div>
+            </header>
+            <strong>{trackedSideQuest.title}</strong>
+            {sideQuestTrackerOpen ? <small>{trackedSideQuest.objective.label}</small> : null}
+            <div className="rpg-side-quest-pin__progress"><i style={{ width: `${Math.min(100, (trackedSideQuestProgress / trackedSideQuest.objective.target) * 100)}%` }} /></div>
+            <p>{trackedSideQuestState.status === "ready" ? `Return to ${trackedSideQuest.giverName} for your reward.` : `${trackedSideQuestProgress}/${trackedSideQuest.objective.target} complete`}</p>
+            {sideQuestTrackerOpen && trackedSideQuestTarget ? (
+              <div className="rpg-side-quest-pin__compass" aria-label={`${trackedSideQuestTarget.label} is ${sideQuestDirection}, about ${Math.ceil(sideQuestDistance / 32)} tiles away`}>
+                <i style={{ transform: `rotate(${sideQuestBearing}deg)` }}>▲</i>
+                <span><b>{sideQuestDirection}</b>{Math.ceil(sideQuestDistance / 32)} tiles</span>
+                <em>{sideQuestDistance < 84 ? "Destination nearby" : trackedSideQuestTarget.label}</em>
+              </div>
+            ) : null}
+            {sideQuestTrackerOpen ? (
+              <div className="rpg-side-quest-pin__actions">
+                <button type="button" onClick={() => setPanel("quests")}>Journal</button>
+                <button type="button" disabled={!trackedSideQuestTarget} onClick={() => setPanel("map")}>Show on map</button>
+                <button type="button" disabled={!trackedSideQuestTarget} onClick={() => trackedSideQuestTarget && apiRef.current?.navigateToWorldTarget(trackedSideQuestTarget.x, trackedSideQuestTarget.y, trackedSideQuestTarget.label)}>Navigate</button>
+              </div>
+            ) : null}
+          </aside>
+        ) : null}
+
         {hud.location === "Sunstone Catacombs" && catacombChronicle ? (
           <aside className="rpg-dungeon-objective" aria-label="Sunstone Catacombs objectives">
             <header><span>DUNGEON • SUNSTONE CATACOMBS</span><b>{catacombMastered ? "MASTERED" : catacombBossKills > 0 || catacombOreMined >= 8 ? "REWARD READY" : "ACTIVE"}</b></header>
@@ -1723,19 +2210,33 @@ export function PhaserRpgGame({
           </aside>
         ) : null}
 
-        {hud.worldEvent ? (
-          <aside className={`rpg-world-event ${hud.worldEvent.respawnAt > clock ? "respawning" : "active"}`} style={{ "--event-accent": hud.worldEvent.accent } as CSSProperties}>
-            <div><span>FEATURED RALLY • {hud.worldEvent.region}</span><b>LV {hud.worldEvent.level}</b></div>
+        {hud.worldEvent && hud.progress.questStep >= 10 ? (
+          <aside className={`rpg-world-event ${worldEventOpen ? "open" : "collapsed"} ${hud.worldEvent.respawnAt > clock ? "respawning" : "active"}`} style={{ "--event-accent": hud.worldEvent.accent } as CSSProperties}>
+            <div>
+              <span>FEATURED RALLY • {hud.worldEvent.region}</span>
+              <div className="rpg-world-event__header-actions">
+                <b>LV {hud.worldEvent.level}</b>
+                <button type="button" onClick={() => setWorldEventOpen((current) => !current)}>{worldEventOpen ? "Hide" : "Details"}</button>
+              </div>
+            </div>
             <strong>{hud.worldEvent.name}</strong>
-            <p>{hud.worldEvent.rally}</p>
-            <div className="rpg-world-event__bar"><i style={{ width: `${(hud.worldEvent.hp / hud.worldEvent.maxHp) * 100}%` }} /></div>
-            <small>
-              {hud.worldEvent.respawnAt > clock
-                ? `Returns in ${Math.max(0, Math.ceil((hud.worldEvent.respawnAt - clock) / 1000))}s`
-                : `${hud.worldEvent.hp}/${hud.worldEvent.maxHp} HP • ${hud.worldEvent.location}`}
-            </small>
-            <small className="rpg-world-event__rotation">Next rally in {Math.max(0, Math.floor((hud.worldEvent.endsAt - clock) / 60))}:{String(Math.max(0, Math.ceil((hud.worldEvent.endsAt - clock) / 1000) % 60)).padStart(2, "0")}</small>
-            {activeWorldEventTarget ? <button type="button" onClick={() => setPanel("map")}>Locate event</button> : null}
+            {worldEventOpen ? (
+              <>
+                <p>{hud.worldEvent.rally}</p>
+                <div className="rpg-world-event__bar"><i style={{ width: `${(hud.worldEvent.hp / hud.worldEvent.maxHp) * 100}%` }} /></div>
+                <small>
+                  {hud.worldEvent.respawnAt > clock
+                    ? `Returns in ${Math.max(0, Math.ceil((hud.worldEvent.respawnAt - clock) / 1000))}s`
+                    : `${hud.worldEvent.hp}/${hud.worldEvent.maxHp} HP • ${hud.worldEvent.location}`}
+                </small>
+                <small className="rpg-world-event__rotation">Next rally in {Math.max(0, Math.floor((hud.worldEvent.endsAt - clock) / 60))}:{String(Math.max(0, Math.ceil((hud.worldEvent.endsAt - clock) / 1000) % 60)).padStart(2, "0")}</small>
+                {activeWorldEventTarget ? <button type="button" onClick={() => setPanel("map")}>Locate event</button> : null}
+              </>
+            ) : (
+              <small className="rpg-world-event__summary">
+                {hud.worldEvent.respawnAt > clock ? "The rally is regrouping." : `${hud.worldEvent.location} • tap Details for the rally brief`}
+              </small>
+            )}
           </aside>
         ) : null}
         {activeTreasureClue ? (
@@ -1822,6 +2323,7 @@ export function PhaserRpgGame({
             questTarget={activeQuestTarget}
             eventTarget={activeWorldEventTarget}
             bountyTarget={trackedBountyTarget}
+            sideQuestTarget={trackedSideQuestTarget}
             treasureTarget={treasureMapTarget}
             socialMarkers={socialMapMarkers}
             waystoneIds={hud.progress.waystones}
@@ -1981,7 +2483,7 @@ export function PhaserRpgGame({
       {dialogue ? (
         <section className="rpg-dialogue" aria-label={`Conversation with ${dialogue.speaker}`}>
           <div className="rpg-dialogue__portrait">
-            <NpcPortrait npcId={dialogue.portraitId} />
+            <NpcPortrait npcId={dialogue.portraitId} appearance={dialogue.portraitAppearance} equipped={dialogue.portraitEquipped} />
           </div>
           <div className="rpg-dialogue__body">
             <header>
@@ -1997,6 +2499,20 @@ export function PhaserRpgGame({
                 <strong>{dialogue.quest.objective}</strong>
               </div>
             ) : null}
+            {dialogue.sideQuest ? (
+              <div className={`rpg-dialogue__side-quest ${dialogue.sideQuest.status}`}>
+                <div className="rpg-dialogue__side-quest-copy">
+                  <span>{dialogue.sideQuest.chapter} • {dialogue.sideQuest.status === "ready" ? "READY TO TURN IN" : dialogue.sideQuest.status === "claimed" ? "COMPLETED" : dialogue.sideQuest.status === "active" ? "IN PROGRESS" : "QUEST OFFER"}</span>
+                  <strong>{dialogue.sideQuest.title}</strong>
+                  <p>{dialogue.sideQuest.description}</p>
+                  <b>{dialogue.sideQuest.objective}</b>
+                </div>
+                <div className="rpg-dialogue__side-quest-rewards" aria-label="Quest rewards">
+                  <ItemIcon item={itemById(dialogue.sideQuest.rewardItemId)} />
+                  <span><b>{itemById(dialogue.sideQuest.rewardItemId)?.name ?? dialogue.sideQuest.rewardItemId} x{dialogue.sideQuest.rewardQuantity}</b><small>+{dialogue.sideQuest.rewardGold} gold • +{dialogue.sideQuest.rewardXp} {skillLabel(dialogue.sideQuest.rewardXpSkill)} XP</small></span>
+                </div>
+              </div>
+            ) : null}
             <p className="rpg-dialogue__line">{dialogue.lines[dialoguePageIndex]}</p>
             {dialogue.lines.length > 1 ? (
               <div className="rpg-dialogue__pages" aria-label={`Dialogue page ${dialoguePageIndex + 1} of ${dialogue.lines.length}`}>
@@ -2010,19 +2526,19 @@ export function PhaserRpgGame({
               {dialogueAtEnd && dialogue.service === "activities" ? <button type="button" onClick={() => { setDialogue(null); setPanel("activities"); }}>View adventurer board</button> : null}
               {dialogueAtEnd && dialogue.service === "social" ? <button type="button" onClick={() => { setDialogue(null); setPanel("social"); }}>Plan an expedition</button> : null}
               {dialogueAtEnd && dialogue.sideQuest && dialogue.sideQuest.status !== "claimed" ? (
-                <button type="button" disabled={dialogue.sideQuest.status === "active"} className={dialogue.sideQuest.status === "ready" ? "primary" : ""} onClick={() => { apiRef.current?.sideQuestAction(dialogue.sideQuest!.id); setDialogue(null); }}>
+                <button type="button" disabled={dialogue.sideQuest.status === "active"} className={dialogue.sideQuest.status === "ready" ? "primary" : ""} onClick={() => { setTrackedSideQuestId(dialogue.sideQuest!.id); apiRef.current?.sideQuestAction(dialogue.sideQuest!.id); setDialogue(null); }}>
                   {dialogue.sideQuest.status === "available" ? `Accept: ${dialogue.sideQuest.title}` : dialogue.sideQuest.status === "ready" ? `Turn in: ${dialogue.sideQuest.title}` : `${dialogue.sideQuest.objective} in progress`}
                 </button>
               ) : null}
               <button
                 type="button"
-                className="secondary"
+                className={dialogueAtEnd ? "secondary" : "primary"}
                 onClick={() => {
                   if (dialogueAtEnd) setDialogue(null);
                   else setDialoguePage((current) => Math.min(current + 1, dialogue.lines.length - 1));
                 }}
               >
-                {dialogueAtEnd ? "Close" : `Continue ${dialoguePageIndex + 1}/${dialogue.lines.length}`}
+                {dialogueAtEnd ? "Close" : `Continue  ${dialoguePageIndex + 1}/${dialogue.lines.length}`}
               </button>
             </div>
           </div>
@@ -2071,7 +2587,13 @@ export function PhaserRpgGame({
           <div className={`rpg-hotbar ${hotbarEditing ? "is-editing" : ""}`}>
             {hotbarLayout.map((entry, index) => {
               const abilitySlot = entry?.kind === "ability" ? entry.slot : null;
-              const treeAbility = abilitySlot === "tree-primary" ? primaryTreeAbility : abilitySlot === "tree-secondary" ? secondaryTreeAbility : null;
+              const treeAbility = abilitySlot?.startsWith("tree:")
+                ? activeTreeAbilities.find((ability) => ability.id === abilitySlot.slice(5))
+                : abilitySlot === "tree-primary"
+                  ? primaryTreeAbility
+                  : abilitySlot === "tree-secondary"
+                    ? secondaryTreeAbility
+                    : null;
               const abilityName = abilitySlot ? (abilitySlot === "signature" ? signatureAbility.name : abilitySlot === "second-wind" ? "Second Wind" : treeAbility?.name ?? "Locked skill") : "";
               const abilityBadge = abilitySlot === "signature" ? signatureAbility.badge : abilitySlot === "second-wind" ? "SW" : treeAbility?.badge ?? "?";
               const abilityColor = abilitySlot === "signature" ? signatureAbility.color : abilitySlot === "second-wind" ? 0x63bd7a : treeAbility?.color;
@@ -2201,10 +2723,21 @@ export function PhaserRpgGame({
                       const state = hud.progress.sideQuests[quest.id];
                       const locked = hud.progress.questStep < quest.unlockQuestStep;
                       const progress = state?.progress ?? 0;
+                      const rewardItem = itemById(quest.reward.itemId);
                       return (
-                        <article key={quest.id} className={`${state?.status ?? (locked ? "locked" : "available")}`}>
-                          <i>{state?.status === "claimed" ? "OK" : state?.status === "ready" ? "!" : quest.giverNpcId === "smith" ? "ORE" : quest.giverNpcId === "ranger" ? "FISH" : "RAT"}</i>
-                          <div><span>{quest.chapter} • {quest.giverName}</span><h3>{quest.title}</h3><p>{quest.description}</p><div className="rpg-side-stories__progress"><i style={{ width: `${Math.min(100, (progress / quest.objective.target) * 100)}%` }} /></div><footer><b>{locked ? "LOCKED" : !state ? `Speak with ${quest.giverName}` : state.status === "claimed" ? "COMPLETE" : `${quest.objective.label} ${progress}/${quest.objective.target}`}</b><strong>+{quest.reward.gold} gold</strong></footer></div>
+                        <article key={quest.id} className={`${state?.status ?? (locked ? "locked" : "available")} ${trackedSideQuestId === quest.id ? "tracked" : ""}`.trim()}>
+                          <i>{state?.status === "claimed" ? "OK" : state?.status === "ready" ? "!" : quest.giverNpcId === "smith" ? "ORE" : quest.giverNpcId === "frostkeeper" ? "ICE" : quest.giverNpcId === "sunscar-scholar" ? "SUN" : quest.giverNpcId === "ranger" ? "FISH" : "RAT"}</i>
+                          <div>
+                            <span>{quest.chapter} • {quest.giverName}</span>
+                            <h3>{quest.title}</h3>
+                            <p>{quest.description}</p>
+                            <div className="rpg-side-stories__reward">
+                              <ItemIcon item={rewardItem} />
+                              <span><b>{rewardItem?.name ?? quest.reward.itemId} x{quest.reward.quantity}</b><small>+{quest.reward.gold} gold • +{quest.reward.xp} {skillLabel(quest.reward.xpSkill)} XP</small></span>
+                            </div>
+                            <div className="rpg-side-stories__progress"><i style={{ width: `${Math.min(100, (progress / quest.objective.target) * 100)}%` }} /></div>
+                            <footer><b>{locked ? "LOCKED" : !state ? `Speak with ${quest.giverName}` : state.status === "claimed" ? "COMPLETE" : `${quest.objective.label} ${progress}/${quest.objective.target}`}</b><button type="button" disabled={locked || !state || state.status === "claimed"} className={trackedSideQuestId === quest.id ? "tracked" : "secondary"} onClick={() => setTrackedSideQuestId((current) => current === quest.id ? null : quest.id)}>{trackedSideQuestId === quest.id ? "Tracking" : "Track"}</button></footer>
+                          </div>
                         </article>
                       );
                     })}
@@ -2546,49 +3079,111 @@ export function PhaserRpgGame({
               </div>
             ) : null}
 
+            {panel === "bestiary" ? (
+              <div className="rpg-bestiary">
+                <header className="rpg-bestiary__intro">
+                  <div><span>FIELD GUIDE</span><h3>Creatures of the Briarwild</h3><p>Study a creature before you hunt it. Rare beasts carry better drops, but their territories are farther from Orehaven and their respawns are slower.</p></div>
+                  <strong>{ENEMIES.filter((enemy) => enemy.rare).length}<small>rare sightings</small></strong>
+                </header>
+                <nav className="rpg-bestiary__filters" aria-label="Bestiary creature families">
+                  {(["all", "rat", "goblin", "wolf", "boar", "slime", "drake", "dune-stalker", "orc", "lizard", "skeleton", "witch", "treant"] as const).map((kind) => (
+                    <button key={kind} type="button" className={bestiaryFilter === kind ? "active" : ""} onClick={() => setBestiaryFilter(kind)}>
+                      {kind === "all" ? "All creatures" : kind === "boar" ? "Ember boars" : kind === "wolf" ? "Wolves" : kind === "drake" ? "Drakes" : kind === "dune-stalker" ? "Dune stalkers" : kind === "witch" ? "Witches" : `${kind.charAt(0).toUpperCase()}${kind.slice(1)}s`}
+                    </button>
+                  ))}
+                </nav>
+                <div className="rpg-bestiary__grid">
+                  {bestiaryEnemies.map((enemy) => {
+                    const drops = (RARE_HUNT_LOOT[enemy.id] ?? []).slice(0, 3);
+                    const region = worldMapAreaForY(enemy.y);
+                    return (
+                      <article key={enemy.id} className={`${enemy.rare ? "rare" : ""} ${enemy.passive ? "passive" : ""}`}>
+                        <div className="rpg-bestiary__portrait"><BestiaryPortrait enemy={enemy} />{enemy.rare ? <i>RARE</i> : null}</div>
+                        <div className="rpg-bestiary__details">
+                          <header><div><span>{region.toUpperCase()} • {enemy.kind.toUpperCase()}</span><h4>{enemy.name}</h4></div><strong>LV {enemy.level}</strong></header>
+                          <div className="rpg-bestiary__vitals"><span><i style={{ width: `${Math.min(100, (enemy.maxHp / 220) * 100)}%` }} />{enemy.maxHp} HP</span><span>{enemy.attackStyle ?? "melee"}</span><span>{enemy.rare ? "Long respawn" : "Common"}</span></div>
+                          <footer>{drops.length ? <><em>Known drops</em>{drops.map((drop) => <span key={drop.itemId}><ItemIcon item={itemById(drop.itemId)} />{itemById(drop.itemId)?.name ?? drop.itemId}</span>)}</> : <em>Explore this territory to reveal its drops.</em>}</footer>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
             {panel === "skills" ? (
               <div className="rpg-skills-panel">
                 <aside className="rpg-defense-training"><b>DEFENSE TRAINING</b><span>Survive enemy attacks to earn Defense XP. Armor and Defense levels both reduce incoming damage.</span></aside>
                 <section className="rpg-talent-tree">
                   <header>
-                    <div><span>COMBAT SPECIALIZATIONS</span><h3>Adventurer Skill Tree</h3><p>Unlock active abilities with points earned from combat levels. Your equipped weapon chooses which branch appears on hotkeys 4 and 5.</p></div>
+                    <div><span>THE CONSTELLATION</span><h3>{buildTitle}</h3><p>Travel through connected passives, cross into other disciplines, and combine paths into a class that belongs to you. Your equipped weapon activates compatible bonuses.</p></div>
                     <strong><b>{treePointsAvailable}</b><span>POINTS AVAILABLE</span><small>{hud.progress.skillTree.unlocked.length}/{treePointsTotal} spent</small>{hud.progress.skillTree.unlocked.length > 0 ? <button type="button" onClick={() => window.confirm("Refund every skill point? You can rebuild immediately.") && apiRef.current?.respecSkills()}>Reset build</button> : null}</strong>
                   </header>
                   <nav className="rpg-talent-tree__tabs" aria-label="Skill tree branches">
-                    {(["melee", "range", "magic"] as const).map((branch) => {
+                    {(["all", "melee", "range", "magic"] as const).map((branch) => {
+                      if (branch === "all") return <button key="all" type="button" className={selectedTreeBranch === "all" ? "active" : ""} onClick={() => setSelectedTreeBranch("all")}><i>✧</i><span>FULL WEB</span><small>{SKILL_TREE_NODES.length} connected nodes</small></button>;
                       const branchUnlocked = SKILL_TREE_NODES.filter((node) => node.branch === branch && hud.progress.skillTree.unlocked.includes(node.id)).length;
+                      const branchTotal = SKILL_TREE_NODES.filter((node) => node.branch === branch).length;
                       return (
                         <button key={branch} type="button" className={`${selectedTreeBranch === branch ? "active" : ""} ${equippedCombatStyle === branch ? "equipped" : ""}`} onClick={() => setSelectedTreeBranch(branch)}>
                           <i>{branch === "melee" ? "⚔" : branch === "range" ? "➶" : "✦"}</i>
                           <span>{branch === "melee" ? "WARDEN" : branch === "range" ? "RANGER" : "ARCANIST"}</span>
-                          <small>{branchUnlocked}/8 learned{equippedCombatStyle === branch ? " • equipped" : ""}</small>
+                          <small>{branchUnlocked}/{branchTotal} learned{equippedCombatStyle === branch ? " • equipped" : ""}</small>
                         </button>
                       );
                     })}
                   </nav>
-                  <div className="rpg-talent-tree__branches">
-                    {([selectedTreeBranch] as const).map((branch) => (
-                      <section key={branch} className={`rpg-talent-branch rpg-talent-branch--${branch} active`}>
-                        <header><b>{branch === "melee" ? "THE WARDEN'S OATH" : branch === "range" ? "THE RANGER'S CREED" : "THE ARCANIST'S ASCENSION"}</b><span>8-NODE SPECIALIZATION • LEVEL 40 CAPSTONE</span></header>
-                        <div>
-                          {SKILL_TREE_NODES.filter((node) => node.branch === branch).map((node, index) => {
-                            const unlocked = hud.progress.skillTree.unlocked.includes(node.id);
-                            const prerequisiteMet = !node.prerequisite || hud.progress.skillTree.unlocked.includes(node.prerequisite);
-                            const branchSkill = branch === "melee" ? "attack" : branch;
-                            const levelMet = hud.progress.skills[branchSkill].level >= node.requiredLevel;
-                            const canUnlock = !unlocked && prerequisiteMet && levelMet && treePointsAvailable > 0;
-                            return (
-                              <article key={node.id} className={`${unlocked ? "unlocked" : ""} ${canUnlock ? "available" : ""}`} style={{ "--ability-color": `#${node.color.toString(16).padStart(6, "0")}` } as React.CSSProperties}>
-                                {index > 0 ? <i className="rpg-talent-link" /> : null}
-                                <div className="rpg-talent-node"><b>{node.badge}</b><span>{unlocked ? "UNLOCKED" : levelMet ? "1 POINT" : `LV ${node.requiredLevel}`}</span></div>
-                                <div><h4>{node.name}<em>{node.kind}</em></h4><p>{node.detail}.</p><small>{node.kind === "passive" ? "Always active once learned" : node.areaRadius ? `Area of effect • ${node.areaRadius}px radius • ${(node.cooldownMs / 1000).toFixed(1)}s cooldown` : `${node.dot?.ticks ?? 0} damage ticks • ${(node.cooldownMs / 1000).toFixed(1)}s cooldown`}</small></div>
-                                <button type="button" disabled={!canUnlock} onClick={() => apiRef.current?.unlockSkill(node.id)}>{unlocked ? "Learned" : canUnlock ? "Unlock" : !prerequisiteMet ? "Previous skill" : !levelMet ? `${branch} ${node.requiredLevel}` : "Need point"}</button>
-                              </article>
-                            );
-                          })}
-                        </div>
-                      </section>
-                    ))}
+                  <div className="rpg-passive-web-scroll" ref={skillTreeScrollRef}>
+                    <div className="rpg-passive-web-tools">
+                      <button type="button" onClick={() => setSkillTreeZoom((value) => Math.max(0.62, Number((value - 0.1).toFixed(2))))}>−</button>
+                      <span>{Math.round(skillTreeZoom * 100)}%</span>
+                      <button type="button" onClick={() => setSkillTreeZoom((value) => Math.min(1.12, Number((value + 0.1).toFixed(2))))}>+</button>
+                      <button type="button" onClick={() => {
+                        const element = skillTreeScrollRef.current;
+                        if (!element) return;
+                        element.scrollTo({ left: 850 * skillTreeZoom - element.clientWidth / 2, top: 610 * skillTreeZoom - element.clientHeight / 2, behavior: "smooth" });
+                      }}>CENTER</button>
+                    </div>
+                    <div className={`rpg-passive-web rpg-passive-web--${selectedTreeBranch}`} style={{ transform: `scale(${skillTreeZoom})` }}>
+                      <svg viewBox="0 0 1700 1280" aria-hidden="true">
+                        {SKILL_TREE_NODES.flatMap((node) => skillTreeRequirements(node).map((requirement) => {
+                          const source = SKILL_TREE_NODES.find((entry) => entry.id === requirement);
+                          if (!source) return null;
+                          const lit = unlockedTreeNodeIds.has(node.id) && unlockedTreeNodeIds.has(source.id);
+                          const reachable = unlockedTreeNodeIds.has(source.id) || unlockedTreeNodeIds.has(node.id);
+                          return <line key={`${source.id}-${node.id}`} x1={source.position.x} y1={source.position.y} x2={node.position.x} y2={node.position.y} className={`${lit ? "unlocked" : ""} ${reachable ? "reachable" : ""}`} />;
+                        }))}
+                      </svg>
+                      {SKILL_TREE_NODES.map((node) => {
+                        const unlocked = unlockedTreeNodeIds.has(node.id);
+                        const connected = skillTreeNodeConnected(node, unlockedTreeNodeIds);
+                        const branchSkill = node.branch === "melee" ? "attack" : node.branch;
+                        const levelMet = hud.progress.skills[branchSkill].level >= node.requiredLevel;
+                        const canUnlock = !unlocked && connected && levelMet && treePointsAvailable > 0;
+                        const dimmed = selectedTreeBranch !== "all" && !(node.affinities ?? [node.branch]).includes(selectedTreeBranch);
+                        return (
+                          <button
+                            key={node.id}
+                            type="button"
+                            className={`rpg-passive-node rpg-passive-node--${node.branch} rpg-passive-node--${node.tier ?? "minor"} ${node.kind === "active" ? "active-skill" : ""} ${unlocked ? "unlocked" : ""} ${canUnlock ? "available" : ""} ${dimmed ? "dimmed" : ""}`}
+                            style={{ left: node.position.x, top: node.position.y, "--ability-color": `#${node.color.toString(16).padStart(6, "0")}` } as React.CSSProperties}
+                            aria-disabled={!canUnlock}
+                            onClick={() => canUnlock && apiRef.current?.unlockSkill(node.id)}
+                          >
+                            <b>{node.badge}</b>
+                            <span>{node.name}</span>
+                            <small>{unlocked ? "LEARNED" : !connected ? "DISCONNECTED" : !levelMet ? `${branchSkill.toUpperCase()} ${node.requiredLevel}` : canUnlock ? "SPEND 1 POINT" : "NO POINTS"}</small>
+                            <div className="rpg-passive-node__tooltip">
+                              <em>{node.tier === "keystone" ? "HYBRID KEYSTONE" : node.kind === "active" ? "ACTIVE SKILL" : node.tier === "notable" ? "NOTABLE PASSIVE" : "PASSIVE"}</em>
+                              <strong>{node.name}</strong>
+                              <p>{node.detail}.</p>
+                              {node.affinities && node.affinities.length > 1 ? <small>Affects {node.affinities.join(" + ")}</small> : <small>Requires {branchSkill} level {node.requiredLevel}</small>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                      <div className="rpg-passive-web__origin"><i /><strong>OREHAVEN</strong><span>Choose any starting discipline</span></div>
+                    </div>
                   </div>
                 </section>
                 <div className="rpg-skill-grid">
@@ -2664,6 +3259,7 @@ export function PhaserRpgGame({
                     className="rpg-paperdoll__figure"
                     animated
                     direction={paperdollDirection}
+                    action={paperdollAction}
                   />
                   <div className="rpg-paperdoll__turn" aria-label="Turn character preview">
                     <span>TURN</span>
@@ -2682,6 +3278,20 @@ export function PhaserRpgGame({
                         onClick={() => setPaperdollDirection(option.direction)}
                       >
                         {option.glyph}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="rpg-paperdoll__action" aria-label="Preview character animation">
+                    <span>ANIMATION</span>
+                    {(["idle", "walk", "attack"] as const).map((action) => (
+                      <button
+                        key={action}
+                        type="button"
+                        className={paperdollAction === action ? "active" : ""}
+                        aria-pressed={paperdollAction === action}
+                        onClick={() => setPaperdollAction(action)}
+                      >
+                        {action === "attack" ? equippedCombatStyle === "magic" ? "Cast" : equippedCombatStyle === "range" ? "Shoot" : "Strike" : action}
                       </button>
                     ))}
                   </div>
@@ -2707,12 +3317,23 @@ export function PhaserRpgGame({
                       <div><dt>Cooldown</dt><dd>{(signatureAbility.cooldownMs / 1000).toFixed(1)}s</dd></div>
                     </dl>
                   </section>
+                  {equippedArmorTrait ? (
+                    <section
+                      className="rpg-armor-trait-card"
+                      style={{ "--trait-color": `#${equippedArmorTrait.color.toString(16).padStart(6, "0")}` } as React.CSSProperties}
+                    >
+                      <div><span>Armor passive</span><h3>{equippedArmorTrait.name}</h3></div>
+                      <p>{equippedArmorTrait.detail}</p>
+                    </section>
+                  ) : null}
                   <div className="rpg-loadout-stats">
                     <span>Combat level</span><strong>{hud.progress.skills.attack.level + hud.progress.skills.defense.level}</strong>
                     <span>Combat style</span><strong>{equippedCombatStyle}</strong>
                     <span>Weapon power</span><strong>{equippedWeapon?.power ?? 1}</strong>
                     <span>Defense level</span><strong>{hud.progress.skills.defense.level}</strong>
                     <span>Damage blocked</span><strong>{defenseReduction ? `-${defenseReduction} / hit` : "Train Defense"}</strong>
+                    <span>Armor ward</span><strong>{equippedArmorWard ? `${Math.round(equippedArmorWard * 100)}%` : "None"}</strong>
+                    <span>Healing received</span><strong>{equippedArmorTrait?.healingMultiplier ? `+${Math.round((equippedArmorTrait.healingMultiplier - 1) * 100)}%` : "Normal"}</strong>
                     <span>Mining tool</span><strong>Tier {itemById(hud.progress.equipped.tool)?.power ?? 1}</strong>
                     <span>Maximum HP</span><strong>{hud.progress.maxHp}</strong>
                   </div>
@@ -2743,6 +3364,11 @@ export function PhaserRpgGame({
                     <span>MODULAR CHARACTER</span>
                     <h3>Build your own look</h3>
                     <p>Every layer stays aligned through walking, gathering, melee, ranged, and spell animations.</p>
+                    <div className="rpg-transmog-summary">
+                      <div><span>Visual loadout</span><strong>{transmogLayers.length ? "Custom silhouette" : "Equipped armor set"}</strong></div>
+                      <small>{transmogLayers.length ? transmogLayers.join(" • ") : equippedArmor?.name ?? "Traveler clothing"}</small>
+                      <em>Visual only • armor stats remain unchanged</em>
+                    </div>
                     <div className="rpg-customizer-row rpg-customizer-row--text">
                       <b>Face</b>
                       <div>
@@ -2813,6 +3439,25 @@ export function PhaserRpgGame({
                                 [row.key]: option.id,
                               })}
                             />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {([
+                      { key: "helmetStyle", label: "Helmet style", options: HELMET_STYLES },
+                      { key: "capeStyle", label: "Cape style", options: CAPE_STYLES },
+                      { key: "shieldStyle", label: "Shield style", options: SHIELD_STYLES },
+                    ] as const).map((row) => (
+                      <div key={row.key} className="rpg-customizer-row rpg-customizer-row--text rpg-transmog-row">
+                        <b>{row.label}</b>
+                        <div>
+                          {row.options.map((option) => (
+                            <button
+                              key={option.id}
+                              type="button"
+                              className={hud.progress.customization[row.key] === option.id ? "active" : ""}
+                              onClick={() => apiRef.current?.setCustomization({ ...hud.progress.customization, [row.key]: option.id })}
+                            >{option.name}</button>
                           ))}
                         </div>
                       </div>
@@ -2956,19 +3601,36 @@ export function PhaserRpgGame({
 
             {panel === "map" ? (
               <div className="rpg-world-map">
+                <nav className="rpg-world-map__regions" aria-label="Regional map charts">
+                  {WORLD_MAP_AREAS.map((area) => {
+                    const objectiveCount = [activeQuestTarget, activeWorldEventTarget, trackedBountyTarget, trackedSideQuestTarget, treasureMapTarget]
+                      .filter((marker) => marker && markerIsInArea(marker.y, area.id)).length;
+                    const playerHere = worldMapAreaForY(hud.playerY) === area.id;
+                    return (
+                      <button key={area.id} type="button" className={worldMapArea === area.id ? "active" : ""} onClick={() => setWorldMapArea(area.id)}>
+                        <span>{area.name}</span>
+                        <small>{playerHere ? "YOU ARE HERE" : objectiveCount ? `${objectiveCount} TRACKED` : area.subtitle}</small>
+                        {objectiveCount ? <b>{objectiveCount}</b> : null}
+                      </button>
+                    );
+                  })}
+                </nav>
                 <WorldMapArtwork
                   playerX={hud.playerX}
                   playerY={hud.playerY}
                   questTarget={activeQuestTarget}
                   eventTarget={activeWorldEventTarget}
                   bountyTarget={trackedBountyTarget}
+                  sideQuestTarget={trackedSideQuestTarget}
                   treasureTarget={treasureMapTarget}
                   socialMarkers={socialMapMarkers}
                   waystoneIds={hud.progress.waystones}
+                  areaOverride={worldMapArea}
                 />
                 <div className="rpg-world-map__legend" aria-label="Map legend">
                   <span><i className="player" />You</span>
                   <span><i className="quest" />Active quest</span>
+                  <span><i className="sidequest" />Regional tale</span>
                   <span><i className="event" />World event</span>
                   <span><i className="rare" />Rare territory</span>
                   <span><i className="bounty" />Tracked bounty</span>
@@ -3019,13 +3681,13 @@ export function PhaserRpgGame({
                       return (
                         <article key={region.id} className={`${discovered ? "discovered" : "unknown"} danger-${region.danger}`}>
                           <i>{discovered ? "✓" : "?"}</i>
-                          <div><span>{region.danger}</span><h4>{discovered ? region.name : "Uncharted region"}</h4><small>{discovered ? region.subtitle : "Explore the roads to reveal this location."}</small></div>
+                          <div><span>{region.danger} • LV {region.recommendedLevel}+</span><h4>{discovered ? region.name : "Uncharted region"}</h4><small>{discovered ? region.subtitle : "Explore the roads to reveal this location."}</small>{discovered ? <em>{region.landmark}</em> : null}</div>
                         </article>
                       );
                     })}
                   </div>
                 </section>
-                <footer><span>Orehaven Province</span><span>Briarwild Frontier</span></footer>
+                <footer><span>{selectedWorldMapArea.name}</span><span>{selectedWorldMapArea.subtitle}</span></footer>
               </div>
             ) : null}
           </section>

@@ -37,6 +37,12 @@ body,
   overflow-x: hidden;
 }
 
+body.game-route,
+body.game-route #root {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   color: var(--text);
@@ -107,8 +113,11 @@ h3,
 .shell--game {
   width: 100%;
   max-width: none;
+  height: 100dvh;
+  min-height: 0;
   margin: 0;
   padding: 0;
+  overflow: hidden;
 }
 
 .shell--game > .site-nav {
@@ -247,6 +256,107 @@ h3,
   margin-top: 22px;
 }
 
+.hero__map-preview {
+  position: relative;
+  min-height: 210px;
+  margin-top: 18px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid rgba(103, 245, 211, 0.16);
+  border-radius: 16px;
+  background: #18251f;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 18px 46px rgba(0, 0, 0, 0.24);
+  isolation: isolate;
+}
+
+.hero__map-preview:focus-visible {
+  outline: 2px solid #ffd166;
+  outline-offset: 3px;
+}
+
+.hero__map-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 34%;
+  filter: saturate(0.82) contrast(1.04) brightness(0.72);
+  transform: scale(1.035);
+  transition: transform 700ms ease, filter 700ms ease;
+}
+
+.hero__map-preview:hover img {
+  filter: saturate(1) contrast(1.06) brightness(0.84);
+  transform: scale(1.07);
+}
+
+.hero__map-preview-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(4, 10, 13, 0.16), rgba(4, 10, 13, 0.72)),
+    linear-gradient(90deg, rgba(4, 10, 13, 0.5), transparent 55%, rgba(4, 10, 13, 0.18));
+}
+
+.hero__map-preview-title,
+.hero__map-preview-label,
+.hero__map-preview-cta {
+  position: absolute;
+  z-index: 2;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+.hero__map-preview-title {
+  top: 18px;
+  left: 20px;
+  color: #9ff5dd;
+  font: 0.62rem/1 "Press Start 2P", monospace;
+  letter-spacing: 0.14em;
+}
+
+.hero__map-preview-label {
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 240, 176, 0.42);
+  border-radius: 999px;
+  background: rgba(4, 10, 13, 0.62);
+  color: #fff0b0;
+  font: 0.52rem/1 "IBM Plex Mono", monospace;
+  letter-spacing: 0.1em;
+}
+
+.hero__map-preview-label::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 6px 1px 0;
+  border-radius: 50%;
+  background: #67f5d3;
+  box-shadow: 0 0 10px rgba(103, 245, 211, 0.8);
+}
+
+.hero__map-preview-label--town {
+  left: 31%;
+  top: 43%;
+}
+
+.hero__map-preview-label--woods {
+  right: 10%;
+  bottom: 22%;
+}
+
+.hero__map-preview-cta {
+  right: 18px;
+  bottom: 16px;
+  color: rgba(255, 255, 255, 0.82);
+  font: 0.56rem/1 "IBM Plex Mono", monospace;
+  letter-spacing: 0.1em;
+}
+
 .game-topbar {
   display: none;
   justify-content: space-between;
@@ -305,6 +415,11 @@ h1 {
   font-size: clamp(2.7rem, 6vw, 5.2rem);
   line-height: 0.92;
   letter-spacing: -0.06em;
+}
+
+.hero h1 {
+  /* Pixel fonts can overhang their CSS box; keep the first glyph readable. */
+  padding-left: 0.06em;
 }
 
 .lede {
@@ -8923,11 +9038,36 @@ h1 {
   display: grid;
   min-height: min(760px, calc(100dvh - 118px));
   place-content: center;
-  gap: 8px;
+  gap: 10px;
   color: #e9d397;
-  background: radial-gradient(circle at center, rgba(39, 75, 55, 0.8), #101b16 62%);
+  background: radial-gradient(circle at 50% 42%, rgba(51, 97, 69, 0.9), rgba(16, 27, 22, 0.98) 58%), linear-gradient(135deg, #111d18, #0b1210);
   text-align: center;
+  border: 1px solid rgba(226, 186, 96, 0.3);
+  box-shadow: inset 0 0 0 5px rgba(10, 16, 13, 0.52), inset 0 0 90px rgba(0, 0, 0, 0.44);
 }
 
-.rpg-route-loading strong { font: 800 1.4rem/1 Georgia, serif; }
+.rpg-route-loading__crest {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 3px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #e8c86e;
+  border-radius: 18px 18px 24px 24px;
+  color: #16251c;
+  background: linear-gradient(145deg, #ffe59b, #bf7b35);
+  box-shadow: 0 0 0 6px rgba(232, 200, 110, 0.08), 0 12px 35px rgba(0, 0, 0, 0.32);
+  transform: rotate(-3deg);
+  animation: rpg-loading-crest 2.4s ease-in-out infinite;
+}
+
+.rpg-route-loading__crest span { font: 900 1.25rem/1 Georgia, serif; letter-spacing: -0.08em; transform: rotate(3deg); }
+.rpg-route-loading__eyebrow { color: #8de1bd; font: 800 0.58rem/1 Verdana, sans-serif; letter-spacing: 0.18em; }
+.rpg-route-loading strong { font: 800 1.55rem/1 Georgia, serif; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
 .rpg-route-loading span { color: #9caf9d; font: 700 0.65rem/1 Verdana, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; }
+.rpg-route-loading__steps { display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 9px; color: #d3b56b; font: 800 0.5rem/1 Verdana, sans-serif; letter-spacing: 0.12em; }
+.rpg-route-loading__steps b { width: 24px; height: 2px; overflow: hidden; background: linear-gradient(90deg, #e6c367 50%, rgba(230, 195, 103, 0.2) 50%); background-size: 200% 100%; animation: rpg-loading-line 1.1s linear infinite; }
+.rpg-route-loading__crest span { color: #16251c; font: 900 1.25rem/1 Georgia, serif; letter-spacing: -0.08em; transform: rotate(3deg); }
+
+@keyframes rpg-loading-crest { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-5px) rotate(3deg); } }
+@keyframes rpg-loading-line { to { background-position: -200% 0; } }

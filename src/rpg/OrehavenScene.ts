@@ -16,6 +16,9 @@ import {
   TREASURE_CLUES,
   WAYSTONES,
   WORLD,
+  BOSS_INTRODUCTIONS,
+  armorDamageReduction,
+  armorHealingAmount,
   customizationForAppearance,
   isAppearanceId,
   itemById,
@@ -26,13 +29,16 @@ import {
   normalizeWaystones,
   skillLabel,
   skillTreeBonuses,
+  skillTreeNodeConnected,
   skillTreePointsAvailable,
   skillUnlocksBetween,
   unlockedTreeAbilities,
   weaponAbility,
   type AppearanceId,
+  type BossIntroductionDefinition,
   type CharacterCustomization,
   type CombatStyle,
+  type DecorationDefinition,
   type Direction,
   type DungeonPortalDefinition,
   type EnemyDefinition,
@@ -48,8 +54,9 @@ import {
   type WaystoneDefinition,
 } from "./gameData";
 import { publicEventRotation } from "./publicEvents";
+import { WORLD_AREAS, worldAreaForY, worldAreaMovementBounds, type WorldAreaId } from "./worldAreas";
 import { SUNSTONE_REVENANT_PHASES, sunstoneRevenantPhase } from "./catacombRules";
-import type { GameAudioCue } from "./gameAudio";
+import type { GameAudioCue, GameMusicState } from "./gameAudio";
 import {
   LayeredHero,
   preloadLayeredHeroAssets,
@@ -110,7 +117,7 @@ export type IncomingEnemyCast = {
   color: number;
 };
 
-export type CombatAbilitySlot = "signature" | "second-wind" | "tree-primary" | "tree-secondary";
+export type CombatAbilitySlot = "signature" | "second-wind" | "tree-primary" | "tree-secondary" | `tree:${string}`;
 export type HotbarEntry =
   | { kind: "ability"; slot: CombatAbilitySlot }
   | { kind: "consumable"; itemId: string };
@@ -162,6 +169,12 @@ export type GameToast = {
   detail: string;
   tone: "level" | "loot" | "quest" | "craft";
   itemId?: string;
+};
+
+export type BossIntroState = BossIntroductionDefinition & {
+  enemyName: string;
+  level: number;
+  kind: EnemyDefinition["kind"];
 };
 
 export type SkillLevelEvent = {
@@ -256,7 +269,19 @@ export type DialogueState = {
   };
   shop?: "weapons" | "tools";
   service?: "bank" | "workshop" | "activities" | "social";
-  sideQuest?: { id: string; title: string; status: "available" | "active" | "ready" | "claimed"; objective: string };
+  sideQuest?: {
+    id: string;
+    chapter: string;
+    title: string;
+    description: string;
+    status: "available" | "active" | "ready" | "claimed";
+    objective: string;
+    rewardGold: number;
+    rewardXpSkill: SkillId;
+    rewardXp: number;
+    rewardItemId: string;
+    rewardQuantity: number;
+  };
 };
 
 export type SceneCallbacks = {
@@ -265,10 +290,14 @@ export type SceneCallbacks = {
   onPanelRequest: (panel: Panel) => void;
   onToast: (toast: GameToast) => void;
   onQuestComplete: (reward: GameToast) => void;
+  onBossIntro: (intro: BossIntroState) => void;
   onLevelUp: (event: SkillLevelEvent) => void;
   onChat: (message: ChatMessage) => void;
   onSocial: (next: Partial<SocialState>) => void;
   onAudio: (cue: GameAudioCue) => void;
+  onMusic: (state: GameMusicState) => void;
+  onLoadProgress?: (progress: number) => void;
+  onReady?: () => void;
 };
 
 export type RemotePlayer = {
@@ -303,6 +332,7 @@ type RemoteEntity = {
 };
 
 type PlayerWorldAction = "idle" | "walk" | "attack" | "gather" | "mine" | "chop" | "fish" | "attune";
+type WorldArea = WorldAreaId;
 
 type EnemyRuntime = {
   definition: EnemyDefinition;
@@ -319,6 +349,7 @@ type EnemyRuntime = {
   worldAction: "idle" | "walk" | "attack";
   reaction: "attack" | "hurt" | null;
   reactionUntil: number;
+  lastAttackAccentAt: number;
   status: EnemyStatusState | null;
   targetPlayerId: string | null;
   phase?: number;
@@ -374,6 +405,7 @@ type AmbientCitizenRuntime = {
   definition: AmbientCitizenDefinition;
   hero: LayeredHero;
   shadow: Phaser.GameObjects.Ellipse;
+  hitZone: Phaser.GameObjects.Zone;
   routeIndex: number;
   path: Array<{ x: number; y: number }>;
   pauseUntil: number;
@@ -397,8 +429,26 @@ type ApproachTarget =
 
 const WORLD_KEY = "orehaven-overworld";
 const BRIARWILD_KEY = "briarwild-south";
+const BRIARWILD_TRANSITION_KEY = "orehaven-briarwild-transition";
 const SUNSTONE_CATACOMBS_KEY = "sunstone-catacombs";
-const WORLD_MAP_REVISION = "crisp-seam-portal-20260803";
+const MOONFEN_MARSH_KEY = "moonfen-marsh";
+const EMBERFALL_HIGHLANDS_KEY = "emberfall-highlands";
+const FROSTMERE_COAST_KEY = "frostmere-coast";
+const SUNSCAR_EXPANSE_KEY = "sunscar-expanse";
+const GUILD_HALL_KEY = "orehaven-guildhall";
+const ICEFANG_VAULT_KEY = "icefang-vault";
+const WORLD_MAP_REVISION = "icefang-vault-20260819";
+const WORLD_LAYER_MANIFEST: ReadonlyArray<{ key: string; path: string; y: number; depth?: number }> = [
+  { key: BRIARWILD_KEY, path: WORLD_AREAS.overworld.images[1], y: WORLD_AREAS.overworld.top + 1024 },
+  { key: BRIARWILD_TRANSITION_KEY, path: "/assets/rpg/world/orehaven-briarwild-transition.png", y: 864, depth: -49 },
+  { key: SUNSTONE_CATACOMBS_KEY, path: WORLD_AREAS.dungeon.images[0], y: WORLD_AREAS.dungeon.top },
+  { key: MOONFEN_MARSH_KEY, path: WORLD_AREAS.marsh.images[0], y: WORLD_AREAS.marsh.top },
+  { key: EMBERFALL_HIGHLANDS_KEY, path: WORLD_AREAS.highlands.images[0], y: WORLD_AREAS.highlands.top },
+  { key: FROSTMERE_COAST_KEY, path: WORLD_AREAS.frostmere.images[0], y: WORLD_AREAS.frostmere.top },
+  { key: SUNSCAR_EXPANSE_KEY, path: WORLD_AREAS.sunscar.images[0], y: WORLD_AREAS.sunscar.top },
+  { key: GUILD_HALL_KEY, path: WORLD_AREAS.guildhall.images[0], y: WORLD_AREAS.guildhall.top },
+  { key: ICEFANG_VAULT_KEY, path: WORLD_AREAS.icefang.images[0], y: WORLD_AREAS.icefang.top },
+];
 const WORLD_ATLAS_KEY = "orehaven-world-objects";
 const EQUIPMENT_ITEM_ATLAS_KEY = "orehaven-equipment-items";
 const ADVENTURE_ITEM_ATLAS_KEY = "orehaven-adventure-items";
@@ -406,7 +456,12 @@ const MATERIAL_ITEM_ATLAS_KEY = "orehaven-material-items";
 const TROPHY_ITEM_ATLAS_KEY = "orehaven-trophy-items";
 const RAT_KEY = "orehaven-field-rat";
 const WOLF_KEY = "orehaven-wolfpack";
+const DRAKE_KEY = "orehaven-ashwing-drake";
+const DUNE_STALKER_KEY = "orehaven-dune-stalker";
+const BOAR_KEY = "orehaven-ember-tusk-boar";
 const SLIME_KEY = "orehaven-slime";
+const TREANT_KEY = "orehaven-briar-treant";
+const TREANT_ATTACK_KEY = "orehaven-briar-treant-rootwake";
 const SKELETON_IDLE_KEY = "orehaven-skeleton-idle";
 const SKELETON_MOVE_KEY = "orehaven-skeleton-move";
 const WITCH_IDLE_KEY = "orehaven-witch-idle";
@@ -421,6 +476,8 @@ const ANSIMUZ_DARK_BOLT_KEY = "orehaven-ansimuz-dark-bolt";
 const ANSIMUZ_FIRE_BOMB_KEY = "orehaven-ansimuz-fire-bomb";
 const ANSIMUZ_LIGHTNING_KEY = "orehaven-ansimuz-lightning";
 const ANSIMUZ_SPARK_KEY = "orehaven-ansimuz-spark";
+const MELEE_SLASH_KEY = "orehaven-melee-slash";
+const CREATURE_ATLAS_KEY = "orehaven-creature-atlas";
 const ATLAS_FRAME = { width: 384, height: 512 };
 const INTERACTION_RANGE = 76;
 const COMBAT_STANDOFF: Record<CombatStyle, number> = { melee: 58, range: 210, magic: 185 };
@@ -432,17 +489,46 @@ const CAMERA_ZOOM_MAX = 2.34;
 const CAMERA_ZOOM_DEFAULT = 1.72;
 const TOWN_SANCTUARY = { id: "founders-fountain", name: "Founders' Fountain", x: 688, y: 468 } as const;
 const SAVE_EMIT_DELAY = 250;
+const REGIONAL_LANDMARK_ACCENTS: ReadonlyArray<{
+  area: WorldArea;
+  name: string;
+  x: number;
+  y: number;
+  color: number;
+  radius: number;
+}> = [
+  { area: "overworld", name: "Founders' Fountain", x: 688, y: 468, color: 0x73d8e8, radius: 34 },
+  { area: "dungeon", name: "Aurex's Chamber", x: 768, y: 2694, color: 0xb77aff, radius: 48 },
+  { area: "marsh", name: "Drowned Altar", x: 768, y: 3890, color: 0x70d8d1, radius: 42 },
+  { area: "highlands", name: "Caldera Throne", x: 768, y: 4930, color: 0xff8a4c, radius: 48 },
+  { area: "frostmere", name: "Last Lighthouse", x: 1260, y: 5260, color: 0x9ceaff, radius: 38 },
+  { area: "sunscar", name: "Solar Tomb", x: 330, y: 6270, color: 0xffcf5d, radius: 44 },
+  { area: "guildhall", name: "Expedition War Table", x: 768, y: 7660, color: 0xf1b84b, radius: 38 },
+  { area: "icefang", name: "Rime Throne", x: 768, y: 8348, color: 0x8de9ff, radius: 48 },
+];
+
+function worldAreaAtY(y: number): WorldArea {
+  return worldAreaForY(y);
+}
+
+function resourceVisualColor(itemId: string) {
+  return itemById(itemId)?.tint ?? (itemId === "sunstone-ore" ? 0xffca63 : 0xffffff);
+}
 const DEFAULT_REMOTE_EQUIPMENT: PlayerProgress["equipped"] = {
   weapon: "bronze-sword",
   tool: "bronze-pick",
   armor: "",
 };
 const QUEST_REWARD_TOASTS: Record<number, { to: number; title: string; detail: string; itemId?: string }> = {
-  3: { to: 4, title: "A New Acre complete", detail: "+150 gold • 3 River Trout", itemId: "trout" },
+  3: { to: 4, title: "The First Spark complete", detail: "+150 gold • 3 River Trout", itemId: "trout" },
   8: { to: 9, title: "Whispers in the Pines complete", detail: "+450 gold • Sentinel Mail", itemId: "sentinel-mail" },
   14: { to: 15, title: "Master of Paths complete", detail: "+650 gold • Orehaven Treasure Scroll", itemId: "treasure-scroll" },
   22: { to: 23, title: "Briarwild Warden", detail: "+1,200 gold • Warden Mail • Arcane Staff", itemId: "warden-mail" },
   29: { to: 30, title: "Sunforged Warden", detail: "+1,800 gold • Sunforged Plate • Rune-edge Blade", itemId: "sunforged-mail" },
+  34: { to: 35, title: "Moonfen Eclipse broken", detail: "+2,200 gold • Moonweave Mantle", itemId: "moonweave-mantle" },
+  39: { to: 40, title: "Emberfall Crown shattered", detail: "+2,800 gold • Sunstone Pickaxe", itemId: "sunstone-pick" },
+  44: { to: 45, title: "The Last Light rekindled", detail: "+3,400 gold • Frostspire Staff", itemId: "frostspire-staff" },
+  49: { to: 50, title: "Warden of Seven Roads", detail: "+5,000 gold • Nightguard Plate", itemId: "nightguard-plate" },
 };
 const NPC_VISUALS: Record<
   NpcDefinition["id"],
@@ -456,6 +542,14 @@ const NPC_VISUALS: Record<
   marshal: { appearance: "vanguard", equipped: { weapon: "iron-sword", tool: "bronze-pick", armor: "sentinel-mail" } },
   captain: { appearance: "ranger", equipped: { weapon: "iron-bow", tool: "bronze-pick", armor: "warden-mail" } },
   ranger: { appearance: "lyra", equipped: { weapon: "iron-bow", tool: "bronze-pick", armor: "warden-mail" } },
+  "fen-cartographer": { appearance: "ranger", equipped: { weapon: "iron-bow", tool: "crystal-pick", armor: "moonweave-mantle" } },
+  "ember-forgekeeper": { appearance: "vanguard", equipped: { weapon: "rune-blade", tool: "sunstone-pick", armor: "sunforged-mail" } },
+  frostkeeper: { appearance: "arcanist", equipped: { weapon: "frostspire-staff", tool: "crystal-pick", armor: "moonweave-mantle" } },
+  "sunscar-scholar": { appearance: "arcanist", equipped: { weapon: "arcane-staff", tool: "sunstone-pick", armor: "sunforged-mail" } },
+  guildmaster: { appearance: "alden", equipped: { weapon: "eclipse-staff", tool: "bronze-pick", armor: "frostguard-aegis" } },
+  quartermaster: { appearance: "juno", equipped: { weapon: "sunscar-reaver", tool: "sunstone-pick", armor: "trailguard-vest" } },
+  "hall-banker": { appearance: "merris", equipped: { weapon: "", tool: "bronze-pick", armor: "" } },
+  scribe: { appearance: "pella", equipped: { weapon: "arcane-staff", tool: "bronze-pick", armor: "moonweave-mantle" } },
 };
 
 const AMBIENT_CITIZENS: AmbientCitizenDefinition[] = [
@@ -531,6 +625,96 @@ const AMBIENT_CITIZENS: AmbientCitizenDefinition[] = [
     pauseMs: [800, 1_900],
     barks: ["Ranger patrol. Clear the trail.", "Sunbone tracks lead toward the old shrine.", "If the marsh goes quiet, ready your weapon."],
   },
+  {
+    id: "moonfen-lantern-runner",
+    appearance: "ranger",
+    equipped: { weapon: "iron-bow", tool: "crystal-pick", armor: "moonweave-mantle" },
+    route: [{ x: 620, y: 3340 }, { x: 650, y: 3420 }, { x: 540, y: 3480 }, { x: 620, y: 3560 }],
+    speed: 42,
+    pauseMs: [1_000, 2_300],
+    barks: ["Cold flame for the western lanterns.", "Nessa marked a dry crossing beyond the reeds.", "If a blue light follows you, do not follow it back."],
+  },
+  {
+    id: "moonfen-wayfinder",
+    appearance: "arcanist",
+    equipped: { weapon: "frostspire-staff", tool: "bronze-pick", armor: "warden-mail" },
+    route: [{ x: 900, y: 3350 }, { x: 860, y: 3460 }, { x: 760, y: 3510 }, { x: 700, y: 3420 }],
+    speed: 38,
+    pauseMs: [1_400, 2_900],
+    barks: ["The mire rearranges itself after midnight.", "Gloomstone sings when a wraith is close.", "Keep the waystone behind you and the lanterns to your left."],
+  },
+  {
+    id: "emberfall-ore-runner",
+    appearance: "vanguard",
+    equipped: { weapon: "rune-blade", tool: "sunstone-pick", armor: "sunforged-mail" },
+    route: [{ x: 900, y: 4420 }, { x: 820, y: 4500 }, { x: 720, y: 4480 }, { x: 620, y: 4400 }],
+    speed: 45,
+    pauseMs: [900, 2_100],
+    barks: ["Star-Iron shipment for Dagan!", "Ash storm rolling over the eastern ridge.", "The caldera cools for nobody. Keep moving."],
+  },
+  {
+    id: "emberfall-watch",
+    appearance: "ranger",
+    equipped: { weapon: "stormglass-bow", tool: "iron-pick", armor: "briarhide-cloak" },
+    route: [{ x: 1020, y: 4440 }, { x: 940, y: 4360 }, { x: 850, y: 4420 }, { x: 930, y: 4500 }],
+    speed: 43,
+    pauseMs: [1_100, 2_500],
+    barks: ["Cinder Guard below the ridge. Stay sharp.", "Ashwings circle before the vents erupt.", "The north shelf is clear for now."],
+  },
+  {
+    id: "frostmere-beacon-runner",
+    appearance: "arcanist",
+    equipped: { weapon: "frostspire-staff", tool: "crystal-pick", armor: "moonweave-mantle" },
+    route: [{ x: 700, y: 5520 }, { x: 820, y: 5520 }, { x: 860, y: 5620 }, { x: 720, y: 5650 }],
+    speed: 39,
+    pauseMs: [1_200, 2_700],
+    barks: ["Keeper Elowen needs another lens crystal.", "The lighthouse beam keeps the ice-wraiths offshore.", "Fresh wolf tracks cross the northern shelf."],
+  },
+  {
+    id: "frostmere-net-mender",
+    appearance: "ranger",
+    equipped: { weapon: "stormglass-bow", tool: "bronze-pick", armor: "briarhide-cloak" },
+    route: [{ x: 980, y: 5650 }, { x: 1080, y: 5670 }, { x: 1040, y: 5760 }, { x: 950, y: 5750 }],
+    speed: 35,
+    pauseMs: [1_500, 3_200],
+    barks: ["Icewater trout bite beneath the blue ripples.", "Keep your line low when the coast wind rises.", "The Glacier Seer has been watching the harbor again."],
+  },
+  {
+    id: "sunscar-observatory-aide",
+    appearance: "arcanist",
+    equipped: { weapon: "ember-staff", tool: "sunstone-pick", armor: "sunforged-mail" },
+    route: [{ x: 980, y: 6470 }, { x: 1100, y: 6460 }, { x: 1140, y: 6550 }, { x: 1010, y: 6590 }],
+    speed: 38,
+    pauseMs: [1_100, 2_600],
+    barks: ["Samira charted another false sunrise over the tomb.", "Suncrystal bends starlight even at noon.", "The observatory lens must stay clear of dune dust."],
+  },
+  {
+    id: "sunscar-caravan-guard",
+    appearance: "vanguard",
+    equipped: { weapon: "rune-blade", tool: "bronze-pick", armor: "sunforged-mail" },
+    route: [{ x: 330, y: 6520 }, { x: 430, y: 6580 }, { x: 510, y: 6650 }, { x: 390, y: 6700 }],
+    speed: 42,
+    pauseMs: [900, 2_100],
+    barks: ["Caravan road is clear to the oasis.", "Dune Stalkers hunt the shade, not the sun.", "Water first, treasure second. That is how you leave Sunscar alive."],
+  },
+  {
+    id: "guildhall-steward",
+    appearance: "mira",
+    equipped: { weapon: "", tool: "bronze-pick", armor: "sentinel-mail" },
+    route: [{ x: 660, y: 7480 }, { x: 780, y: 7460 }, { x: 920, y: 7500 }, { x: 1010, y: 7580 }],
+    speed: 34,
+    pauseMs: [1_600, 3_400],
+    barks: ["The expedition board was refreshed at dawn.", "Guildmaster Vale receives newly formed companies upstairs.", "Bank your trophies before the next long road."],
+  },
+  {
+    id: "guildhall-dispatch-runner",
+    appearance: "ranger",
+    equipped: { weapon: "iron-bow", tool: "bronze-pick", armor: "warden-mail" },
+    route: [{ x: 520, y: 7840 }, { x: 680, y: 7910 }, { x: 900, y: 7900 }, { x: 1030, y: 7820 }],
+    speed: 44,
+    pauseMs: [800, 1_900],
+    barks: ["Moonfen expedition report for the scribe!", "Party notices go on the brass board.", "A guild banner was sighted beyond Frostmere."],
+  },
 ];
 
 function resolveWsUrl() {
@@ -553,12 +737,14 @@ export class OrehavenScene extends Phaser.Scene {
   private player!: LayeredHero;
   private playerName!: Phaser.GameObjects.Text;
   private playerShadow!: Phaser.GameObjects.Ellipse;
+  private playerBeacon!: Phaser.GameObjects.Ellipse;
   private playerPos = new Phaser.Math.Vector2(PLAYER_START.x, PLAYER_START.y);
   private facing: Direction = "down";
   private heroAction: PlayerWorldAction = "idle";
   private moving = false;
   private inputPaused = false;
   private actionLock = false;
+  private respawning = false;
   private walkTarget: Phaser.Math.Vector2 | null = null;
   private walkPath: Phaser.Math.Vector2[] = [];
   private approachTarget: ApproachTarget = null;
@@ -568,6 +754,8 @@ export class OrehavenScene extends Phaser.Scene {
   private actionFx: Phaser.GameObjects.Arc | null = null;
   private fishingFx: Phaser.GameObjects.Container | null = null;
   private selectedRing!: Phaser.GameObjects.Ellipse;
+  private nearbyRing!: Phaser.GameObjects.Ellipse;
+  private nearbyPrompt!: Phaser.GameObjects.Text;
   private questMarker!: Phaser.GameObjects.Container;
   private sideQuestMarkers = new Map<string, Phaser.GameObjects.Container>();
   private publicEventMarker: Phaser.GameObjects.Container | null = null;
@@ -607,7 +795,10 @@ export class OrehavenScene extends Phaser.Scene {
   private lastQuestToastStep: number;
   private disposed = false;
   private cameraZoom = CAMERA_ZOOM_DEFAULT;
-  private activeWorldArea: "overworld" | "dungeon" = "overworld";
+  private activeWorldArea: WorldArea = "overworld";
+  private regionalAtmosphere = new Map<WorldArea, Phaser.GameObjects.GameObject[]>();
+  private backgroundWorldMapsQueued = false;
+  private introducedBosses = new Set<string>();
   private hotbarLayout: Array<HotbarEntry | null> = DEFAULT_HOTBAR.map((entry) => ({ ...entry }));
 
   constructor(callbacks: SceneCallbacks, progress: PlayerProgress, displayName: string) {
@@ -622,10 +813,16 @@ export class OrehavenScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image(WORLD_KEY, `/assets/rpg/world/orehaven-overworld.png?v=${WORLD_MAP_REVISION}`);
-    this.load.image(BRIARWILD_KEY, `/assets/rpg/world/briarwild-south.png?v=${WORLD_MAP_REVISION}`);
-    this.load.image(SUNSTONE_CATACOMBS_KEY, "/assets/rpg/world/sunstone-catacombs.png");
-    preloadLayeredHeroAssets(this);
+    this.load.maxParallelDownloads = 32;
+    this.load.on("progress", (value: number) => this.callbacks.onLoadProgress?.(value));
+    this.load.image(WORLD_KEY, `${WORLD_AREAS.overworld.images[0]}?v=${WORLD_MAP_REVISION}`);
+    preloadLayeredHeroAssets(this, {
+      essentialOnly: true,
+      appearance: this.progress.appearance,
+      customization: this.progress.customization,
+      weaponId: this.progress.equipped.weapon,
+      armorId: this.progress.equipped.armor,
+    });
     this.load.spritesheet(WORLD_ATLAS_KEY, "/assets/rpg/atlas/world.png", {
       frameWidth: ATLAS_FRAME.width,
       frameHeight: ATLAS_FRAME.height,
@@ -634,14 +831,13 @@ export class OrehavenScene extends Phaser.Scene {
     this.load.spritesheet(ADVENTURE_ITEM_ATLAS_KEY, "/assets/rpg/items/adventure-atlas.png", { frameWidth: 384, frameHeight: 512 });
     this.load.spritesheet(MATERIAL_ITEM_ATLAS_KEY, "/assets/rpg/items/material-atlas.png", { frameWidth: 768, frameHeight: 512 });
     this.load.spritesheet(TROPHY_ITEM_ATLAS_KEY, "/assets/rpg/items/trophy-atlas.png", { frameWidth: 362, frameHeight: 362 });
-    this.load.spritesheet(RAT_KEY, "/assets/rpg/creatures/field-rat.png", { frameWidth: 128, frameHeight: 128 });
-    this.load.spritesheet(WOLF_KEY, "/assets/rpg/creatures/wolfpack.png", { frameWidth: 32, frameHeight: 32 });
-    this.load.spritesheet(SLIME_KEY, "/assets/rpg/creatures/slime.png", { frameWidth: 32, frameHeight: 32 });
-    this.load.spritesheet(SKELETON_IDLE_KEY, "/assets/rpg/creatures/skeleton-idle.png", { frameWidth: 128, frameHeight: 128 });
-    this.load.spritesheet(SKELETON_MOVE_KEY, "/assets/rpg/creatures/skeleton-move.png", { frameWidth: 128, frameHeight: 128 });
-    this.load.spritesheet(WITCH_IDLE_KEY, "/assets/rpg/creatures/witch-doctor-idle.png", { frameWidth: 128, frameHeight: 128 });
-    this.load.spritesheet(WITCH_MOVE_KEY, "/assets/rpg/creatures/witch-doctor-move.png", { frameWidth: 128, frameHeight: 128 });
-    this.load.spritesheet(WITCH_SKILL_KEY, "/assets/rpg/creatures/witch-doctor-skill.png", { frameWidth: 128, frameHeight: 128 });
+    this.load.spritesheet(CREATURE_ATLAS_KEY, "/assets/rpg/atlas/characters.png", { frameWidth: 384, frameHeight: 512 });
+    this.load.spritesheet(RAT_KEY, "/assets/rpg/creatures/field-rat-sheet-1024.png", { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet(WOLF_KEY, "/assets/rpg/creatures/forest-wolf-sheet-v2.png", { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet(DRAKE_KEY, "/assets/rpg/creatures/ashwing-drake-sheet-1024.png", { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet(DUNE_STALKER_KEY, "/assets/rpg/creatures/dune-stalker-sheet-1024.png", { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet(BOAR_KEY, "/assets/rpg/creatures/ember-tusk-boar-sheet-1024.png", { frameWidth: 256, frameHeight: 256 });
+    this.load.spritesheet(SLIME_KEY, "/assets/rpg/creatures/ore-slime-sheet-1024.png", { frameWidth: 256, frameHeight: 256 });
     this.load.image(ARROW_KEY, "/assets/rpg/effects/arrow.png");
     this.load.spritesheet(ARCANE_BOLT_KEY, "/assets/rpg/effects/arcane-bolt.png", { frameWidth: 16, frameHeight: 16 });
     this.load.spritesheet(FIREBALL_KEY, "/assets/rpg/effects/fireball.png", { frameWidth: 16, frameHeight: 16 });
@@ -651,6 +847,9 @@ export class OrehavenScene extends Phaser.Scene {
     this.load.spritesheet(ANSIMUZ_FIRE_BOMB_KEY, "/assets/rpg/effects/ansimuz/fire-bomb.png", { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet(ANSIMUZ_LIGHTNING_KEY, "/assets/rpg/effects/ansimuz/lightning.png", { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet(ANSIMUZ_SPARK_KEY, "/assets/rpg/effects/ansimuz/spark.png", { frameWidth: 32, frameHeight: 32 });
+    // Generated as one stable horizontal strip so every basic hit has a
+    // readable, pixel-authored impact instead of a code-drawn arc.
+    this.load.spritesheet(MELEE_SLASH_KEY, "/assets/rpg/effects/melee-slash-gold-raw.png", { frameWidth: 253, frameHeight: 887 });
   }
 
   create() {
@@ -661,15 +860,64 @@ export class OrehavenScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor("#17271d");
     // These are pixel-painted maps. Nearest filtering prevents fractional camera
     // positions from smearing the boundary between separately loaded regions.
-    [WORLD_KEY, BRIARWILD_KEY, SUNSTONE_CATACOMBS_KEY].forEach((key) => {
-      this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+    [
+      WORLD_KEY,
+      BRIARWILD_KEY,
+      BRIARWILD_TRANSITION_KEY,
+      SUNSTONE_CATACOMBS_KEY,
+      MOONFEN_MARSH_KEY,
+      EMBERFALL_HIGHLANDS_KEY,
+      FROSTMERE_COAST_KEY,
+      SUNSCAR_EXPANSE_KEY,
+      GUILD_HALL_KEY,
+      WORLD_ATLAS_KEY,
+      EQUIPMENT_ITEM_ATLAS_KEY,
+      ADVENTURE_ITEM_ATLAS_KEY,
+      MATERIAL_ITEM_ATLAS_KEY,
+      TROPHY_ITEM_ATLAS_KEY,
+      CREATURE_ATLAS_KEY,
+      RAT_KEY,
+      WOLF_KEY,
+      DRAKE_KEY,
+      DUNE_STALKER_KEY,
+      BOAR_KEY,
+      SLIME_KEY,
+      TREANT_KEY,
+      TREANT_ATTACK_KEY,
+      SKELETON_IDLE_KEY,
+      SKELETON_MOVE_KEY,
+      WITCH_IDLE_KEY,
+      WITCH_MOVE_KEY,
+      WITCH_SKILL_KEY,
+      ARCANE_BOLT_KEY,
+      FIREBALL_KEY,
+      FIREBOMB_KEY,
+      MAGIC_SPARKS_KEY,
+      ANSIMUZ_DARK_BOLT_KEY,
+      ANSIMUZ_FIRE_BOMB_KEY,
+      ANSIMUZ_LIGHTNING_KEY,
+      ANSIMUZ_SPARK_KEY,
+    ].forEach((key) => {
+      // Distant maps and the full cosmetic catalog stream after the first
+      // frame. Do not touch Phaser's missing texture while those assets wait.
+      if (this.textures.exists(key)) this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     });
-    this.add.image(0, 0, WORLD_KEY).setOrigin(0).setDepth(-50);
-    this.add.image(0, 1024, BRIARWILD_KEY).setOrigin(0).setDepth(-50);
-    this.add.image(0, 2048, SUNSTONE_CATACOMBS_KEY).setOrigin(0).setDepth(-50);
+    this.addLoadedWorldImage(WORLD_KEY, 0);
+    this.addLoadedWorldImage(BRIARWILD_KEY, 1024);
+    // This authored strip bridges the town gate into the forest road, hiding
+    // the hard edge where the two painted region canvases meet.
+    this.addLoadedWorldImage(BRIARWILD_TRANSITION_KEY, 864, -49);
+    this.addLoadedWorldImage(SUNSTONE_CATACOMBS_KEY, 2048);
     this.createAtmosphere();
     this.createRegionalAtmosphere();
     this.createCatacombAtmosphere();
+    this.createMoonfenAtmosphere();
+    this.createEmberfallAtmosphere();
+    this.createFrostmereAtmosphere();
+    this.createSunscarAtmosphere();
+    this.createGuildHallAtmosphere();
+    this.createIcefangAtmosphere();
+    this.refreshRegionalAtmosphere();
     this.createCreatureAnimations();
     this.createCombatEffectAnimations();
     this.cursors = this.input.keyboard!.createCursorKeys();
@@ -677,6 +925,8 @@ export class OrehavenScene extends Phaser.Scene {
 
     this.createZoneLabels();
     this.createAnimatedLandmarks();
+    this.createRegionalLandmarkAccents();
+    this.refreshRegionalAtmosphere();
     this.createTownSanctuary();
     this.createNpcs();
     this.createAmbientCitizens();
@@ -686,6 +936,22 @@ export class OrehavenScene extends Phaser.Scene {
     this.createEnemies();
 
     this.playerShadow = this.add.ellipse(0, 0, 28, 10, 0x07100b, 0.45).setDepth(4998);
+    this.playerBeacon = this.add
+      .ellipse(0, 0, 40, 16)
+      .setStrokeStyle(1.5, 0x67f5d3, 0.48)
+      .setFillStyle(0x67f5d3, 0.06)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(4997);
+    this.tweens.add({
+      targets: this.playerBeacon,
+      scaleX: 1.12,
+      scaleY: 1.18,
+      alpha: { from: 0.72, to: 0.28 },
+      duration: 920,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
     this.player = new LayeredHero(
       this,
       this.playerPos.x,
@@ -704,6 +970,40 @@ export class OrehavenScene extends Phaser.Scene {
       scaleY: 1.16,
       alpha: { from: 0.95, to: 0.42 },
       duration: 620,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    this.nearbyRing = this.add.ellipse(0, 0, 48, 20).setStrokeStyle(2, 0x8de8bf, 0.72).setVisible(false).setDepth(4898);
+    this.nearbyPrompt = this.add
+      .text(0, -34, "E", {
+        fontFamily: "Verdana, sans-serif",
+        fontSize: "10px",
+        fontStyle: "bold",
+        color: "#f8f0cf",
+        backgroundColor: "#18251d",
+        stroke: "#0b100d",
+        strokeThickness: 3,
+        padding: { x: 5, y: 3 },
+        resolution: 2,
+      })
+      .setOrigin(0.5)
+      .setVisible(false)
+      .setDepth(20_100);
+    this.tweens.add({
+      targets: this.nearbyRing,
+      scaleX: 1.14,
+      scaleY: 1.14,
+      alpha: { from: 0.72, to: 0.24 },
+      duration: 780,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    this.tweens.add({
+      targets: this.nearbyPrompt,
+      y: "-=3",
+      duration: 660,
       yoyo: true,
       repeat: -1,
       ease: "Sine.easeInOut",
@@ -745,6 +1045,48 @@ export class OrehavenScene extends Phaser.Scene {
       worldEvent: featured,
       abilityCooldowns: this.abilityCooldowns,
     });
+    this.callbacks.onReady?.();
+    this.queueBackgroundWorldMaps();
+  }
+
+  private addLoadedWorldImage(key: string, y: number, depth = -50) {
+    if (!this.textures.exists(key)) return;
+    this.add.image(0, y, key).setOrigin(0).setDepth(depth);
+  }
+
+  private queueBackgroundWorldMaps() {
+    if (this.backgroundWorldMapsQueued || this.disposed) return;
+    this.backgroundWorldMapsQueued = true;
+    const maps = WORLD_LAYER_MANIFEST;
+    maps.forEach((map) => this.load.image(map.key, map.path));
+    this.load.spritesheet(TREANT_KEY, "/assets/rpg/creatures/briar-treant-idle.png", { frameWidth: 543, frameHeight: 724 });
+    this.load.spritesheet(TREANT_ATTACK_KEY, "/assets/rpg/creatures/briar-treant-rootwake.png", { frameWidth: 362, frameHeight: 724 });
+    this.load.spritesheet(SKELETON_IDLE_KEY, "/assets/rpg/creatures/skeleton-idle.png", { frameWidth: 128, frameHeight: 128 });
+    this.load.spritesheet(SKELETON_MOVE_KEY, "/assets/rpg/creatures/skeleton-move.png", { frameWidth: 128, frameHeight: 128 });
+    this.load.spritesheet(WITCH_IDLE_KEY, "/assets/rpg/creatures/witch-doctor-idle.png", { frameWidth: 128, frameHeight: 128 });
+    this.load.spritesheet(WITCH_MOVE_KEY, "/assets/rpg/creatures/witch-doctor-move.png", { frameWidth: 128, frameHeight: 128 });
+    this.load.spritesheet(WITCH_SKILL_KEY, "/assets/rpg/creatures/witch-doctor-skill.png", { frameWidth: 128, frameHeight: 128 });
+    // Queue the rest of the paperdoll catalog behind the first playable frame.
+    preloadLayeredHeroAssets(this);
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      if (this.disposed) return;
+      maps.forEach((map) => this.addLoadedWorldImage(map.key, map.y, map.depth ?? -50));
+      this.createCreatureAnimations();
+      this.enemyRuntime.forEach((enemy) => this.playEnemyIdle(enemy));
+      // Replay every modular actor once the deferred paper-doll catalog is
+      // decoded. Missing layers are hidden during initial creation and would
+      // otherwise leave NPC clothing, hair, armor, or weapons invisible.
+      this.player?.setLoadout(this.progress.equipped);
+      this.npcRuntime.forEach((npc) => npc.hero.setLoadout(NPC_VISUALS[npc.definition.id].equipped));
+      this.ambientCitizens.forEach((citizen) => citizen.hero.setLoadout(citizen.definition.equipped));
+      this.remotes.forEach((remote) => {
+        remote.hero.setLoadout(remote.equipped);
+        remote.hero.setCustomization(remote.customization);
+      });
+      this.setHeroAction(this.heroAction);
+      this.syncRegionalSimulation();
+    });
+    this.load.start();
   }
 
   update(time: number, delta: number) {
@@ -764,6 +1106,7 @@ export class OrehavenScene extends Phaser.Scene {
     if (this.moving && time - this.lastFootstepAt >= 285) {
       this.lastFootstepAt = time;
       this.callbacks.onAudio("footstep");
+      this.spawnFootstepDust();
     }
     this.updatePlayerView();
     this.checkRegionDiscovery();
@@ -853,7 +1196,7 @@ export class OrehavenScene extends Phaser.Scene {
   setHotbarLayout(layout: Array<HotbarEntry | null>) {
     this.hotbarLayout = Array.from({ length: 5 }, (_, index) => {
       const entry = layout[index];
-      if (entry?.kind === "ability" && ["signature", "second-wind", "tree-primary", "tree-secondary"].includes(entry.slot)) return { ...entry };
+      if (entry?.kind === "ability" && (["signature", "second-wind", "tree-primary", "tree-secondary"].includes(entry.slot) || entry.slot.startsWith("tree:"))) return { ...entry };
       if (entry?.kind === "consumable" && itemById(entry.itemId)?.category === "consumable") return { ...entry };
       return null;
     });
@@ -898,7 +1241,10 @@ export class OrehavenScene extends Phaser.Scene {
         this.emitHud({ message: "Calling on Second Wind..." });
         return;
       }
-      const healing = Math.min(this.progress.maxHp - this.progress.hp, Math.max(8, Math.ceil(this.progress.maxHp * 0.24)));
+      const healing = Math.min(
+        this.progress.maxHp - this.progress.hp,
+        armorHealingAmount(this.progress.equipped.armor, Math.max(8, Math.ceil(this.progress.maxHp * 0.24))),
+      );
       this.progress = { ...this.progress, hp: this.progress.hp + healing };
       this.abilityCooldowns = { ...this.abilityCooldowns, secondWindReadyAt: now + 18_000 };
       this.showHealingNumber(healing);
@@ -906,10 +1252,12 @@ export class OrehavenScene extends Phaser.Scene {
       return;
     }
 
-    if (slot === "tree-primary" || slot === "tree-secondary") {
+    if (slot === "tree-primary" || slot === "tree-secondary" || slot.startsWith("tree:")) {
       const style = this.currentCombatStyle();
       const abilities = unlockedTreeAbilities(this.progress, style);
-      const ability = abilities[slot === "tree-primary" ? 0 : 1];
+      const ability = slot.startsWith("tree:")
+        ? abilities.find((entry) => entry.id === slot.slice(5))
+        : abilities[slot === "tree-primary" ? 0 : 1];
       if (!ability) {
         this.emitHud({ message: `Unlock a ${combatStyleLabel(style)} skill in the Skills panel first.` });
         return;
@@ -999,8 +1347,8 @@ export class OrehavenScene extends Phaser.Scene {
     if (!node) return;
     if (this.progress.skillTree.unlocked.includes(node.id)) return;
     if (this.useAuthoritativeProfileAction({ action: "unlock_skill", nodeId }, `Unlocking ${node.name}...`)) return;
-    if (node.prerequisite && !this.progress.skillTree.unlocked.includes(node.prerequisite)) {
-      this.emitHud({ message: "Unlock the previous skill in this branch first." });
+    if (!skillTreeNodeConnected(node, new Set(this.progress.skillTree.unlocked))) {
+      this.emitHud({ message: "Unlock a connected skill before taking this node." });
       return;
     }
     if (this.progress.skills[combatSkillForStyle(node.branch)].level < node.requiredLevel) {
@@ -1136,6 +1484,33 @@ export class OrehavenScene extends Phaser.Scene {
     this.emitHud({ message: "Character customization updated." });
   }
 
+  setIdentity(displayName: string, appearance: AppearanceId, customization: CharacterCustomization) {
+    const safeName = displayName
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .replace(/[^a-zA-Z0-9 _-]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 24);
+    if (!safeName) return;
+    this.displayName = safeName;
+    this.progress = { ...this.progress, appearance, customization: { ...customization } };
+    this.player.setAppearance(appearance);
+    this.player.setCustomization(customization);
+    this.applyEquipmentVisuals();
+    this.setHeroAction("idle");
+    window.localStorage.setItem("ore-acres-rpg-name", safeName);
+    this.refreshSocialWorldIndicators();
+    this.emitHud({ message: "Adventurer identity updated." });
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: "rpg_identity_update",
+        displayName: safeName,
+        appearance,
+        customization,
+      }));
+    }
+  }
+
   setDisplayName(value: string) {
     const displayName = value
       .replace(/[\u0000-\u001f\u007f]/g, "")
@@ -1191,7 +1566,13 @@ export class OrehavenScene extends Phaser.Scene {
       inventory: { ...this.progress.inventory, [quest.reward.itemId]: (this.progress.inventory[quest.reward.itemId] ?? 0) + quest.reward.quantity },
       sideQuests: { ...this.progress.sideQuests, [quest.id]: { ...state, status: "claimed" } },
     };
-    this.callbacks.onToast({ title: `${quest.title} complete`, detail: `+${quest.reward.gold} gold • ${quest.reward.quantity} reward item${quest.reward.quantity === 1 ? "" : "s"}`, tone: "quest", itemId: quest.reward.itemId });
+    const rewardItem = itemById(quest.reward.itemId);
+    this.callbacks.onToast({
+      title: `${quest.title} complete`,
+      detail: `+${quest.reward.gold} gold • +${quest.reward.xp} ${skillLabel(quest.reward.xpSkill)} XP • ${rewardItem?.name ?? quest.reward.itemId} x${quest.reward.quantity}`,
+      tone: "quest",
+      itemId: quest.reward.itemId,
+    });
     this.emitHud({ progress: this.progress, message: `${quest.title} complete.` });
   }
 
@@ -1220,7 +1601,10 @@ export class OrehavenScene extends Phaser.Scene {
       return;
     }
     if (this.useAuthoritativeProfileAction({ action: "consume", itemId }, `Using ${item.name}...`)) return;
-    const healing = item.healing ?? 0;
+    const healing = Math.min(
+      this.progress.maxHp - this.progress.hp,
+      armorHealingAmount(this.progress.equipped.armor, item.healing ?? 0),
+    );
     this.progress = {
       ...this.progress,
       hp: Math.min(this.progress.maxHp, this.progress.hp + healing),
@@ -1476,6 +1860,27 @@ export class OrehavenScene extends Phaser.Scene {
     this.emitHud({ message: `Navigating to ${step.target}. Use WASD at any time to take control.` }, false);
   }
 
+  navigateToWorldTarget(x: number, y: number, label: string) {
+    if (this.inputPaused || this.actionLock || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    const targetArea = worldAreaAtY(y);
+    if (targetArea !== this.activeWorldArea) {
+      this.emitHud({ message: `${label} is in another region. Use an attuned waystone or the marked region gate first.` }, false);
+      return;
+    }
+    this.cancelCurrentAction();
+    this.cancelWalkTarget();
+    if (!this.planWalkTo(x, y)) {
+      this.emitHud({ message: `No clear route to ${label}. Move closer to the marked trail and try again.` }, false);
+      return;
+    }
+    const marker = this.add
+      .ellipse(x, y + 3, 30, 12, 0x55c8ad, 0.12)
+      .setStrokeStyle(2, 0x79e5c9, 0.88)
+      .setDepth(y + 8);
+    this.tweens.add({ targets: marker, scaleX: 1.5, scaleY: 1.5, alpha: 0, duration: 1_100, repeat: 1, onComplete: () => marker.destroy() });
+    this.emitHud({ message: `Navigating to ${label}. Use WASD at any time to take control.` }, false);
+  }
+
   adjustCameraZoom(delta: number) {
     const next = Phaser.Math.Clamp(this.cameraZoom + delta, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX);
     if (Math.abs(next - this.cameraZoom) < 0.001) return;
@@ -1515,6 +1920,7 @@ export class OrehavenScene extends Phaser.Scene {
         repeat: -1,
         ease: "Sine.easeInOut",
       });
+      this.trackRegionalAtmosphere(worldAreaAtY(firefly.y), firefly);
     }
   }
 
@@ -1545,6 +1951,7 @@ export class OrehavenScene extends Phaser.Scene {
         repeat: -1,
         ease: "Sine.easeInOut",
       });
+      this.trackRegionalAtmosphere("overworld", leaf);
     }
 
     for (let index = 0; index < 15; index += 1) {
@@ -1571,6 +1978,7 @@ export class OrehavenScene extends Phaser.Scene {
         repeatDelay: Phaser.Math.Between(500, 1300),
         ease: "Quad.easeOut",
       });
+      this.trackRegionalAtmosphere("overworld", dust);
     }
 
     for (let index = 0; index < 8; index += 1) {
@@ -1595,6 +2003,7 @@ export class OrehavenScene extends Phaser.Scene {
         repeat: -1,
         ease: "Sine.easeInOut",
       });
+      this.trackRegionalAtmosphere("overworld", mist);
     }
   }
 
@@ -1621,6 +2030,7 @@ export class OrehavenScene extends Phaser.Scene {
         repeatDelay: Phaser.Math.Between(200, 900),
         ease: "Quad.easeOut",
       });
+      this.trackRegionalAtmosphere("dungeon", ember);
     }
 
     for (let index = 0; index < 9; index += 1) {
@@ -1645,6 +2055,7 @@ export class OrehavenScene extends Phaser.Scene {
         repeat: -1,
         ease: "Sine.easeInOut",
       });
+      this.trackRegionalAtmosphere("dungeon", mist);
     }
 
     const ritualRing = this.add
@@ -1661,6 +2072,7 @@ export class OrehavenScene extends Phaser.Scene {
       repeat: -1,
       ease: "Sine.easeInOut",
     });
+    this.trackRegionalAtmosphere("dungeon", ritualRing);
     for (let index = 0; index < 8; index += 1) {
       const angle = (Math.PI * 2 * index) / 8;
       const wisp = this.add.circle(768 + Math.cos(angle) * 88, 2686 + Math.sin(angle) * 34, 2, 0xb887ff, 0.8).setDepth(2710);
@@ -1675,7 +2087,302 @@ export class OrehavenScene extends Phaser.Scene {
         repeat: -1,
         ease: "Sine.easeInOut",
       });
+      this.trackRegionalAtmosphere("dungeon", wisp);
     }
+  }
+
+  private createMoonfenAtmosphere() {
+    // Moonfen gets quieter motion than the combat-heavy catacombs: drifting
+    // lantern motes and low blue wisps make the marsh feel alive without
+    // obscuring the central boardwalk or enemy silhouettes.
+    for (let index = 0; index < 20; index += 1) {
+      const mote = this.add
+        .circle(
+          Phaser.Math.Between(120, 1410),
+          Phaser.Math.Between(3090, 4050),
+          Phaser.Math.Between(1, 2),
+          index % 3 === 0 ? 0xffd66f : 0x78d9e8,
+          Phaser.Math.FloatBetween(0.28, 0.72),
+        )
+        .setDepth(4100 + index);
+      this.tweens.add({
+        targets: mote,
+        x: mote.x + Phaser.Math.Between(-32, 32),
+        y: mote.y - Phaser.Math.Between(18, 54),
+        alpha: { from: 0.12, to: 0.88 },
+        scale: { from: 0.72, to: 1.55 },
+        duration: Phaser.Math.Between(1800, 3600),
+        delay: Phaser.Math.Between(0, 1600),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.trackRegionalAtmosphere("marsh", mote);
+    }
+  }
+
+  private createEmberfallAtmosphere() {
+    for (let index = 0; index < 24; index += 1) {
+      const ember = this.add
+        .circle(
+          Phaser.Math.Between(100, 1430),
+          Phaser.Math.Between(4110, 5070),
+          Phaser.Math.Between(1, 2),
+          index % 4 === 0 ? 0xffe59a : 0xff7048,
+          Phaser.Math.FloatBetween(0.26, 0.72),
+        )
+        .setDepth(5100 + index);
+      this.tweens.add({
+        targets: ember,
+        x: ember.x + Phaser.Math.Between(-24, 24),
+        y: ember.y - Phaser.Math.Between(20, 68),
+        alpha: { from: 0.12, to: 0.92 },
+        scale: { from: 0.7, to: 1.6 },
+        duration: Phaser.Math.Between(1500, 3200),
+        delay: Phaser.Math.Between(0, 1800),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.trackRegionalAtmosphere("highlands", ember);
+    }
+    const calderaRing = this.add
+      .ellipse(768, 4930, 188, 76, 0xff663e, 0.035)
+      .setStrokeStyle(2, 0xffbf68, 0.26)
+      .setDepth(5120);
+    this.tweens.add({
+      targets: calderaRing,
+      scaleX: { from: 0.88, to: 1.2 },
+      scaleY: { from: 0.88, to: 1.2 },
+      alpha: { from: 0.18, to: 0.52 },
+      duration: 1700,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    this.trackRegionalAtmosphere("highlands", calderaRing);
+  }
+
+  private createFrostmereAtmosphere() {
+    for (let index = 0; index < 26; index += 1) {
+      const flake = this.add
+        .circle(
+          Phaser.Math.Between(90, 1450),
+          Phaser.Math.Between(5140, 6100),
+          Phaser.Math.Between(1, 2),
+          index % 5 === 0 ? 0xa8e9ff : 0xffffff,
+          Phaser.Math.FloatBetween(0.22, 0.68),
+        )
+        .setDepth(6150 + index);
+      this.tweens.add({
+        targets: flake,
+        x: flake.x + Phaser.Math.Between(-40, 40),
+        y: flake.y + Phaser.Math.Between(26, 72),
+        alpha: { from: 0.12, to: 0.82 },
+        scale: { from: 0.7, to: 1.35 },
+        duration: Phaser.Math.Between(2300, 4800),
+        delay: Phaser.Math.Between(0, 2200),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.trackRegionalAtmosphere("frostmere", flake);
+    }
+    const lighthouseBeam = this.add
+      .rectangle(1250, 5260, 260, 5, 0xa8e9ff, 0.1)
+      .setRotation(-0.28)
+      .setDepth(6160);
+    this.tweens.add({
+      targets: lighthouseBeam,
+      rotation: { from: -0.42, to: 0.42 },
+      alpha: { from: 0.04, to: 0.24 },
+      duration: 3800,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    this.trackRegionalAtmosphere("frostmere", lighthouseBeam);
+  }
+
+  private createSunscarAtmosphere() {
+    for (let index = 0; index < 24; index += 1) {
+      const dust = this.add
+        .ellipse(
+          Phaser.Math.Between(70, 1460),
+          Phaser.Math.Between(6170, 7070),
+          Phaser.Math.Between(12, 28),
+          Phaser.Math.Between(2, 5),
+          index % 4 === 0 ? 0xffe39b : 0xd7874c,
+          Phaser.Math.FloatBetween(0.12, 0.34),
+        )
+        .setDepth(7150 + index);
+      this.tweens.add({
+        targets: dust,
+        x: dust.x + Phaser.Math.Between(28, 92),
+        y: dust.y - Phaser.Math.Between(8, 26),
+        alpha: { from: 0.08, to: 0.5 },
+        scaleX: { from: 0.7, to: 1.45 },
+        duration: Phaser.Math.Between(2200, 4600),
+        delay: Phaser.Math.Between(0, 1800),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.trackRegionalAtmosphere("sunscar", dust);
+    }
+    const observatoryPulse = this.add
+      .ellipse(1150, 6250, 170, 54, 0x63d7e7, 0.035)
+      .setStrokeStyle(2, 0x9df6ff, 0.28)
+      .setDepth(7160);
+    this.tweens.add({
+      targets: observatoryPulse,
+      scaleX: { from: 0.86, to: 1.2 },
+      scaleY: { from: 0.86, to: 1.2 },
+      alpha: { from: 0.12, to: 0.52 },
+      duration: 1900,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    this.trackRegionalAtmosphere("sunscar", observatoryPulse);
+  }
+
+  private createGuildHallAtmosphere() {
+    // The hall is a social space, so use warm, slow motion instead of combat
+    // particles: lantern motes make the painted interior feel inhabited while
+    // the crest gives players a visual anchor for the shared guild space.
+    for (let index = 0; index < 18; index += 1) {
+      const mote = this.add
+        .circle(
+          Phaser.Math.Between(120, 1415),
+          Phaser.Math.Between(7220, 8120),
+          Phaser.Math.Between(1, 2),
+          index % 3 === 0 ? 0xffe7a0 : 0xffb85e,
+          Phaser.Math.FloatBetween(0.16, 0.46),
+        )
+        .setDepth(8300 + index);
+      this.tweens.add({
+        targets: mote,
+        x: mote.x + Phaser.Math.Between(-24, 24),
+        y: mote.y - Phaser.Math.Between(16, 42),
+        alpha: { from: 0.08, to: 0.68 },
+        scale: { from: 0.72, to: 1.5 },
+        duration: Phaser.Math.Between(2100, 3900),
+        delay: Phaser.Math.Between(0, 1800),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.trackRegionalAtmosphere("guildhall", mote);
+    }
+
+    const crest = this.add
+      .ellipse(768, 7660, 164, 58, 0xf1b84b, 0.025)
+      .setStrokeStyle(2, 0xffd979, 0.3)
+      .setDepth(8290);
+    this.tweens.add({
+      targets: crest,
+      scaleX: { from: 0.9, to: 1.12 },
+      scaleY: { from: 0.9, to: 1.12 },
+      alpha: { from: 0.12, to: 0.42 },
+      duration: 2200,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    this.trackRegionalAtmosphere("guildhall", crest);
+
+    const crestSpark = this.add
+      .text(768, 7660, "✦", {
+        fontFamily: "Georgia, serif",
+        fontSize: "22px",
+        color: "#ffe6a3",
+        stroke: "#3b2413",
+        strokeThickness: 4,
+        resolution: 2,
+      })
+      .setOrigin(0.5)
+      .setDepth(8291);
+    this.tweens.add({
+      targets: crestSpark,
+      angle: 360,
+      alpha: { from: 0.36, to: 0.9 },
+      scale: { from: 0.82, to: 1.12 },
+      duration: 4200,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    this.trackRegionalAtmosphere("guildhall", crestSpark);
+  }
+
+  private createIcefangAtmosphere() {
+    for (let index = 0; index < 28; index += 1) {
+      const shard = this.add
+        .rectangle(
+          Phaser.Math.Between(90, 1446),
+          Phaser.Math.Between(8218, 9180),
+          index % 4 === 0 ? 3 : 2,
+          Phaser.Math.Between(5, 11),
+          index % 5 === 0 ? 0xffffff : 0x88dcff,
+          Phaser.Math.FloatBetween(0.14, 0.48),
+        )
+        .setAngle(Phaser.Math.Between(-18, 18))
+        .setDepth(9290 + index);
+      this.tweens.add({
+        targets: shard,
+        x: shard.x + Phaser.Math.Between(-34, 34),
+        y: shard.y + Phaser.Math.Between(22, 64),
+        alpha: { from: 0.06, to: 0.62 },
+        angle: shard.angle + Phaser.Math.Between(-30, 30),
+        duration: Phaser.Math.Between(2600, 5200),
+        delay: Phaser.Math.Between(0, 2200),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.trackRegionalAtmosphere("icefang", shard);
+    }
+
+    for (let index = 0; index < 7; index += 1) {
+      const mist = this.add
+        .ellipse(
+          Phaser.Math.Between(260, 1260),
+          Phaser.Math.Between(8420, 9000),
+          Phaser.Math.Between(90, 180),
+          Phaser.Math.Between(10, 24),
+          0x8fd6e8,
+          Phaser.Math.FloatBetween(0.025, 0.075),
+        )
+        .setDepth(9250 + index);
+      this.tweens.add({
+        targets: mist,
+        x: mist.x + Phaser.Math.Between(-80, 80),
+        scaleX: { from: 0.86, to: 1.5 },
+        alpha: { from: 0.015, to: 0.1 },
+        duration: Phaser.Math.Between(5600, 8800),
+        delay: Phaser.Math.Between(0, 2500),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.trackRegionalAtmosphere("icefang", mist);
+    }
+
+    const vaultRune = this.add
+      .ellipse(768, 8672, 360, 126, 0x73dfff, 0.02)
+      .setStrokeStyle(2, 0x9beaff, 0.22)
+      .setDepth(8658);
+    this.tweens.add({
+      targets: vaultRune,
+      scaleX: { from: 0.9, to: 1.12 },
+      scaleY: { from: 0.9, to: 1.12 },
+      alpha: { from: 0.08, to: 0.42 },
+      duration: 2100,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    this.trackRegionalAtmosphere("icefang", vaultRune);
   }
 
   private createAnimatedLandmarks() {
@@ -1696,11 +2403,12 @@ export class OrehavenScene extends Phaser.Scene {
         yoyo: true,
         repeat: -1,
       });
+      this.trackRegionalAtmosphere(worldAreaAtY(source.y), flame);
       this.time.addEvent({
         delay: 260 + index * 45,
         loop: true,
         callback: () => {
-          if (this.disposed) return;
+          if (this.disposed || worldAreaAtY(source.y) !== this.activeWorldArea) return;
           const ember = this.add
             .circle(source.x + Phaser.Math.Between(-8, 8), source.y - 20, Phaser.Math.Between(1, 2), 0xffc45a, 0.9)
             .setDepth(source.y + 4);
@@ -1718,12 +2426,50 @@ export class OrehavenScene extends Phaser.Scene {
     });
 
     DECORATIONS.filter((decoration) => decoration.kind !== "campfire").forEach((decoration) => {
-      this.add
-        .sprite(decoration.x, decoration.y, WORLD_ATLAS_KEY, decoration.frame)
-        .setOrigin(0.5, 0.88)
-        .setScale(decoration.scale)
-        .setAlpha(decoration.alpha ?? 1)
-        .setDepth(decoration.y + 1);
+      const landmark = decoration.kind === "sign"
+        ? this.createPixelSignLandmark(decoration)
+        : this.add
+          .sprite(decoration.x, decoration.y, WORLD_ATLAS_KEY, decoration.frame)
+          .setOrigin(0.5, 0.88)
+          .setScale(decoration.scale)
+          .setAlpha(decoration.alpha ?? 1)
+          .setDepth(decoration.y + 1);
+
+      // Small environmental motion gives authored landmarks a living-world
+      // feel without changing their collision footprint or gameplay position.
+      if (decoration.kind === "torch") {
+        this.tweens.add({
+          targets: landmark,
+          scaleX: { from: decoration.scale * 0.96, to: decoration.scale * 1.05 },
+          scaleY: { from: decoration.scale * 1.04, to: decoration.scale * 0.95 },
+          alpha: { from: 0.76, to: 1 },
+          duration: 260 + (decoration.frame % 4) * 45,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      } else if (decoration.kind === "banner") {
+        this.tweens.add({
+          targets: landmark,
+          angle: { from: -2.2, to: 2.2 },
+          scaleX: { from: decoration.scale * 0.98, to: decoration.scale * 1.02 },
+          duration: 1_300 + (decoration.frame % 3) * 160,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      } else if (decoration.kind === "sign") {
+        this.tweens.add({
+          targets: landmark,
+          y: { from: decoration.y - 1, to: decoration.y + 1 },
+          angle: { from: -0.7, to: 0.7 },
+          duration: 2_400 + (decoration.frame % 2) * 300,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      }
+      this.trackRegionalAtmosphere(worldAreaAtY(decoration.y), landmark);
     });
 
     const ripples = RESOURCES.filter((resource) => resource.kind === "fish").map((resource, index) => ({
@@ -1731,7 +2477,7 @@ export class OrehavenScene extends Phaser.Scene {
       y: resource.y,
       width: index % 2 === 0 ? 48 : 42,
       height: index % 2 === 0 ? 18 : 16,
-      color: resource.y >= 1024 ? 0x86c9b4 : 0x91d9ff,
+      color: resourceVisualColor(resource.itemId),
     }));
     ripples.forEach((ripple, index) => {
       const ring = this.add
@@ -1748,6 +2494,7 @@ export class OrehavenScene extends Phaser.Scene {
         repeat: -1,
         repeatDelay: 520,
       });
+      this.trackRegionalAtmosphere(worldAreaAtY(ripple.y), ring);
     });
 
     const sunstoneAura = this.add
@@ -1764,18 +2511,90 @@ export class OrehavenScene extends Phaser.Scene {
       repeat: -1,
       ease: "Sine.easeInOut",
     });
+    this.trackRegionalAtmosphere(worldAreaAtY(sunstoneAura.y), sunstoneAura);
+  }
+
+  private createRegionalLandmarkAccents() {
+    REGIONAL_LANDMARK_ACCENTS.forEach((landmark, landmarkIndex) => {
+      const ring = this.add
+        .ellipse(landmark.x, landmark.y + 2, landmark.radius * 2, landmark.radius * 0.68)
+        .setStrokeStyle(2, landmark.color, 0.5)
+        .setFillStyle(landmark.color, 0.025)
+        .setDepth(landmark.y - 9)
+        .setData("landmark", landmark.name);
+      this.tweens.add({
+        targets: ring,
+        scaleX: { from: 0.82, to: 1.22 },
+        scaleY: { from: 0.82, to: 1.22 },
+        alpha: { from: 0.18, to: 0.62 },
+        duration: 1_900 + landmarkIndex * 110,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.trackRegionalAtmosphere(landmark.area, ring);
+
+      const orbitRadiusX = landmark.radius * 0.72;
+      const orbitRadiusY = landmark.radius * 0.27;
+      const orbiters = Array.from({ length: 4 }, (_, index) => {
+        const angle = (Math.PI * 2 * index) / 4;
+        return this.add
+          .rectangle(Math.cos(angle) * orbitRadiusX, Math.sin(angle) * orbitRadiusY, 4, 4, landmark.color, 0.82)
+          .setRotation(Math.PI / 4);
+      });
+      const orbit = this.add
+        .container(landmark.x, landmark.y - 1, orbiters)
+        .setDepth(landmark.y - 7)
+        .setData("landmark", landmark.name);
+      this.tweens.add({
+        targets: orbit,
+        angle: 360,
+        alpha: { from: 0.36, to: 0.92 },
+        duration: 6_800 + landmarkIndex * 260,
+        repeat: -1,
+        ease: "Linear",
+      });
+      this.trackRegionalAtmosphere(landmark.area, orbit);
+    });
+  }
+
+  private createPixelSignLandmark(decoration: DecorationDefinition) {
+    const post = this.add.rectangle(0, -15, 4, 26, 0x6d472d, 1);
+    const board = this.add.rectangle(0, -26, 42, 16, 0xa97443, 1).setStrokeStyle(2, 0x3a271d, 1);
+    const label = this.add.text(0, -26, "SOUTHROAD", {
+      fontFamily: "Verdana, sans-serif",
+      fontSize: "5px",
+      fontStyle: "bold",
+      color: "#ffe3a2",
+      stroke: "#4a2c1e",
+      strokeThickness: 2,
+      resolution: 2,
+      letterSpacing: 0.4,
+    }).setOrigin(0.5);
+    return this.add
+      .container(decoration.x, decoration.y, [post, board, label])
+      .setScale(0.92)
+      .setAlpha(decoration.alpha ?? 1)
+      .setDepth(decoration.y + 1);
   }
 
   private createCreatureAnimations() {
     const ensureAnimation = (config: Phaser.Types.Animations.Animation) => {
       if (!config.key) return;
+      const frames = Array.isArray(config.frames) ? config.frames : [];
+      const firstFrame = frames[0] as { key?: string } | undefined;
+      // Defer animation creation until the backing creature sheet is decoded.
+      // The background batch calls this method again after distant assets arrive.
+      if (firstFrame?.key && !this.textures.exists(firstFrame.key)) return;
       if (!this.anims.exists(config.key)) this.anims.create(config);
     };
+    // The authored wolf sheet is four rows of four frames: down, left, right, up.
+    // Keeping the row contract here makes future creature replacements drop-in safe.
     const wolfFrames: Record<Direction, number[]> = {
-      up: [28, 29, 30, 31],
+      down: [0, 1, 2, 3],
       left: [4, 5, 6, 7],
-      down: [20, 21, 22, 23],
-      right: [12, 13, 14, 15],
+      right: [8, 9, 10, 11],
+      up: [12, 13, 14, 15],
     };
     (Object.keys(wolfFrames) as Direction[]).forEach((direction) => {
       ensureAnimation({
@@ -1797,21 +2616,89 @@ export class OrehavenScene extends Phaser.Scene {
         repeat: -1,
       });
     });
+    // The normalized Ashwing sheet uses up, left, down, right rows. Every frame
+    // shares a bottom-center ground anchor, so turns stay visually planted.
+    const drakeFrames: Record<Direction, number[]> = {
+      up: [0, 1, 2, 3],
+      left: [4, 5, 6, 7],
+      down: [8, 9, 10, 11],
+      right: [12, 13, 14, 15],
+    };
+    (Object.keys(drakeFrames) as Direction[]).forEach((direction) => {
+      ensureAnimation({
+        key: `ore-drake-idle-${direction}`,
+        frames: drakeFrames[direction].map((frame) => ({ key: DRAKE_KEY, frame })),
+        frameRate: 4,
+        repeat: -1,
+      });
+      ensureAnimation({
+        key: `ore-drake-active-${direction}`,
+        frames: [1, 2, 3, 2].map((offset) => ({ key: DRAKE_KEY, frame: drakeFrames[direction][offset] })),
+        frameRate: 10,
+        repeat: 0,
+      });
+      ensureAnimation({
+        key: `ore-drake-walk-${direction}`,
+        frames: drakeFrames[direction].map((frame) => ({ key: DRAKE_KEY, frame })),
+        frameRate: 7,
+        repeat: -1,
+      });
+    });
+    (Object.keys(drakeFrames) as Direction[]).forEach((direction) => {
+      ensureAnimation({
+        key: `ore-dune-stalker-idle-${direction}`,
+        frames: drakeFrames[direction].map((frame) => ({ key: DUNE_STALKER_KEY, frame })),
+        frameRate: 4,
+        repeat: -1,
+      });
+      ensureAnimation({
+        key: `ore-dune-stalker-active-${direction}`,
+        frames: [1, 2, 3, 2].map((offset) => ({ key: DUNE_STALKER_KEY, frame: drakeFrames[direction][offset] })),
+        frameRate: 10,
+        repeat: 0,
+      });
+      ensureAnimation({
+        key: `ore-dune-stalker-walk-${direction}`,
+        frames: drakeFrames[direction].map((frame) => ({ key: DUNE_STALKER_KEY, frame })),
+        frameRate: 7,
+        repeat: -1,
+      });
+    });
+    (Object.keys(wolfFrames) as Direction[]).forEach((direction) => {
+      ensureAnimation({
+        key: `ore-boar-idle-${direction}`,
+        frames: wolfFrames[direction].map((frame) => ({ key: BOAR_KEY, frame })),
+        frameRate: 4,
+        repeat: -1,
+      });
+      ensureAnimation({
+        key: `ore-boar-active-${direction}`,
+        frames: wolfFrames[direction].map((frame) => ({ key: BOAR_KEY, frame })),
+        frameRate: 9,
+        repeat: 0,
+      });
+      ensureAnimation({
+        key: `ore-boar-walk-${direction}`,
+        frames: wolfFrames[direction].map((frame) => ({ key: BOAR_KEY, frame })),
+        frameRate: 7,
+        repeat: -1,
+      });
+    });
     ensureAnimation({
       key: "ore-rat-idle",
-      frames: [0, 1, 2].map((frame) => ({ key: RAT_KEY, frame })),
+      frames: [0, 1, 2, 3].map((frame) => ({ key: RAT_KEY, frame })),
       frameRate: 4,
       repeat: -1,
     });
     ensureAnimation({
       key: "ore-rat-active",
-      frames: [3, 4, 5].map((frame) => ({ key: RAT_KEY, frame })),
+      frames: [1, 2, 3, 2].map((frame) => ({ key: RAT_KEY, frame })),
       frameRate: 8,
       repeat: 0,
     });
     ensureAnimation({
       key: "ore-rat-walk",
-      frames: [3, 4, 5].map((frame) => ({ key: RAT_KEY, frame })),
+      frames: [0, 1, 2, 3].map((frame) => ({ key: RAT_KEY, frame })),
       frameRate: 6,
       repeat: -1,
     });
@@ -1823,13 +2710,31 @@ export class OrehavenScene extends Phaser.Scene {
     });
     ensureAnimation({
       key: "ore-slime-attack",
-      frames: [8, 9, 10, 11].map((frame) => ({ key: SLIME_KEY, frame })),
+      frames: [4, 5, 6, 7].map((frame) => ({ key: SLIME_KEY, frame })),
       frameRate: 8,
       repeat: 0,
     });
     ensureAnimation({
       key: "ore-slime-hurt",
-      frames: [12, 13, 14, 15].map((frame) => ({ key: SLIME_KEY, frame })),
+      frames: [8, 9, 10, 11].map((frame) => ({ key: SLIME_KEY, frame })),
+      frameRate: 9,
+      repeat: 0,
+    });
+    ensureAnimation({
+      key: "ore-treant-idle",
+      frames: [0, 1, 2, 3].map((frame) => ({ key: TREANT_KEY, frame })),
+      frameRate: 5,
+      repeat: -1,
+    });
+    ensureAnimation({
+      key: "ore-treant-attack",
+      frames: [0, 1, 2, 3, 4, 5].map((frame) => ({ key: TREANT_ATTACK_KEY, frame })),
+      frameRate: 9,
+      repeat: 0,
+    });
+    ensureAnimation({
+      key: "ore-treant-hurt",
+      frames: [2, 1, 0].map((frame) => ({ key: TREANT_KEY, frame })),
       frameRate: 9,
       repeat: 0,
     });
@@ -1887,6 +2792,7 @@ export class OrehavenScene extends Phaser.Scene {
       { key: "ore-ansimuz-fire-bomb", texture: ANSIMUZ_FIRE_BOMB_KEY, frames: 14, frameRate: 17, repeat: 0 },
       { key: "ore-ansimuz-lightning", texture: ANSIMUZ_LIGHTNING_KEY, frames: 5, frameRate: 12, repeat: 0 },
       { key: "ore-ansimuz-spark", texture: ANSIMUZ_SPARK_KEY, frames: 7, frameRate: 16, repeat: 0 },
+      { key: "ore-melee-slash", texture: MELEE_SLASH_KEY, frames: 7, frameRate: 18, repeat: 0 },
     ];
     effects.forEach((effect) => {
       if (this.anims.exists(effect.key)) return;
@@ -1910,6 +2816,10 @@ export class OrehavenScene extends Phaser.Scene {
     this.addZoneLabel(248, 1788, "RANGER CAMP");
     this.addZoneLabel(1190, 1745, "RAIDER DENS");
     this.addZoneLabel(768, 2240, "SUNSTONE CATACOMBS");
+    this.addZoneLabel(768, 4235, "EMBERFALL HIGHLANDS");
+    this.addZoneLabel(768, 5260, "FROSTMERE COAST");
+    this.addZoneLabel(768, 6280, "SUNSCAR EXPANSE");
+    this.addZoneLabel(768, 7420, "OREHAVEN GUILD HALL");
   }
 
   private addZoneLabel(x: number, y: number, label: string) {
@@ -1978,25 +2888,38 @@ export class OrehavenScene extends Phaser.Scene {
       const start = definition.route[0];
       const shadow = this.createActorShadow(start.x, start.y, 24, 8, 0.28);
       const hero = new LayeredHero(this, start.x, start.y, definition.appearance, definition.equipped)
-        .setScale(0.70)
+        .setScale(0.80)
         .setDepth(start.y + 2);
       hero.play("idle", "down", true);
-      return {
+      const hitZone = this.add.zone(start.x, start.y - 18, 30, 46).setDepth(20_000 + start.y).setInteractive({ cursor: "pointer" });
+      hitZone.on("pointerdown", () => {
+        if (this.inputPaused) return;
+        const distance = Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, hero.x, hero.y);
+        if (distance > 130) {
+          this.emitHud({ message: "Move closer to speak with that traveler." }, false);
+          return;
+        }
+        if (this.ambientBubbles.size === 0) this.showAmbientBark(runtime);
+      });
+      const runtime: AmbientCitizenRuntime = {
         definition,
         hero,
         shadow,
+        hitZone,
         routeIndex: 0,
         path: [],
         pauseUntil: Date.now() + Phaser.Math.Between(350, 1_400),
         facing: "down" as Direction,
         nextBarkAt: Date.now() + Phaser.Math.Between(4_500, 12_000),
       };
+      return runtime;
     });
   }
 
   private updateAmbientCitizens(delta: number) {
     const now = Date.now();
     this.ambientCitizens.forEach((citizen) => {
+      if (worldAreaAtY(citizen.hero.y) !== this.activeWorldArea) return;
       if (citizen.pauseUntil > now) {
         citizen.hero.play("idle", citizen.facing);
         if (
@@ -2042,6 +2965,7 @@ export class OrehavenScene extends Phaser.Scene {
       }
       citizen.hero.setDepth(citizen.hero.y + 2);
       citizen.shadow.setPosition(citizen.hero.x, citizen.hero.y + 1).setDepth(citizen.hero.y - 1);
+      citizen.hitZone.setPosition(citizen.hero.x, citizen.hero.y - 18).setDepth(20_000 + citizen.hero.y);
     });
   }
 
@@ -2077,7 +3001,7 @@ export class OrehavenScene extends Phaser.Scene {
 
   private createDungeonPortals() {
     DUNGEON_PORTALS.forEach((definition) => {
-      const isDungeonEntrance = definition.destinationY >= 2048;
+      const isDungeonEntrance = definition.destinationY > definition.y;
       const ring = this.add
         .ellipse(definition.x, definition.y + 3, isDungeonEntrance ? 58 : 72, isDungeonEntrance ? 22 : 30, isDungeonEntrance ? 0x160f0a : 0xf3b64f, isDungeonEntrance ? 0.28 : 0.16)
         .setStrokeStyle(isDungeonEntrance ? 2 : 3, 0xffd978, isDungeonEntrance ? 0.68 : 0.92)
@@ -2089,7 +3013,7 @@ export class OrehavenScene extends Phaser.Scene {
         .setTint(0xffd37a)
         .setVisible(!isDungeonEntrance)
         .setDepth(definition.y);
-      const portalRole = definition.destinationY >= 2048 ? "CLICK OR PRESS E TO ENTER" : "CLICK OR PRESS E TO RETURN";
+      const portalRole = isDungeonEntrance ? "CLICK OR PRESS E TO ENTER" : "CLICK OR PRESS E TO RETURN";
       const plate = createNameplate(this, definition.x, definition.y + 28, definition.name, portalRole, "#ffd77c");
       const hitZone = this.createInteractionZone(definition.x, definition.y, 74, 80, () => {
         this.approach({ kind: "portal", id: definition.id, x: definition.x, y: definition.y });
@@ -2111,10 +3035,9 @@ export class OrehavenScene extends Phaser.Scene {
       .setStrokeStyle(1, 0xf4d984, 0.55)
       .setDepth(1321);
     this.sanctuaryPlate = this.add
-      .text(TOWN_SANCTUARY.x, TOWN_SANCTUARY.y - 34, `${TOWN_SANCTUARY.name}\nRESTORE HEALTH`, {
-        ...nameStyle("#aef7db", 8),
+      .text(TOWN_SANCTUARY.x, TOWN_SANCTUARY.y - 30, TOWN_SANCTUARY.name, {
+        ...nameStyle("#aef7db", 7),
         align: "center",
-        lineSpacing: 2,
       })
       .setOrigin(0.5, 1)
       .setDepth(5200)
@@ -2122,6 +3045,10 @@ export class OrehavenScene extends Phaser.Scene {
     glow.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       pointer.event.stopPropagation();
       this.approach({ kind: "sanctuary", ...TOWN_SANCTUARY });
+    });
+    glow.on("pointerover", () => this.sanctuaryPlate.setVisible(true));
+    glow.on("pointerout", () => {
+      if (this.approachTarget?.kind !== "sanctuary") this.sanctuaryPlate.setVisible(false);
     });
     this.tweens.add({
       targets: [glow, innerRing],
@@ -2171,9 +3098,9 @@ export class OrehavenScene extends Phaser.Scene {
     });
   }
 
-  private showWaystoneFx(definition: WaystoneDefinition) {
+  private showWaystoneFx(definition: WaystoneDefinition, flashCamera = true) {
     this.callbacks.onAudio("quest");
-    this.cameras.main.flash(260, 92, 230, 210, false);
+    if (flashCamera) this.cameras.main.flash(260, 92, 230, 210, false);
     const beam = this.add.rectangle(definition.x, definition.y - 42, 9, 92, 0x8ff7e3, 0.62).setDepth(definition.y + 5);
     const pulse = this.add.ellipse(definition.x, definition.y + 3, 38, 16).setStrokeStyle(3, 0xa8fff0, 1).setDepth(definition.y + 6);
     this.tweens.add({ targets: beam, alpha: 0, scaleY: 1.45, duration: 720, ease: "Sine.easeOut", onComplete: () => beam.destroy() });
@@ -2186,14 +3113,22 @@ export class OrehavenScene extends Phaser.Scene {
     this.approachTarget = null;
     this.selectedEnemyId = null;
     this.selectedRing.setVisible(false);
-    this.playerPos.set(definition.arrivalX, definition.arrivalY);
-    this.progress = { ...this.progress, position: { x: definition.arrivalX, y: definition.arrivalY } };
-    this.setHeroAction("idle");
-    this.applyWorldArea(definition.arrivalY, true);
-    this.updatePlayerView();
-    this.cameras.main.flash(280, 96, 236, 218, false);
-    this.cameras.main.pan(definition.arrivalX, definition.arrivalY, 260, "Sine.easeOut");
-    this.emitHud({ playerX: definition.arrivalX, playerY: definition.arrivalY, location: definition.region, target: null, message: `Arrived at ${definition.name}.` });
+    this.inputPaused = true;
+    this.setHeroAction("attune");
+    this.cameras.main.fadeOut(190, 25, 58, 55);
+    this.time.delayedCall(200, () => {
+      if (this.disposed) return;
+      this.playerPos.set(definition.arrivalX, definition.arrivalY);
+      this.progress = { ...this.progress, position: { x: definition.arrivalX, y: definition.arrivalY } };
+      this.setHeroAction("idle");
+      this.applyWorldArea(definition.arrivalY, true);
+      this.updatePlayerView();
+      this.cameras.main.centerOn(definition.arrivalX, definition.arrivalY);
+      this.showWaystoneFx(definition, false);
+      this.cameras.main.fadeIn(300, 25, 58, 55);
+      this.inputPaused = false;
+      this.emitHud({ playerX: definition.arrivalX, playerY: definition.arrivalY, location: definition.region, target: null, message: `Arrived at ${definition.name}.` });
+    });
   }
 
   private activateDungeonPortal(runtime: DungeonPortalRuntime) {
@@ -2236,10 +3171,108 @@ export class OrehavenScene extends Phaser.Scene {
     });
   }
 
+  private trackRegionalAtmosphere(area: WorldArea, object: Phaser.GameObjects.GameObject) {
+    const objects = this.regionalAtmosphere.get(area) ?? [];
+    objects.push(object);
+    this.regionalAtmosphere.set(area, objects);
+  }
+
+  private refreshRegionalAtmosphere() {
+    this.regionalAtmosphere.forEach((objects, area) => {
+      const enabled = area === this.activeWorldArea;
+      objects.forEach((object) => {
+        const visibleObject = object as Phaser.GameObjects.GameObject & { setVisible?: (value: boolean) => unknown };
+        visibleObject.setVisible?.(enabled);
+        this.tweens.getTweensOf(object).forEach((tween) => {
+          if (enabled) tween.resume();
+          else tween.pause();
+        });
+      });
+    });
+  }
+
+  private setTweenActivity(target: Phaser.GameObjects.GameObject, active: boolean) {
+    this.tweens.getTweensOf(target).forEach((tween) => {
+      if (active) tween.resume();
+      else tween.pause();
+    });
+  }
+
+  private setEnemyRegionalActive(enemy: EnemyRuntime, active: boolean) {
+    const alive = enemy.hp > 0 && enemy.respawnAt <= Date.now();
+    const visible = active && alive;
+    enemy.hero?.setSimulationActive(visible);
+    if (!enemy.hero && enemy.sprite instanceof Phaser.GameObjects.Sprite) {
+      enemy.sprite.setVisible(visible);
+      if (visible) enemy.sprite.anims.resume();
+      else enemy.sprite.anims.pause();
+    } else {
+      enemy.sprite.setVisible(visible);
+    }
+    enemy.shadow.setVisible(visible);
+    enemy.rareAura?.setVisible(visible);
+    enemy.threatRing.setVisible(visible && Boolean(enemy.targetPlayerId));
+    if (!visible) {
+      enemy.plate.setVisible(false);
+      enemy.hpBar.setVisible(false);
+    }
+    if (enemy.hitZone.input) enemy.hitZone.input.enabled = visible;
+    [enemy.sprite, enemy.shadow, enemy.threatRing, enemy.plate, enemy.hpBar, enemy.hitZone, ...(enemy.rareAura ? [enemy.rareAura] : [])]
+      .forEach((target) => this.setTweenActivity(target, visible));
+  }
+
+  private syncRegionalSimulation() {
+    this.npcRuntime.forEach((npc) => {
+      const active = worldAreaAtY(npc.definition.y) === this.activeWorldArea;
+      npc.hero.setSimulationActive(active);
+      npc.shadow.setVisible(active);
+      if (!active) npc.plate.setVisible(false);
+      if (npc.hitZone.input) npc.hitZone.input.enabled = active;
+    });
+    this.ambientCitizens.forEach((citizen) => {
+      const active = worldAreaAtY(citizen.hero.y) === this.activeWorldArea;
+      citizen.hero.setSimulationActive(active);
+      citizen.shadow.setVisible(active);
+      citizen.hitZone.setVisible(active);
+      if (citizen.hitZone.input) citizen.hitZone.input.enabled = active;
+    });
+    this.resourceRuntime.forEach((resource) => {
+      const active = worldAreaAtY(resource.definition.y) === this.activeWorldArea;
+      resource.sprite.setVisible(active && resource.available);
+      if (!active) resource.plate.setVisible(false);
+      if (resource.hitZone.input) resource.hitZone.input.enabled = active && resource.available;
+      this.setTweenActivity(resource.sprite, active && resource.available);
+    });
+    this.enemyRuntime.forEach((enemy) => {
+      this.setEnemyRegionalActive(enemy, worldAreaAtY(enemy.definition.y) === this.activeWorldArea);
+    });
+    this.waystoneRuntime.forEach((waystone) => {
+      const active = worldAreaAtY(waystone.definition.y) === this.activeWorldArea;
+      waystone.sprite.setVisible(active);
+      waystone.ring.setVisible(active);
+      if (!active) waystone.plate.setVisible(false);
+      if (waystone.hitZone.input) waystone.hitZone.input.enabled = active;
+      this.setTweenActivity(waystone.sprite, active);
+      this.setTweenActivity(waystone.ring, active);
+    });
+    this.dungeonPortalRuntime.forEach((portal) => {
+      const active = worldAreaAtY(portal.definition.y) === this.activeWorldArea;
+      portal.sprite.setVisible(active);
+      portal.ring.setVisible(active);
+      if (!active) portal.plate.setVisible(false);
+      if (portal.hitZone.input) portal.hitZone.input.enabled = active;
+      this.setTweenActivity(portal.sprite, active);
+      this.setTweenActivity(portal.ring, active);
+    });
+  }
+
   private applyWorldArea(y: number, centerCamera = false) {
-    this.activeWorldArea = y >= 2048 ? "dungeon" : "overworld";
-    if (this.activeWorldArea === "dungeon") this.cameras.main.setBounds(0, 2048, WORLD.width, 1024);
-    else this.cameras.main.setBounds(0, 0, WORLD.width, 2048);
+    this.activeWorldArea = worldAreaAtY(y);
+    const area = WORLD_AREAS[this.activeWorldArea];
+    this.cameras.main.setBounds(0, area.top, WORLD.width, area.height);
+    this.refreshRegionalAtmosphere();
+    this.syncRegionalSimulation();
+    if (!this.activeEnemyId) this.callbacks.onMusic(this.activeWorldArea === "dungeon" || this.activeWorldArea === "icefang" ? "dungeon" : "field");
     if (centerCamera && this.player) this.cameras.main.centerOn(this.playerPos.x, this.playerPos.y);
   }
 
@@ -2292,16 +3325,24 @@ export class OrehavenScene extends Phaser.Scene {
     });
   }
 
+  private sideQuestForNpc(npcId: string) {
+    const candidates = SIDE_QUESTS.filter((quest) => quest.giverNpcId === npcId && this.progress.questStep >= quest.unlockQuestStep);
+    return candidates.find((quest) => this.progress.sideQuests[quest.id]?.status === "ready")
+      ?? candidates.find((quest) => this.progress.sideQuests[quest.id]?.status === "active")
+      ?? candidates.find((quest) => !this.progress.sideQuests[quest.id]);
+  }
+
   private updateSideQuestMarkers() {
     const mainTarget = this.currentQuestTarget();
     SIDE_QUESTS.forEach((quest) => {
       const marker = this.sideQuestMarkers.get(quest.id);
       const npc = NPCS.find((entry) => entry.id === quest.giverNpcId);
       if (!marker || !npc) return;
+      const selectedQuest = this.sideQuestForNpc(npc.id);
       const state = this.progress.sideQuests[quest.id];
       const mode = sideQuestMarkerMode(quest, state, this.progress.questStep);
       const obscuredByMainQuest = mainTarget?.kind === "npc" && mainTarget.id === npc.id;
-      if (!mode || obscuredByMainQuest) {
+      if (selectedQuest?.id !== quest.id || !mode || obscuredByMainQuest) {
         marker.setVisible(false).disableInteractive();
         return;
       }
@@ -2408,19 +3449,20 @@ export class OrehavenScene extends Phaser.Scene {
 
   private createResources() {
     RESOURCES.forEach((definition) => {
+      const visualColor = resourceVisualColor(definition.itemId);
       const sprite = this.add
         .sprite(definition.x, definition.y, WORLD_ATLAS_KEY, definition.frame)
         .setOrigin(0.5, 0.88)
         .setScale(definition.scale)
         .setDepth(definition.y);
-      if (definition.itemId === "sunstone-ore") sprite.setTint(0xffca63);
+      if (visualColor !== 0xffffff) sprite.setTint(visualColor);
       const plate = createNameplate(
         this,
         definition.x,
         definition.y + 22,
         definition.name,
         `${definition.skill.toUpperCase()} ${definition.requiredLevel}`,
-        "#9ee0a4",
+        `#${visualColor.toString(16).padStart(6, "0")}`,
       );
       const zoneSize = definition.kind === "tree"
         ? { width: 64, height: 92 }
@@ -2504,17 +3546,53 @@ export class OrehavenScene extends Phaser.Scene {
         sprite = hero.root;
       } else if (definition.kind === "wolf") {
         sprite = this.add
-          .sprite(definition.x, definition.y, WOLF_KEY, 20)
-          .setOrigin(0.5, 0.78)
-          .setScale(1.34)
+          .sprite(definition.x, definition.y, WOLF_KEY, 0)
+          .setOrigin(0.5, 0.94)
+          .setScale(definition.rare ? 0.31 : 0.28)
+          .setData("animatedCreature", true)
+          .setDepth(definition.y);
+      } else if (definition.kind === "drake") {
+        sprite = this.add
+          .sprite(definition.x, definition.y, DRAKE_KEY, 8)
+          .setOrigin(0.5, 0.94)
+          .setScale(definition.rare ? 0.44 : 0.4)
+          .setData("animatedCreature", true)
+          .setDepth(definition.y);
+      } else if (definition.kind === "dune-stalker") {
+        sprite = this.add
+          .sprite(definition.x, definition.y, DUNE_STALKER_KEY, 8)
+          .setOrigin(0.5, 0.94)
+          .setScale(definition.rare ? 0.4 : 0.36)
+          .setData("animatedCreature", true)
+          .setDepth(definition.y);
+      } else if (definition.kind === "rat") {
+        sprite = this.add
+          .sprite(definition.x, definition.y, RAT_KEY, 0)
+          .setOrigin(0.5, 0.94)
+          .setScale(0.17)
+          .setData("animatedCreature", true)
+          .setDepth(definition.y);
+      } else if (definition.kind === "boar") {
+        sprite = this.add
+          .sprite(definition.x, definition.y, BOAR_KEY, 0)
+          .setOrigin(0.5, 0.94)
+          .setScale(definition.rare ? 0.42 : 0.36)
+          .setData("animatedCreature", true)
           .setDepth(definition.y);
       } else if (definition.kind === "slime") {
         sprite = this.add
           .sprite(definition.x, definition.y, SLIME_KEY, 0)
-          .setOrigin(0.5, 0.82)
-          .setScale(definition.rare ? 1.38 : 1.12)
+          .setOrigin(0.5, 0.92)
+          .setScale(definition.rare ? 0.35 : 0.31)
+          .setData("animatedCreature", true)
           .setDepth(definition.y);
         if (definition.rare) sprite.setTint(0xffdc73);
+      } else if (definition.kind === "treant") {
+        sprite = this.add
+          .sprite(definition.x, definition.y, TREANT_KEY, 0)
+          .setOrigin(0.5, 0.94)
+          .setScale(0.17)
+          .setDepth(definition.y);
       } else if (definition.kind === "skeleton" || definition.kind === "witch") {
         const texture = definition.kind === "skeleton" ? SKELETON_IDLE_KEY : WITCH_IDLE_KEY;
         sprite = this.add
@@ -2525,8 +3603,9 @@ export class OrehavenScene extends Phaser.Scene {
       } else {
         sprite = this.add
           .sprite(definition.x, definition.y, RAT_KEY, 0)
-          .setOrigin(0.5, 0.97)
-          .setScale(0.42)
+          .setOrigin(0.5, 0.94)
+          .setScale(0.58)
+          .setData("animatedCreature", true)
           .setDepth(definition.y);
       }
       if (sprite instanceof Phaser.GameObjects.Sprite) {
@@ -2544,10 +3623,18 @@ export class OrehavenScene extends Phaser.Scene {
       const hpBar = this.add.graphics().setDepth(definition.y + 3).setVisible(false);
       const hitSize = definition.kind === "rat"
         ? { width: 38, height: 28 }
+        : definition.kind === "boar"
+          ? { width: 58, height: 40 }
         : definition.kind === "wolf"
           ? { width: 52, height: 42 }
+        : definition.kind === "drake"
+          ? { width: 78, height: 58 }
+        : definition.kind === "dune-stalker"
+          ? { width: 66, height: 46 }
           : definition.kind === "slime"
             ? { width: 44, height: 40 }
+            : definition.kind === "treant"
+              ? { width: 92, height: 116 }
             : definition.kind === "witch"
               ? { width: 50, height: 68 }
               : { width: 46, height: 64 };
@@ -2570,6 +3657,7 @@ export class OrehavenScene extends Phaser.Scene {
         worldAction: "idle",
         reaction: null,
         reactionUntil: 0,
+        lastAttackAccentAt: 0,
         status: null,
         targetPlayerId: null,
         hitZone,
@@ -2587,14 +3675,75 @@ export class OrehavenScene extends Phaser.Scene {
       return;
     }
     if (!(enemy.sprite instanceof Phaser.GameObjects.Sprite)) return;
+    if (enemy.sprite.getData("highDetailCreature")) {
+      this.tweens.killTweensOf(enemy.sprite);
+      const baseScaleX = enemy.sprite.scaleX;
+      const baseScaleY = enemy.sprite.scaleY;
+      enemy.sprite.setData("idleMotion", true);
+      this.tweens.add({
+        targets: enemy.sprite,
+        scaleX: { from: baseScaleX * 0.985, to: baseScaleX * 1.015 },
+        scaleY: { from: baseScaleY * 0.97, to: baseScaleY * 1.03 },
+        duration: 820,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      return;
+    }
     if (enemy.definition.kind === "rat") {
       if (enemy.facing === "left" || enemy.facing === "right") enemy.sprite.setFlipX(enemy.facing === "left");
-      enemy.sprite.play("ore-rat-idle", true);
+      this.playCreatureAnimation(enemy.sprite, "ore-rat-idle");
     }
-    if (enemy.definition.kind === "wolf") enemy.sprite.play(`ore-wolf-idle-${enemy.facing}`, true);
-    if (enemy.definition.kind === "slime") enemy.sprite.play("ore-slime-idle", true);
+    if (enemy.definition.kind === "boar") this.playCreatureAnimation(enemy.sprite, `ore-boar-idle-${enemy.facing}`);
+    if (enemy.definition.kind === "wolf") this.playCreatureAnimation(enemy.sprite, `ore-wolf-idle-${enemy.facing}`);
+    if (enemy.definition.kind === "drake") this.playCreatureAnimation(enemy.sprite, `ore-drake-idle-${enemy.facing}`);
+    if (enemy.definition.kind === "dune-stalker") this.playCreatureAnimation(enemy.sprite, `ore-dune-stalker-idle-${enemy.facing}`);
+    if (enemy.definition.kind === "slime") this.playCreatureAnimation(enemy.sprite, "ore-slime-idle");
+    if (enemy.definition.kind === "treant") this.playCreatureAnimation(enemy.sprite, "ore-treant-idle");
     if (enemy.definition.kind === "skeleton" || enemy.definition.kind === "witch") {
-      enemy.sprite.play(`ore-${enemy.definition.kind}-idle-${enemy.facing}`, true);
+      this.playCreatureAnimation(enemy.sprite, `ore-${enemy.definition.kind}-idle-${enemy.facing}`);
+    }
+  }
+
+  private playCreatureAnimation(sprite: Phaser.GameObjects.Sprite, key: string) {
+    if (!this.anims.exists(key)) return false;
+    const textureKey = key.includes("ore-rat")
+      ? RAT_KEY
+      : key.includes("ore-boar")
+        ? BOAR_KEY
+      : key.includes("ore-wolf")
+        ? WOLF_KEY
+        : key.includes("ore-drake")
+          ? DRAKE_KEY
+        : key.includes("ore-dune-stalker")
+          ? DUNE_STALKER_KEY
+        : key.includes("ore-slime")
+          ? SLIME_KEY
+          : key.includes("ore-treant-attack")
+            ? TREANT_ATTACK_KEY
+            : key.includes("ore-treant")
+              ? TREANT_KEY
+              : key.includes("ore-skeleton-idle")
+                ? SKELETON_IDLE_KEY
+                : key.includes("ore-skeleton")
+                  ? SKELETON_MOVE_KEY
+                  : key.includes("ore-witch-idle")
+                    ? WITCH_IDLE_KEY
+                    : key.includes("ore-witch-attack")
+                      ? WITCH_SKILL_KEY
+                      : key.includes("ore-witch")
+                        ? WITCH_MOVE_KEY
+                        : null;
+    if (textureKey && !this.textures.exists(textureKey)) return false;
+    // Deferred creature sheets can leave an animation definition present before
+    // its frame texture is decoded. Treat that as a quiet idle fallback instead
+    // of aborting scene creation and leaving the loading veil on-screen.
+    try {
+      sprite.play(key, true);
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -2607,14 +3756,32 @@ export class OrehavenScene extends Phaser.Scene {
       return;
     }
     if (!(enemy.sprite instanceof Phaser.GameObjects.Sprite)) return;
+    if (enemy.sprite.getData("highDetailCreature")) {
+      enemy.sprite.setFlipX(direction === "left");
+      enemy.sprite.setData("idleMotion", false);
+      this.tweens.killTweensOf(enemy.sprite);
+      this.tweens.add({
+        targets: enemy.sprite,
+        scaleY: { from: enemy.sprite.scaleY * 0.96, to: enemy.sprite.scaleY * 1.04 },
+        duration: 180,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      return;
+    }
     if (enemy.definition.kind === "rat") {
       if (direction === "left" || direction === "right") enemy.sprite.setFlipX(direction === "left");
-      enemy.sprite.play("ore-rat-walk", true);
+      this.playCreatureAnimation(enemy.sprite, "ore-rat-walk");
     }
-    if (enemy.definition.kind === "wolf") enemy.sprite.play(`ore-wolf-walk-${direction}`, true);
-    if (enemy.definition.kind === "slime") enemy.sprite.play("ore-slime-idle", true);
+    if (enemy.definition.kind === "boar") this.playCreatureAnimation(enemy.sprite, `ore-boar-walk-${direction}`);
+    if (enemy.definition.kind === "wolf") this.playCreatureAnimation(enemy.sprite, `ore-wolf-walk-${direction}`);
+    if (enemy.definition.kind === "drake") this.playCreatureAnimation(enemy.sprite, `ore-drake-walk-${direction}`);
+    if (enemy.definition.kind === "dune-stalker") this.playCreatureAnimation(enemy.sprite, `ore-dune-stalker-walk-${direction}`);
+    if (enemy.definition.kind === "slime") this.playCreatureAnimation(enemy.sprite, "ore-slime-idle");
+    if (enemy.definition.kind === "treant") this.playCreatureAnimation(enemy.sprite, "ore-treant-idle");
     if (enemy.definition.kind === "skeleton" || enemy.definition.kind === "witch") {
-      enemy.sprite.play(`ore-${enemy.definition.kind}-walk-${direction}`, true);
+      this.playCreatureAnimation(enemy.sprite, `ore-${enemy.definition.kind}-walk-${direction}`);
     }
   }
 
@@ -2625,6 +3792,10 @@ export class OrehavenScene extends Phaser.Scene {
     enemy.reaction = reaction;
     enemy.reactionUntil = now + duration;
     enemy.facing = direction;
+    if (reaction === "attack" && now - enemy.lastAttackAccentAt >= 900) {
+      enemy.lastAttackAccentAt = now;
+      this.showEnemyAttackAccent(enemy, direction);
+    }
     if (enemy.hero) {
       const attackAction: HeroVisualAction = enemy.definition.attackStyle === "magic"
         ? "magic"
@@ -2633,29 +3804,42 @@ export class OrehavenScene extends Phaser.Scene {
           : "melee";
       enemy.hero.play(reaction === "attack" ? attackAction : "hurt", direction, true);
     } else if (enemy.sprite instanceof Phaser.GameObjects.Sprite) {
-      if (enemy.definition.kind === "rat") {
-        if (direction === "left" || direction === "right") enemy.sprite.setFlipX(direction === "left");
-        enemy.sprite.play("ore-rat-active", true);
-      }
-      if (enemy.definition.kind === "wolf") enemy.sprite.play(`ore-wolf-active-${direction}`, true);
-      if (enemy.definition.kind === "slime") enemy.sprite.play(reaction === "attack" ? "ore-slime-attack" : "ore-slime-hurt", true);
-      if (enemy.definition.kind === "skeleton" || enemy.definition.kind === "witch") {
-        enemy.sprite.play(`ore-${enemy.definition.kind}-${reaction === "attack" ? "attack" : "hurt"}-${direction}`, true);
-      }
-      if (
-        reaction === "attack" &&
-        enemy.definition.attackStyle !== "range" &&
-        (enemy.definition.kind === "wolf" || enemy.definition.kind === "rat" || enemy.definition.kind === "skeleton")
-      ) {
-        const offset = direction === "left" ? [-12, 0] : direction === "right" ? [12, 0] : direction === "up" ? [0, -9] : [0, 9];
+      if (enemy.sprite.getData("highDetailCreature")) {
+        enemy.sprite.setFlipX(direction === "left");
+        this.tweens.killTweensOf(enemy.sprite);
+        const baseX = enemy.sprite.x;
+        const baseY = enemy.sprite.y;
+        const recoil = reaction === "attack" ? 9 : 4;
         this.tweens.add({
           targets: enemy.sprite,
-          x: enemy.definition.x + offset[0],
-          y: enemy.definition.y + offset[1],
-          duration: 150,
+          x: baseX + (direction === "left" ? -recoil : direction === "right" ? recoil : 0),
+          y: baseY + (direction === "up" ? -recoil * 0.45 : direction === "down" ? recoil * 0.45 : 0),
+          scaleX: enemy.sprite.scaleX * (reaction === "attack" ? 1.08 : 0.94),
+          scaleY: enemy.sprite.scaleY * (reaction === "attack" ? 1.08 : 0.94),
+          duration: reaction === "attack" ? 130 : 90,
           yoyo: true,
           ease: "Quad.easeOut",
         });
+      } else {
+        if (enemy.definition.kind === "rat") {
+          if (direction === "left" || direction === "right") enemy.sprite.setFlipX(direction === "left");
+          this.playCreatureAnimation(enemy.sprite, "ore-rat-active");
+        }
+        if (enemy.definition.kind === "boar") this.playCreatureAnimation(enemy.sprite, `ore-boar-active-${direction}`);
+        if (enemy.definition.kind === "wolf") this.playCreatureAnimation(enemy.sprite, `ore-wolf-active-${direction}`);
+        if (enemy.definition.kind === "drake") this.playCreatureAnimation(enemy.sprite, `ore-drake-active-${direction}`);
+        if (enemy.definition.kind === "dune-stalker") this.playCreatureAnimation(enemy.sprite, `ore-dune-stalker-active-${direction}`);
+        if (enemy.definition.kind === "slime") this.playCreatureAnimation(enemy.sprite, reaction === "attack" ? "ore-slime-attack" : "ore-slime-hurt");
+        if (enemy.definition.kind === "treant") this.playCreatureAnimation(enemy.sprite, reaction === "attack" ? "ore-treant-attack" : "ore-treant-hurt");
+        if (enemy.definition.kind === "skeleton" || enemy.definition.kind === "witch") {
+          this.playCreatureAnimation(enemy.sprite, `ore-${enemy.definition.kind}-${reaction === "attack" ? "attack" : "hurt"}-${direction}`);
+        }
+        if (
+          reaction === "attack" &&
+          (enemy.definition.kind === "wolf" || enemy.definition.kind === "drake" || enemy.definition.kind === "dune-stalker" || enemy.definition.kind === "rat" || enemy.definition.kind === "boar")
+        ) {
+          this.playQuadrupedAttackMotion(enemy, direction);
+        }
       }
     }
     this.time.delayedCall(duration, () => {
@@ -2666,6 +3850,122 @@ export class OrehavenScene extends Phaser.Scene {
       if (enemy.worldAction === "walk") this.playEnemyWalk(enemy, enemy.facing);
       else if (enemy.worldAction === "attack") this.playEnemyReaction(enemy, "attack", enemy.facing);
       else this.playEnemyIdle(enemy);
+    });
+  }
+
+  private showEnemyAttackAccent(enemy: EnemyRuntime, direction: Direction) {
+    if (enemy.definition.kind !== "skeleton") return;
+    const vector = direction === "left"
+      ? { x: -1, y: 0, angle: Math.PI }
+      : direction === "right"
+        ? { x: 1, y: 0, angle: 0 }
+        : direction === "up"
+          ? { x: 0, y: -1, angle: -Math.PI / 2 }
+          : { x: 0, y: 1, angle: Math.PI / 2 };
+    const x = enemy.sprite.x;
+    const y = enemy.sprite.y - 22;
+    const depth = enemy.sprite.depth + 12;
+    if ((enemy.definition.attackStyle ?? "melee") === "melee") {
+      const slash = this.add
+        .sprite(x + vector.x * 26, y + vector.y * 18, MELEE_SLASH_KEY, 0)
+        .setScale(0.44)
+        .setRotation(vector.angle)
+        .setDepth(depth)
+        .setAlpha(0.9)
+        .play("ore-melee-slash");
+      slash.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => slash.destroy());
+      return;
+    }
+    if (enemy.definition.attackStyle !== "magic") return;
+    const rune = this.add
+      .ellipse(x, enemy.sprite.y + 2, 34, 14, 0xa8d7de, 0.12)
+      .setStrokeStyle(2, 0xe5f6ef, 0.82)
+      .setDepth(depth - 2)
+      .setScale(0.42);
+    this.tweens.add({
+      targets: rune,
+      scaleX: 1.65,
+      scaleY: 1.65,
+      alpha: 0,
+      duration: 520,
+      ease: "Cubic.easeOut",
+      onComplete: () => rune.destroy(),
+    });
+    for (let index = 0; index < 5; index += 1) {
+      const angle = (Math.PI * 2 * index) / 5;
+      const shard = this.add.rectangle(x, y, 2, 7, 0xdcece5, 0.86).setRotation(angle).setDepth(depth);
+      this.tweens.add({
+        targets: shard,
+        x: x + Math.cos(angle) * 25,
+        y: y + Math.sin(angle) * 12,
+        alpha: 0,
+        duration: 420,
+        ease: "Quad.easeOut",
+        onComplete: () => shard.destroy(),
+      });
+    }
+  }
+
+  private playQuadrupedAttackMotion(enemy: EnemyRuntime, direction: Direction) {
+    if (!(enemy.sprite instanceof Phaser.GameObjects.Sprite)) return;
+    const sprite = enemy.sprite;
+    const vector = direction === "left"
+      ? { x: -1, y: 0 }
+      : direction === "right"
+        ? { x: 1, y: 0 }
+        : direction === "up"
+          ? { x: 0, y: -1 }
+          : { x: 0, y: 1 };
+    const ranged = enemy.definition.attackStyle === "range" || enemy.definition.attackStyle === "magic";
+    const distance = ranged
+      ? 7
+      : enemy.definition.kind === "rat"
+        ? 13
+        : enemy.definition.kind === "wolf" || enemy.definition.kind === "dune-stalker"
+          ? 24
+          : enemy.definition.kind === "boar"
+            ? 20
+            : 16;
+    // Recover to the current rendered position so an attack arriving during a
+    // network movement update cannot snap the creature back to stale state.
+    const baseX = sprite.x;
+    const baseY = sprite.y;
+    const baseScaleX = Math.abs(sprite.scaleX);
+    const baseScaleY = Math.abs(sprite.scaleY);
+    this.tweens.killTweensOf(sprite);
+    sprite.setPosition(baseX, baseY);
+    this.tweens.add({
+      targets: sprite,
+      x: baseX - vector.x * 5,
+      y: baseY - vector.y * 3 + 1,
+      scaleX: baseScaleX * 0.94,
+      scaleY: baseScaleY * 1.08,
+      duration: 105,
+      ease: "Quad.easeIn",
+      onComplete: () => {
+        if (!sprite.active || enemy.respawnAt > Date.now()) return;
+        this.tweens.add({
+          targets: sprite,
+          x: baseX + vector.x * distance,
+          y: baseY + vector.y * distance * 0.62 - 2,
+          scaleX: baseScaleX * 1.08,
+          scaleY: baseScaleY * 0.92,
+          duration: ranged ? 120 : 95,
+          ease: "Cubic.easeOut",
+          onComplete: () => {
+            if (!sprite.active) return;
+            this.tweens.add({
+              targets: sprite,
+              x: baseX,
+              y: baseY,
+              scaleX: baseScaleX,
+              scaleY: baseScaleY,
+              duration: 180,
+              ease: "Back.easeOut",
+            });
+          },
+        });
+      },
     });
   }
 
@@ -2794,8 +4094,9 @@ export class OrehavenScene extends Phaser.Scene {
     dy /= length;
     const step = MOVE_SPEED * (delta / 1000);
     const nextX = Phaser.Math.Clamp(this.playerPos.x + dx * step, 26, WORLD.width - 26);
-    const areaMinY = this.activeWorldArea === "dungeon" ? 2072 : 34;
-    const areaMaxY = this.activeWorldArea === "dungeon" ? WORLD.height - 24 : 2024;
+    const areaBounds = worldAreaMovementBounds(this.activeWorldArea, this.activeWorldArea === "guildhall" ? 30 : this.activeWorldArea === "overworld" ? 34 : 24, 24);
+    const areaMinY = areaBounds.minY;
+    const areaMaxY = areaBounds.maxY;
     const nextY = Phaser.Math.Clamp(this.playerPos.y + dy * step, areaMinY, areaMaxY);
     const beforeX = this.playerPos.x;
     const beforeY = this.playerPos.y;
@@ -2823,7 +4124,7 @@ export class OrehavenScene extends Phaser.Scene {
     }
     this.facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
     this.moving = true;
-    this.setHeroAction("walk");
+    if (this.heroAction !== "attack" || Date.now() >= this.playerAttackUntil) this.setHeroAction("walk");
   }
 
   private isWalkable(x: number, y: number) {
@@ -2915,7 +4216,20 @@ export class OrehavenScene extends Phaser.Scene {
       .get(npc.id)
       ?.hero.play("idle", directionToward(npc.x, npc.y, this.playerPos.x, this.playerPos.y), true);
     this.setHeroAction("idle");
-    const questLine = npc.id === "guide"
+    const activeQuest = QUEST_STEPS[Math.min(this.progress.questStep, QUEST_STEPS.length - 1)];
+    const lateCampaignDialogue: Partial<Record<number, string>> = {
+      30: "The Sunbone graves were only the first warning. Moonfen's lanterns are drowning beneath a false eclipse.",
+      34: "Nhalassa's sigil is cold. Moonfen can breathe again, and the southern road now leads toward Emberfall.",
+      35: "Emberfall heat will split ordinary steel. Take this warding salve and hunt the Ashwing before we attempt the crater road.",
+      39: "Varkul's crown still burns. I can quench it into a pickaxe strong enough for the roads ahead.",
+      40: "The lighthouse has been dark for thirteen nights. Help me wake its lens before the coast vanishes into the storm.",
+      44: "Eira's oath is finally broken. The beacon can carry its light across the northern sea again.",
+      45: "The buried court's dead sun has shifted beneath the dunes. We must open its tomb before the next eclipse.",
+      49: "Khepri's seal is whole, but its light answers to you now. The seven roads name you their Warden.",
+    };
+    const questLine = lateCampaignDialogue[this.progress.questStep] && activeQuest.target === npc.name
+      ? lateCampaignDialogue[this.progress.questStep]!
+      : npc.id === "guide"
       ? this.progress.questStep === 15
         ? "The southern beacons are flashing again. Find Ranger-Captain Lyra beyond Briarwild Crossing."
         : npc.dialogue[Math.min(this.progress.questStep, npc.dialogue.length - 1)]
@@ -2931,12 +4245,10 @@ export class OrehavenScene extends Phaser.Scene {
       dialogueLines.push("If you are wounded, press 2 for Second Wind or press 3 to eat one of the trout in your action bar.");
     }
     if (npc.id === "marshal" || npc.id === "captain") dialogueLines.push(npc.dialogue[1]);
-    const activeQuest = QUEST_STEPS[Math.min(this.progress.questStep, QUEST_STEPS.length - 1)];
-    const sideQuest = SIDE_QUESTS.find((entry) => entry.giverNpcId === npc.id && this.progress.questStep >= entry.unlockQuestStep);
+    const sideQuest = this.sideQuestForNpc(npc.id);
     const sideQuestState = sideQuest ? this.progress.sideQuests[sideQuest.id] : undefined;
-    const questSpeaker = (npc.id === "guide" && activeQuest.target === "Mira")
-      || (npc.id === "smith" && (activeQuest.target === "Korra" || activeQuest.target === "Workshop"))
-      || (npc.id === "ranger" && activeQuest.target === "Lyra Thorn");
+    const questSpeaker = activeQuest.target === npc.name
+      || (npc.id === "smith" && activeQuest.target === "Workshop");
     this.callbacks.onDialogue({
       speaker: npc.name,
       role: npc.role,
@@ -2954,9 +4266,21 @@ export class OrehavenScene extends Phaser.Scene {
         : undefined,
       shop: npc.shop,
       service: npc.service,
-      sideQuest: sideQuest ? { id: sideQuest.id, title: sideQuest.title, status: sideQuestState?.status ?? "available", objective: sideQuest.objective.label } : undefined,
+      sideQuest: sideQuest ? {
+        id: sideQuest.id,
+        chapter: sideQuest.chapter,
+        title: sideQuest.title,
+        description: sideQuest.description,
+        status: sideQuestState?.status ?? "available",
+        objective: sideQuest.objective.label,
+        rewardGold: sideQuest.reward.gold,
+        rewardXpSkill: sideQuest.reward.xpSkill,
+        rewardXp: sideQuest.reward.xp,
+        rewardItemId: sideQuest.reward.itemId,
+        rewardQuantity: sideQuest.reward.quantity,
+      } : undefined,
     });
-    if (["guide", "smith", "ranger"].includes(npc.id)
+    if (["guide", "smith", "ranger", "frostkeeper", "sunscar-scholar"].includes(npc.id)
       && this.useAuthoritativeProfileAction({ action: "talk", npcId: npc.id }, `Speaking with ${npc.name}...`)) return;
     if (npc.id === "guide" && this.progress.questStep === 0) {
       this.progress = { ...this.progress, questStep: 1 };
@@ -2970,7 +4294,7 @@ export class OrehavenScene extends Phaser.Scene {
         inventory: { ...this.progress.inventory, trout: (this.progress.inventory.trout ?? 0) + 3 },
       };
       this.showQuestRewardToast(3);
-      this.emitHud({ message: "A New Acre complete. +150 gold and 3 river trout. Mira has another task." });
+      this.emitHud({ message: "The First Spark complete. +150 gold and 3 river trout. Mira has another task." });
     } else if (npc.id === "guide" && this.progress.questStep === 4) {
       this.progress = { ...this.progress, questStep: 5, questComplete: false };
       this.emitHud({ message: "New quest: gather old-growth timber from the western woods." });
@@ -3061,6 +4385,62 @@ export class OrehavenScene extends Phaser.Scene {
       };
       this.showQuestRewardToast(29);
       this.emitHud({ message: "The Sunbone Curse complete. +1,800 gold and Sunforged Warden Plate." });
+    } else if (npc.id === "ranger" && this.progress.questStep === 30) {
+      this.progress = { ...this.progress, questStep: 31, questComplete: false };
+      this.emitHud({ message: "Chapter IV begun: follow the drowned lantern road into Moonfen." });
+      this.callbacks.onToast({ title: "Chapter IV", detail: "The Moonfen Eclipse has begun", tone: "quest" });
+    } else if (npc.id === "ranger" && this.progress.questStep === 34) {
+      this.progress = {
+        ...this.progress,
+        questStep: 35,
+        questComplete: true,
+        gold: this.progress.gold + 2_200,
+        inventory: { ...this.progress.inventory, "moonweave-mantle": (this.progress.inventory["moonweave-mantle"] ?? 0) + 1 },
+      };
+      this.showQuestRewardToast(34);
+      this.emitHud({ message: "The Moonfen Eclipse complete. +2,200 gold and a Moonweave Mantle." });
+    } else if (npc.id === "smith" && this.progress.questStep === 35) {
+      this.progress = { ...this.progress, questStep: 36, questComplete: false };
+      this.emitHud({ message: "Chapter V begun: hunt the Ashwing Drake on Emberfall's western road." });
+      this.callbacks.onToast({ title: "Chapter V", detail: "The Emberfall Crown has begun", tone: "quest" });
+    } else if (npc.id === "smith" && this.progress.questStep === 39) {
+      this.progress = {
+        ...this.progress,
+        questStep: 40,
+        questComplete: true,
+        gold: this.progress.gold + 2_800,
+        inventory: { ...this.progress.inventory, "sunstone-pick": (this.progress.inventory["sunstone-pick"] ?? 0) + 1 },
+      };
+      this.showQuestRewardToast(39);
+      this.emitHud({ message: "The Emberfall Crown complete. +2,800 gold and a Sunstone Pickaxe." });
+    } else if (npc.id === "frostkeeper" && this.progress.questStep === 40) {
+      this.progress = { ...this.progress, questStep: 41, questComplete: false };
+      this.emitHud({ message: "Chapter VI begun: drive the Icefang from Frostmere's crossing." });
+      this.callbacks.onToast({ title: "Chapter VI", detail: "The Last Light has begun", tone: "quest" });
+    } else if (npc.id === "frostkeeper" && this.progress.questStep === 44) {
+      this.progress = {
+        ...this.progress,
+        questStep: 45,
+        questComplete: true,
+        gold: this.progress.gold + 3_400,
+        inventory: { ...this.progress.inventory, "frostspire-staff": (this.progress.inventory["frostspire-staff"] ?? 0) + 1 },
+      };
+      this.showQuestRewardToast(44);
+      this.emitHud({ message: "The Last Light complete. +3,400 gold and a Frostspire Staff." });
+    } else if (npc.id === "sunscar-scholar" && this.progress.questStep === 45) {
+      this.progress = { ...this.progress, questStep: 46, questComplete: false };
+      this.emitHud({ message: "Chapter VII begun: hunt the Dune Stalker along the oasis road." });
+      this.callbacks.onToast({ title: "Chapter VII", detail: "The Buried Sun has begun", tone: "quest" });
+    } else if (npc.id === "sunscar-scholar" && this.progress.questStep === 49) {
+      this.progress = {
+        ...this.progress,
+        questStep: 50,
+        questComplete: true,
+        gold: this.progress.gold + 5_000,
+        inventory: { ...this.progress.inventory, "nightguard-plate": (this.progress.inventory["nightguard-plate"] ?? 0) + 1 },
+      };
+      this.showQuestRewardToast(49);
+      this.emitHud({ message: "The Buried Sun complete. You are now Warden of Seven Roads." });
     } else {
       this.emitHud({ message: `${npc.name}: ${questLine}` });
     }
@@ -3092,6 +4472,8 @@ export class OrehavenScene extends Phaser.Scene {
     this.walkTarget = null;
     this.walkPath = [];
     this.activeEnemyId = enemy.definition.id;
+    this.callbacks.onMusic("battle");
+    this.showBossIntroduction(enemy);
     this.selectedEnemyId = enemy.definition.id;
     this.selectedRing
       .setStrokeStyle(2, enemy.definition.rare ? 0xffdc63 : 0xe96e57, 0.95)
@@ -3121,10 +4503,14 @@ export class OrehavenScene extends Phaser.Scene {
     const strike = () => {
       if (this.disposed || enemy.respawnAt > Date.now()) return;
       this.playStrikeAnimation(enemy, combatStyle);
-      const damage = localCombatDamage(combatStyle, this.progress.skills[combatSkill].level, weapon?.power ?? 1);
+      const combatLevel = this.progress.skills[combatSkill].level;
+      const weaponPower = weapon?.power ?? 1;
+      const critical = localCombatCritical(combatLevel, weaponPower);
+      const baseDamage = localCombatDamage(combatStyle, combatLevel, weaponPower);
+      const damage = critical ? Math.ceil(baseDamage * 1.5) : baseDamage;
       enemy.hp = Math.max(0, enemy.hp - damage);
       this.drawEnemyHp(enemy);
-      this.showDamageNumber(enemy, damage, combatStyle);
+      this.showDamageNumber(enemy, damage, combatStyle, critical);
       if (enemy.hp <= 0) {
         this.finishCombat(enemy);
         return;
@@ -3161,6 +4547,33 @@ export class OrehavenScene extends Phaser.Scene {
     strike();
     if (!this.actionLock) return;
     this.actionTimer = this.time.addEvent({ delay: interval, loop: true, callback: strike });
+  }
+
+  private showBossIntroduction(enemy: EnemyRuntime) {
+    const intro = BOSS_INTRODUCTIONS.find((candidate) => candidate.enemyId === enemy.definition.id);
+    if (!intro || this.introducedBosses.has(enemy.definition.id)) return;
+    this.introducedBosses.add(enemy.definition.id);
+    this.callbacks.onBossIntro({
+      ...intro,
+      enemyName: enemy.definition.name,
+      level: enemy.definition.level,
+      kind: enemy.definition.kind,
+    });
+    this.callbacks.onAudio(enemy.definition.attackStyle === "magic" ? "magic-cast" : "hurt");
+    const ring = this.add
+      .ellipse(enemy.definition.x, enemy.definition.y + 3, 98, 38, intro.accent, 0.08)
+      .setStrokeStyle(3, intro.accent, 0.94)
+      .setDepth(enemy.sprite.depth + 16)
+      .setScale(0.3);
+    const inner = this.add
+      .ellipse(enemy.definition.x, enemy.definition.y + 3, 58, 22)
+      .setStrokeStyle(2, 0xffffff, 0.74)
+      .setDepth(enemy.sprite.depth + 17)
+      .setScale(0.45);
+    this.tweens.add({ targets: ring, scaleX: 1.55, scaleY: 1.55, alpha: 0, duration: 900, ease: "Cubic.easeOut", onComplete: () => ring.destroy() });
+    this.tweens.add({ targets: inner, scaleX: 1.8, scaleY: 1.8, alpha: 0, duration: 760, delay: 90, ease: "Cubic.easeOut", onComplete: () => inner.destroy() });
+    this.cameras.main.flash(150, (intro.accent >> 16) & 0xff, (intro.accent >> 8) & 0xff, intro.accent & 0xff, false, undefined, 0.08);
+    this.cameras.main.shake(180, 0.0022);
   }
 
   private sendCombatStrike(enemy: EnemyRuntime, weaponPower: number, combatStyle: CombatStyle, abilityId?: string) {
@@ -3216,7 +4629,7 @@ export class OrehavenScene extends Phaser.Scene {
       ...this.progress,
       questStep: questStepAfterCombat(this.progress.questStep, enemy.definition, combatStyle),
       activities: recordActivity(this.progress.activities, "combat", 1, enemy.definition.kind),
-      sideQuests: advanceSideQuests(this.progress.sideQuests, "combat", enemy.definition.kind),
+      sideQuests: advanceSideQuests(this.progress.sideQuests, "combat", enemy.definition.kind, enemy.definition.id),
     };
     this.progress = { ...this.progress, activities: recordLifetimeTarget(this.progress.activities, enemy.definition.id) };
     if (enemy.definition.id === publicEventRotation().event.enemyId) {
@@ -3422,7 +4835,7 @@ export class OrehavenScene extends Phaser.Scene {
         inventory: { ...this.progress.inventory, [reward.itemId]: (this.progress.inventory[reward.itemId] ?? 0) + 1 },
         questStep: questStepAfterGather(this.progress.questStep, resource.definition),
         activities: recordActivity(this.progress.activities, "gather"),
-        sideQuests: advanceSideQuests(this.progress.sideQuests, "gather", resource.definition.kind),
+        sideQuests: advanceSideQuests(this.progress.sideQuests, "gather", resource.definition.kind, resource.definition.id),
       };
       this.progress = { ...this.progress, activities: recordLifetimeTarget(this.progress.activities, `resource-${resource.definition.itemId}`) };
     }
@@ -3494,6 +4907,7 @@ export class OrehavenScene extends Phaser.Scene {
     this.destroyFishingFx();
     this.selectedRing.setVisible(false);
     this.setHeroAction("idle");
+    this.callbacks.onMusic(this.activeWorldArea === "dungeon" || this.activeWorldArea === "icefang" ? "dungeon" : "field");
     this.emitHud({ activeAction: null, message, action: "Explore", target: null });
   }
 
@@ -3512,14 +4926,54 @@ export class OrehavenScene extends Phaser.Scene {
   }
 
   private respawnPlayer() {
+    if (this.respawning) return;
+    this.respawning = true;
     this.actionTimer?.remove(false);
     this.actionTimer = null;
-    this.playerPos.set(PLAYER_START.x, PLAYER_START.y);
-    this.applyWorldArea(PLAYER_START.y, true);
-    this.progress = { ...this.progress, hp: this.progress.maxHp };
-    this.updatePlayerView();
-    this.finishAction("You were knocked out and returned to Orehaven Square.");
-    this.cameras.main.flash(280, 255, 245, 210);
+    this.actionLock = true;
+    this.awaitingCombatResponse = false;
+    this.walkTarget = null;
+    this.walkPath = [];
+    this.approachTarget = null;
+    this.selectedRing.setVisible(false);
+    this.heroAction = "idle";
+    this.player?.play("hurt", this.facing, true);
+    this.callbacks.onAudio("hurt");
+    const knockout = this.add
+      .text(this.playerPos.x, this.playerPos.y - 76, "KNOCKED OUT", {
+        fontFamily: "Georgia, serif",
+        fontSize: "18px",
+        fontStyle: "bold",
+        color: "#ffe6ca",
+        stroke: "#421812",
+        strokeThickness: 6,
+        resolution: 2,
+      })
+      .setOrigin(0.5)
+      .setDepth(this.playerPos.y + 120);
+    this.tweens.add({ targets: knockout, y: knockout.y - 18, alpha: 0.25, duration: 760, ease: "Cubic.easeOut" });
+    this.cameras.main.shake(170, 0.0024);
+    this.time.delayedCall(520, () => this.cameras.main.fadeOut(280, 38, 22, 20));
+    this.time.delayedCall(850, () => {
+      if (this.disposed) return;
+      knockout.destroy();
+      this.playerPos.set(PLAYER_START.x, PLAYER_START.y);
+      this.applyWorldArea(PLAYER_START.y, true);
+      this.progress = {
+        ...this.progress,
+        hp: this.progress.maxHp,
+        position: { ...PLAYER_START },
+      };
+      this.updatePlayerView();
+      this.finishAction("You were knocked out and carried back to Orehaven Square.");
+      this.respawning = false;
+      this.cameras.main.fadeIn(420, 255, 239, 204);
+      this.callbacks.onToast({
+        title: "Returned to Orehaven",
+        detail: "The town ward restored your health. Your inventory is safe.",
+        tone: "quest",
+      });
+    });
   }
 
   private addXp(skill: SkillId, xp: number) {
@@ -3562,21 +5016,36 @@ export class OrehavenScene extends Phaser.Scene {
     enemy.hpBar.fillStyle(ratio > 0.35 ? 0xd6534d : 0xffb347, 1).fillRoundedRect(enemy.definition.x - width / 2 + 2, barY + 2, (width - 4) * ratio, 3, 1);
   }
 
-  private showDamageNumber(enemy: EnemyRuntime, damage: number, combatStyle: CombatStyle) {
+  private showDamageNumber(enemy: EnemyRuntime, damage: number, combatStyle: CombatStyle, critical = false) {
     this.callbacks.onAudio("impact");
-    const color = combatStyle === "magic" ? "#8ce8ff" : combatStyle === "range" ? "#c8ef82" : "#ffd08a";
+    const color = critical ? "#fff2a6" : combatStyle === "magic" ? "#8ce8ff" : combatStyle === "range" ? "#c8ef82" : "#ffd08a";
     const text = this.add
-      .text(enemy.definition.x + Phaser.Math.Between(-8, 8), enemy.definition.y - this.enemyVisualHeight(enemy) + 8, `-${damage}`, {
+      .text(enemy.definition.x + Phaser.Math.Between(-8, 8), enemy.definition.y - this.enemyVisualHeight(enemy) + 8, critical ? `CRIT -${damage}` : `-${damage}`, {
         fontFamily: "Verdana, sans-serif",
-        fontSize: "13px",
+        fontSize: critical ? "17px" : "13px",
         fontStyle: "bold",
         color,
-        stroke: "#15110c",
-        strokeThickness: 4,
+        stroke: critical ? "#6b2d12" : "#15110c",
+        strokeThickness: critical ? 5 : 4,
         resolution: 2,
       })
       .setOrigin(0.5)
       .setDepth(enemy.sprite.depth + 12);
+    if (critical) {
+      const burst = this.add
+        .circle(enemy.definition.x, enemy.definition.y - this.enemyVisualHeight(enemy) * 0.52, 12, 0xffd866, 0.18)
+        .setStrokeStyle(3, 0xfff0a0, 0.95)
+        .setDepth(enemy.sprite.depth + 11);
+      this.tweens.add({
+        targets: burst,
+        alpha: 0,
+        scale: 2.7,
+        duration: 280,
+        ease: "Cubic.easeOut",
+        onComplete: () => burst.destroy(),
+      });
+      this.cameras.main.shake(90, 0.0018);
+    }
     const direction = directionToward(enemy.definition.x, enemy.definition.y, this.playerPos.x, this.playerPos.y);
     this.playEnemyReaction(enemy, "hurt", direction);
     if (!enemy.hero && enemy.sprite instanceof Phaser.GameObjects.Sprite) {
@@ -3626,11 +5095,15 @@ export class OrehavenScene extends Phaser.Scene {
       rat: 0xb8906c,
       goblin: 0x8cc66a,
       wolf: 0xb8c2c8,
+      drake: 0xff6d32,
+      "dune-stalker": 0xd8a04d,
+      boar: 0xd45e36,
       slime: enemy.definition.rare ? 0xffd45d : 0x77d6c4,
       orc: 0x7ca55c,
       lizard: 0x69b99a,
       skeleton: 0xe4ddc0,
       witch: 0xb77ae1,
+      treant: 0x74c97b,
     };
     const color = colorByKind[enemy.definition.kind];
     const x = enemy.definition.x;
@@ -3808,9 +5281,13 @@ export class OrehavenScene extends Phaser.Scene {
 
   private enemyVisualHeight(enemy: EnemyRuntime) {
     if (enemy.hero) return 88;
-    if (enemy.definition.kind === "rat") return 32;
-    if (enemy.definition.kind === "wolf") return 52;
-    if (enemy.definition.kind === "slime") return enemy.definition.rare ? 54 : 46;
+    if (enemy.definition.kind === "rat") return enemy.sprite.getData("highDetailCreature") ? 50 : 32;
+    if (enemy.definition.kind === "wolf") return enemy.sprite.getData("highDetailCreature") ? 70 : 52;
+    if (enemy.definition.kind === "drake") return 88;
+    if (enemy.definition.kind === "dune-stalker") return 76;
+    if (enemy.definition.kind === "boar") return enemy.sprite.getData("highDetailCreature") ? 78 : 64;
+    if (enemy.definition.kind === "slime") return enemy.sprite.getData("highDetailCreature") ? (enemy.definition.rare ? 72 : 58) : enemy.definition.rare ? 54 : 46;
+    if (enemy.definition.kind === "treant") return 126;
     if (enemy.definition.kind === "skeleton" || enemy.definition.kind === "witch") return 58;
     return 70;
   }
@@ -3822,7 +5299,8 @@ export class OrehavenScene extends Phaser.Scene {
       this.player.play("hurt", this.facing, true);
       this.time.delayedCall(500, () => {
         if (this.disposed) return;
-        this.setHeroAction(this.actionLock ? "attack" : "idle");
+        if (this.heroAction === "attack" && Date.now() < this.playerAttackUntil) return;
+        this.setHeroAction(this.moving ? "walk" : "idle");
       });
     }
     const text = this.add
@@ -3877,38 +5355,76 @@ export class OrehavenScene extends Phaser.Scene {
     this.player.setPosition(this.playerPos.x, this.playerPos.y);
     this.player.setDepth(this.playerPos.y + 4);
     this.playerShadow.setPosition(this.playerPos.x, this.playerPos.y + 7).setDepth(this.playerPos.y + 1);
-    this.playerName.setPosition(this.playerPos.x, this.playerPos.y - 44).setDepth(this.playerPos.y + 6);
+    this.playerBeacon.setPosition(this.playerPos.x, this.playerPos.y + 7).setDepth(this.playerPos.y + 2);
+    this.playerName
+      .setPosition(this.playerPos.x, this.playerPos.y - 44)
+      .setDepth(this.playerPos.y + 6)
+      .setVisible(!this.activeEnemyId);
   }
 
   private updateNameplates() {
-      this.npcRuntime.forEach((value) => {
+    this.npcRuntime.forEach((value) => {
       const distance = Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, value.definition.x, value.definition.y);
-      value.plate.setVisible(distance < 300);
+      updateNameplate(value.plate, distance < 145, distance < 92);
     });
     this.enemyRuntime.forEach((value) => {
       const distance = Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, value.definition.x, value.definition.y);
-      value.plate.setVisible(value.respawnAt <= Date.now() && distance < 310);
+      const activeTarget = value.definition.id === this.activeEnemyId;
+      updateNameplate(value.plate, !activeTarget && value.respawnAt <= Date.now() && distance < 230, distance < 150);
     });
     this.resourceRuntime.forEach((value) => {
       const distance = Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, value.definition.x, value.definition.y);
-      value.plate.setVisible((value.available || value.claimedBy === this.playerId) && distance < 320);
+      updateNameplate(value.plate, (value.available || value.claimedBy === this.playerId) && distance < 245, distance < 165);
     });
     this.waystoneRuntime.forEach((value) => {
       const distance = Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, value.definition.x, value.definition.y);
-      value.plate.setVisible(distance < 340);
+      updateNameplate(value.plate, distance < 260, true);
     });
     this.dungeonPortalRuntime.forEach((value) => {
       const distance = Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, value.definition.x, value.definition.y);
-      value.plate.setVisible(distance < 360);
+      updateNameplate(value.plate, distance < 280, true);
     });
     if (this.sanctuaryPlate) {
       const distance = Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, TOWN_SANCTUARY.x, TOWN_SANCTUARY.y);
-      this.sanctuaryPlate.setVisible(distance < 250);
+      updateNameplate(this.sanctuaryPlate, this.approachTarget?.kind === "sanctuary" && distance < 105, true);
+    }
+  }
+
+  private spawnFootstepDust() {
+    const baseX = this.playerPos.x + Phaser.Math.Between(-5, 5);
+    const baseY = this.playerPos.y + 5;
+    const color = this.activeWorldArea === "dungeon" || this.activeWorldArea === "icefang" ? 0x9aafbd : this.activeWorldArea === "marsh" ? 0x9cc7b0 : 0xcdb783;
+    for (let index = 0; index < 2; index += 1) {
+      const mote = this.add
+        .rectangle(
+          baseX + (index === 0 ? -4 : 4),
+          baseY + Phaser.Math.Between(-1, 1),
+          Phaser.Math.Between(2, 4),
+          Phaser.Math.Between(1, 2),
+          color,
+          0.42,
+        )
+        .setAngle(Phaser.Math.Between(-25, 25))
+        .setDepth(this.player.depth - 2);
+      this.tweens.add({
+        targets: mote,
+        x: mote.x + Phaser.Math.Between(-8, 8),
+        y: mote.y - Phaser.Math.Between(3, 7),
+        alpha: 0,
+        scale: 0.55,
+        duration: 220,
+        ease: "Quad.easeOut",
+        onComplete: () => mote.destroy(),
+      });
     }
   }
 
   private updateNearbyAction() {
-    if (this.actionLock || this.inputPaused) return;
+    if (this.actionLock || this.inputPaused) {
+      this.nearbyRing.setVisible(false);
+      this.nearbyPrompt.setVisible(false);
+      return;
+    }
     const clue = this.activeTreasureClue();
     const clueNearby = clue && Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, clue.x, clue.y) <= INTERACTION_RANGE + 18;
     const target = clueNearby ? null : this.nearestTarget();
@@ -3929,6 +5445,40 @@ export class OrehavenScene extends Phaser.Scene {
       : clueNearby
         ? `Search ${clue.title}`
         : "Explore";
+    const focus = target
+      ? target.kind === "sanctuary"
+        ? { x: target.value.x, y: target.value.y, color: 0x79e69a }
+        : {
+            x: target.value.definition.x,
+            y: target.value.definition.y,
+            color: target.kind === "npc"
+              ? 0xffd45e
+              : target.kind === "enemy"
+                ? 0xef6f5e
+                : target.kind === "resource"
+                  ? 0x77d89b
+                  : target.kind === "portal"
+                    ? 0xa78cff
+                    : 0x70e3d2,
+          }
+      : clueNearby
+        ? { x: clue.x, y: clue.y, color: 0xffd45e }
+        : null;
+    const showFocus = Boolean(focus && !this.selectedEnemyId && !this.approachTarget);
+    if (focus && showFocus) {
+      this.nearbyRing
+        .setPosition(focus.x, focus.y + 5)
+        .setDepth(focus.y - 1)
+        .setStrokeStyle(2, focus.color, 0.78)
+        .setVisible(true);
+      this.nearbyPrompt
+        .setPosition(focus.x, focus.y - 34)
+        .setDepth(focus.y + 12)
+        .setVisible(true);
+    } else {
+      this.nearbyRing.setVisible(false);
+      this.nearbyPrompt.setVisible(false);
+    }
     if (action !== this.lastActionLabel) {
       this.lastActionLabel = action;
       this.emitHud({ action }, false);
@@ -4008,57 +5558,190 @@ export class OrehavenScene extends Phaser.Scene {
   }
 
   private playStrikeAnimation(enemy?: EnemyRuntime, combatStyle = itemById(this.progress.equipped.weapon)?.combatStyle ?? "melee") {
+    if (enemy) this.faceToward(enemy.definition.x, enemy.definition.y);
+    const weaponId = this.progress.equipped.weapon;
+    const attackColor = weaponAbility(weaponId).color;
     this.callbacks.onAudio(combatStyle === "range" ? "range-shot" : combatStyle === "magic" ? "magic-cast" : "melee-swing");
-    this.playerAttackUntil = Date.now() + (combatStyle === "range" ? 610 : 520);
+    const attackEndsAt = Date.now() + (combatStyle === "range" ? 610 : 520);
+    this.playerAttackUntil = attackEndsAt;
     this.setHeroAction("attack");
     this.player.playSignatureMotion(combatStyle, this.facing, false);
     this.time.delayedCall(combatStyle === "range" ? 610 : 520, () => {
-      if (this.actionLock && this.heroAction === "attack") this.setHeroAction("idle");
+      this.settleHeroAfterAttack(attackEndsAt);
     });
-    if (!enemy || combatStyle === "melee") return;
+    if (!enemy) return;
 
-    if (combatStyle === "range") {
-      const angle = Phaser.Math.Angle.Between(this.playerPos.x, this.playerPos.y - 16, enemy.definition.x, enemy.definition.y - 26);
-      const arrow = this.add
-        .image(this.playerPos.x, this.playerPos.y - 16, ARROW_KEY)
-        .setScale(0.82)
-        .setRotation(angle)
-        .setDepth(Math.max(this.player.depth, enemy.sprite.depth) + 8);
-      this.tweens.add({
-        targets: arrow,
-        x: enemy.definition.x,
-        y: enemy.definition.y - 28,
-        duration: 210,
-        ease: "Sine.easeIn",
-        onComplete: () => arrow.destroy(),
+    if (combatStyle === "melee") {
+      this.time.delayedCall(125, () => {
+        if (!this.disposed && enemy.respawnAt <= Date.now()) this.playBasicMeleeFx(enemy, attackColor);
       });
       return;
     }
 
-    const ember = this.progress.equipped.weapon === "ember-staff";
-    const bolt = this.add
-      .sprite(this.playerPos.x, this.playerPos.y - 18, ember ? FIREBALL_KEY : ARCANE_BOLT_KEY, 0)
-      .setScale(1.34)
-      .setRotation(Phaser.Math.Angle.Between(this.playerPos.x, this.playerPos.y - 18, enemy.definition.x, enemy.definition.y - 28))
-      .setDepth(Math.max(this.player.depth, enemy.sprite.depth) + 8)
-      .play(ember ? "ore-fireball-flight" : "ore-arcane-bolt-flight");
-    this.tweens.add({
-      targets: bolt,
-      x: enemy.definition.x,
-      y: enemy.definition.y - 28,
-      duration: 270,
-      ease: "Cubic.easeIn",
-      onComplete: () => {
-        const impact = this.add
-          .sprite(enemy.definition.x, enemy.definition.y - 28, ember ? ANSIMUZ_FIRE_BOMB_KEY : ANSIMUZ_SPARK_KEY, 0)
-          .setScale(ember ? 1.25 : 1.65)
-          .setDepth(enemy.sprite.depth + 10)
-          .play(ember ? "ore-ansimuz-fire-bomb" : "ore-ansimuz-spark");
-        impact.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => impact.destroy());
-        this.cameras.main.shake(70, 0.0012);
-        bolt.destroy();
-      },
+    if (combatStyle === "range") {
+      this.time.delayedCall(230, () => {
+        if (this.disposed || enemy.respawnAt > Date.now()) return;
+        const fromX = this.playerPos.x;
+        const fromY = this.playerPos.y - 16;
+        const targetX = enemy.definition.x;
+        const targetY = enemy.definition.y - 26;
+        const angle = Phaser.Math.Angle.Between(fromX, fromY, targetX, targetY);
+        const depth = Math.max(this.player.depth, enemy.sprite.depth) + 8;
+        this.playProjectileTracer(fromX, fromY, targetX, targetY, attackColor, depth, 4);
+        const arrow = this.add
+          .image(fromX, fromY, ARROW_KEY)
+          .setScale(0.82)
+          .setRotation(angle)
+          .setTint(attackColor)
+          .setDepth(depth);
+        this.tweens.add({
+          targets: arrow,
+          x: targetX,
+          y: targetY,
+          duration: 210,
+          ease: "Sine.easeIn",
+          onComplete: () => {
+            this.playWeaponImpact(targetX, targetY, attackColor, depth + 4, 0.72);
+            arrow.destroy();
+          },
+        });
+      });
+      return;
+    }
+
+    this.time.delayedCall(185, () => {
+      if (this.disposed || enemy.respawnAt > Date.now()) return;
+      const ember = weaponId === "ember-staff";
+      const fromX = this.playerPos.x;
+      const fromY = this.playerPos.y - 18;
+      const targetX = enemy.definition.x;
+      const targetY = enemy.definition.y - 28;
+      const depth = Math.max(this.player.depth, enemy.sprite.depth) + 8;
+      this.playProjectileTracer(fromX, fromY, targetX, targetY, attackColor, depth - 1, 5);
+      const bolt = this.add
+        .sprite(fromX, fromY, ember ? FIREBALL_KEY : ARCANE_BOLT_KEY, 0)
+        .setScale(1.34)
+        .setRotation(Phaser.Math.Angle.Between(fromX, fromY, targetX, targetY))
+        .setTint(attackColor)
+        .setDepth(depth)
+        .play(ember ? "ore-fireball-flight" : "ore-arcane-bolt-flight");
+      this.tweens.add({
+        targets: bolt,
+        x: targetX,
+        y: targetY,
+        duration: 270,
+        ease: "Cubic.easeIn",
+        onComplete: () => {
+          const impact = this.add
+            .sprite(targetX, targetY, ember ? ANSIMUZ_FIRE_BOMB_KEY : ANSIMUZ_SPARK_KEY, 0)
+            .setScale(ember ? 1.25 : 1.65)
+            .setTint(attackColor)
+            .setDepth(enemy.sprite.depth + 10)
+            .play(ember ? "ore-ansimuz-fire-bomb" : "ore-ansimuz-spark");
+          impact.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => impact.destroy());
+          this.playWeaponImpact(targetX, targetY, attackColor, depth + 5, ember ? 0.92 : 0.78);
+          this.cameras.main.shake(70, 0.0012);
+          bolt.destroy();
+        },
+      });
     });
+  }
+
+  private playProjectileTracer(
+    fromX: number,
+    fromY: number,
+    targetX: number,
+    targetY: number,
+    color: number,
+    depth: number,
+    count: number,
+  ) {
+    for (let index = 0; index < count; index += 1) {
+      const amount = (index + 1) / (count + 1);
+      const mote = this.add
+        .ellipse(
+          Phaser.Math.Linear(fromX, targetX, amount),
+          Phaser.Math.Linear(fromY, targetY, amount),
+          8 - index * 0.7,
+          3,
+          color,
+          0.5,
+        )
+        .setRotation(Phaser.Math.Angle.Between(fromX, fromY, targetX, targetY))
+        .setDepth(depth);
+      this.tweens.add({
+        targets: mote,
+        x: targetX,
+        y: targetY,
+        alpha: 0,
+        scaleX: 0.3,
+        delay: index * 18,
+        duration: 170 + index * 14,
+        ease: "Cubic.easeIn",
+        onComplete: () => mote.destroy(),
+      });
+    }
+  }
+
+  private playWeaponImpact(x: number, y: number, color: number, depth: number, scale: number) {
+    const core = this.add.circle(x, y, 6, 0xffffff, 0.92).setStrokeStyle(2, color, 0.95).setDepth(depth);
+    const ring = this.add.ellipse(x, y + 4, 18, 8, color, 0.08).setStrokeStyle(2, color, 0.8).setDepth(depth - 1);
+    this.tweens.add({
+      targets: core,
+      scale: 2.2 * scale,
+      alpha: 0,
+      duration: 145,
+      ease: "Quad.easeOut",
+      onComplete: () => core.destroy(),
+    });
+    this.tweens.add({
+      targets: ring,
+      scaleX: 2.1 * scale,
+      scaleY: 1.6 * scale,
+      alpha: 0,
+      duration: 210,
+      ease: "Cubic.easeOut",
+      onComplete: () => ring.destroy(),
+    });
+  }
+
+  private playBasicMeleeFx(enemy: EnemyRuntime, color: number) {
+    const targetX = enemy.definition.x;
+    const targetY = enemy.definition.y - 24;
+    const angle = Phaser.Math.Angle.Between(this.playerPos.x, this.playerPos.y - 18, targetX, targetY);
+    const depth = enemy.sprite.depth + 18;
+    const slash = this.add
+      .sprite(targetX, targetY, MELEE_SLASH_KEY, 0)
+      .setRotation(angle + Math.PI / 2)
+      .setScale(0.095)
+      .setTint(color)
+      .setDepth(depth)
+      .play("ore-melee-slash");
+    slash.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => slash.destroy());
+
+    // A compact hit-confirm keeps the regular attack readable without
+    // competing with the larger signature-ability effects.
+    this.time.delayedCall(62, () => {
+      if (this.disposed || enemy.respawnAt > Date.now()) return;
+      this.playAnimeImpact(targetX, targetY, color, depth + 6, 0.68);
+      this.playWeaponImpact(targetX, targetY, color, depth + 7, 0.74);
+    });
+
+    const impact = this.add
+      .ellipse(targetX, targetY + 6, 20, 8)
+      .setStrokeStyle(2, color, 0.78)
+      .setDepth(depth - 1);
+    this.tweens.add({
+      targets: impact,
+      scaleX: 1.7,
+      scaleY: 1.35,
+      alpha: 0,
+      duration: 220,
+      delay: 45,
+      ease: "Quad.easeOut",
+      onComplete: () => impact.destroy(),
+    });
+    this.cameras.main.shake(45, 0.0011);
   }
 
   private playSignatureAbilityFx(enemy: EnemyRuntime, combatStyle: CombatStyle, abilityId: string) {
@@ -4083,7 +5766,8 @@ export class OrehavenScene extends Phaser.Scene {
   private playSignatureHeroAnimation(combatStyle: CombatStyle, heavy: boolean) {
     this.callbacks.onAudio(combatStyle === "range" ? "range-shot" : combatStyle === "magic" ? "magic-cast" : "melee-swing");
     const duration = combatStyle === "range" ? 790 : combatStyle === "magic" ? 720 : 680;
-    this.playerAttackUntil = Date.now() + duration;
+    const attackEndsAt = Date.now() + duration;
+    this.playerAttackUntil = attackEndsAt;
     this.heroAction = "attack";
     const signatureAction: HeroVisualAction = combatStyle === "range"
       ? "rangeSignature"
@@ -4093,8 +5777,13 @@ export class OrehavenScene extends Phaser.Scene {
     this.player.play(signatureAction, this.facing, true);
     this.player.playSignatureMotion(combatStyle, this.facing, heavy);
     this.time.delayedCall(duration, () => {
-      if (this.actionLock && this.heroAction === "attack") this.setHeroAction("idle");
+      this.settleHeroAfterAttack(attackEndsAt);
     });
+  }
+
+  private settleHeroAfterAttack(attackEndsAt: number) {
+    if (!this.actionLock || this.heroAction !== "attack" || this.playerAttackUntil !== attackEndsAt) return;
+    this.setHeroAction(this.moving ? "walk" : "idle");
   }
 
   private playAnimeMeleeFx(enemy: EnemyRuntime, color: number, slashCount: number, heavy: boolean, abilityId: string) {
@@ -4323,7 +6012,76 @@ export class OrehavenScene extends Phaser.Scene {
         .setDepth(enemy.sprite.depth + 21);
       this.tweens.add({ targets: brand, y: brand.y - 12, alpha: 0, duration: 900, ease: "Quad.easeOut", onComplete: () => brand.destroy() });
     }
+    this.playAdvancedTreeAbilityFx(enemy, ability);
     this.cameras.main.shake(ability.areaRadius ? 135 : 90, ability.branch === "melee" ? 0.0022 : 0.0015);
+  }
+
+  private playAdvancedTreeAbilityFx(enemy: EnemyRuntime, ability: SkillTreeNodeDefinition) {
+    const centerX = enemy.definition.x;
+    const centerY = enemy.definition.y - 5;
+    const depth = enemy.sprite.depth + 24;
+    if (ability.id === "groundbreaker") {
+      for (let index = 0; index < 9; index += 1) {
+        const angle = (Math.PI * 2 * index) / 9 + Phaser.Math.FloatBetween(-0.14, 0.14);
+        const crack = this.add
+          .rectangle(centerX, centerY, Phaser.Math.Between(54, 112), Phaser.Math.Between(2, 4), index % 2 ? 0xffd17a : 0x6e3e28, 0.9)
+          .setOrigin(0, 0.5)
+          .setRotation(angle)
+          .setScale(0.05, 1)
+          .setDepth(depth);
+        this.tweens.add({
+          targets: crack,
+          scaleX: 1,
+          alpha: 0,
+          duration: 430,
+          delay: index * 18,
+          ease: "Expo.easeOut",
+          onComplete: () => crack.destroy(),
+        });
+      }
+      return;
+    }
+    if (ability.id === "pinning-volley") {
+      for (let index = 0; index < 14; index += 1) {
+        const landingX = centerX + Phaser.Math.Between(-92, 92);
+        const landingY = centerY + Phaser.Math.Between(-34, 34);
+        const arrow = this.add
+          .rectangle(landingX + 26, landingY - 115, 3, 27, index % 3 === 0 ? 0xeaffc5 : 0x90dfb1, 0.96)
+          .setRotation(0.24)
+          .setDepth(depth + index);
+        this.tweens.add({
+          targets: arrow,
+          x: landingX,
+          y: landingY,
+          duration: 190,
+          delay: index * 34,
+          ease: "Quad.easeIn",
+          onComplete: () => this.tweens.add({ targets: arrow, alpha: 0, duration: 180, delay: 80, onComplete: () => arrow.destroy() }),
+        });
+      }
+      return;
+    }
+    if (ability.id === "frost-nova-tree") {
+      for (let index = 0; index < 12; index += 1) {
+        const angle = (Math.PI * 2 * index) / 12;
+        const shard = this.add
+          .triangle(centerX, centerY, 0, 15, 5, 0, 10, 15, index % 2 ? 0xd9f7ff : 0x79d9ff, 0.94)
+          .setRotation(angle + Math.PI / 2)
+          .setScale(0.45)
+          .setDepth(depth);
+        this.tweens.add({
+          targets: shard,
+          x: centerX + Math.cos(angle) * 104,
+          y: centerY + Math.sin(angle) * 55,
+          scale: 1.25,
+          alpha: 0,
+          duration: 520,
+          delay: index * 15,
+          ease: "Cubic.easeOut",
+          onComplete: () => shard.destroy(),
+        });
+      }
+    }
   }
 
   private applyLocalTreeAbility(primary: EnemyRuntime, ability: SkillTreeNodeDefinition) {
@@ -4344,6 +6102,15 @@ export class OrehavenScene extends Phaser.Scene {
       enemy.hp = Math.max(0, enemy.hp - damage);
       this.drawEnemyHp(enemy);
       this.showDamageNumber(enemy, damage, ability.branch);
+      if (ability.status && enemy.hp > 0) {
+        enemy.status = {
+          kind: ability.status.kind,
+          label: ability.status.label,
+          expiresAt: Date.now() + ability.status.durationMs,
+          strength: ability.status.strength ?? 0,
+        };
+        this.showEnemyStatusFx(enemy, enemy.status);
+      }
       if (enemy.hp <= 0) this.finishCombat(enemy);
     });
     if (ability.dot && primary.hp > 0) {
@@ -4416,10 +6183,23 @@ export class OrehavenScene extends Phaser.Scene {
     const armorPower = itemById(this.progress.equipped.armor)?.power ?? 0;
     const defenseLevel = this.progress.skills.defense.level;
     const reduction = Math.floor(armorPower / 8) + Math.floor(Math.max(0, defenseLevel - 1) / 8);
-    return Math.max(1, Math.floor(rawDamage) - reduction);
+    const treeRemaining = (["melee", "range", "magic"] as const).reduce(
+      (remaining, branch) => remaining * (1 - skillTreeBonuses(this.progress, branch).damageReduction),
+      1,
+    );
+    const totalReduction = Math.min(
+      0.45,
+      1 - treeRemaining * (1 - armorDamageReduction(this.progress.equipped.armor)),
+    );
+    return Math.max(1, Math.floor((Math.floor(rawDamage) - reduction) * (1 - totalReduction)));
   }
 
   private currentLocation() {
+    if (this.playerPos.y >= 7168) return "Orehaven Guild Hall";
+    if (this.playerPos.y >= 6144) return "Sunscar Expanse";
+    if (this.playerPos.y >= 5120) return "Frostmere Coast";
+    if (this.playerPos.y >= 4096) return "Emberfall Highlands";
+    if (this.playerPos.y >= 3072) return "Moonfen Expanse";
     if (this.playerPos.y >= 2048) return "Sunstone Catacombs";
     if (this.playerPos.y >= 1024) {
       if (this.playerPos.y < 1360 && this.playerPos.x > 820) return "Moonfen Marsh";
@@ -4496,10 +6276,12 @@ export class OrehavenScene extends Phaser.Scene {
     if (this.disposed || !this.scene.isActive()) return;
     let ws: WebSocket;
     try {
-      const protocols = identity.accessToken ? ["oreacres.v1", `jwt-${identity.accessToken}`] : [];
+      // The realtime server negotiates the protocol for both guests and authenticated
+      // players. Guests still need the base protocol; only the JWT extension is optional.
+      const protocols = ["oreacres.v1", ...(identity.accessToken ? [`jwt-${identity.accessToken}`] : [])];
       ws = new WebSocket(
         `${resolveWsUrl()}?room=${encodeURIComponent(room)}&name=${encodeURIComponent(this.displayName)}`,
-        protocols.length ? protocols : undefined,
+        protocols,
       );
     } catch {
       this.emitHud({ online: "offline" }, false);
@@ -4561,10 +6343,13 @@ export class OrehavenScene extends Phaser.Scene {
       const pendingIdentityRaw = window.localStorage.getItem("ore-acres-rpg-identity-sync-pending");
       if (pendingIdentityRaw) {
         try {
-          const pendingIdentity = JSON.parse(pendingIdentityRaw) as { displayName?: unknown; appearance?: unknown };
+          const pendingIdentity = JSON.parse(pendingIdentityRaw) as { displayName?: unknown; appearance?: unknown; customization?: unknown };
           const displayName = typeof pendingIdentity.displayName === "string" ? pendingIdentity.displayName : this.displayName;
           const appearance = isAppearanceId(pendingIdentity.appearance) ? pendingIdentity.appearance : this.progress.appearance;
-          this.ws?.send(JSON.stringify({ type: "rpg_identity_update", displayName, appearance }));
+          const customization = pendingIdentity.customization && typeof pendingIdentity.customization === "object"
+            ? pendingIdentity.customization
+            : this.progress.customization;
+          this.ws?.send(JSON.stringify({ type: "rpg_identity_update", displayName, appearance, customization }));
         } catch {
           window.localStorage.removeItem("ore-acres-rpg-identity-sync-pending");
         }
@@ -4881,6 +6666,7 @@ export class OrehavenScene extends Phaser.Scene {
 
     const nextX = Number.isFinite(Number(state.x)) ? Number(state.x) : enemy.definition.x;
     const nextY = Number.isFinite(Number(state.y)) ? Number(state.y) : enemy.definition.y;
+    const regionalActive = worldAreaAtY(nextY) === this.activeWorldArea;
     const moved = Phaser.Math.Distance.Between(enemy.definition.x, enemy.definition.y, nextX, nextY) > 0.35;
     enemy.definition.x = nextX;
     enemy.definition.y = nextY;
@@ -4893,7 +6679,7 @@ export class OrehavenScene extends Phaser.Scene {
       enemy.threatRing.setPosition(nextX, nextY + 3);
       enemy.rareAura?.setPosition(nextX, nextY + 2).setDepth(nextY - 0.25);
       enemy.plate.setPosition(nextX, nextY + 20);
-    } else if (moved) {
+    } else if (moved && regionalActive) {
       this.tweens.killTweensOf(enemy.sprite);
       this.tweens.killTweensOf(enemy.hitZone);
       this.tweens.killTweensOf(enemy.shadow);
@@ -4942,6 +6728,13 @@ export class OrehavenScene extends Phaser.Scene {
         duration: 230,
         ease: "Linear",
       });
+    } else if (moved) {
+      enemy.sprite.setPosition(nextX, nextY);
+      enemy.hitZone.setPosition(nextX, nextY + 5);
+      enemy.shadow.setPosition(nextX, nextY + 1);
+      enemy.threatRing.setPosition(nextX, nextY + 3);
+      enemy.rareAura?.setPosition(nextX, nextY + 2);
+      enemy.plate.setPosition(nextX, nextY + 20);
     }
     enemy.sprite.setDepth(nextY);
     enemy.hitZone.setDepth(20_000 + nextY);
@@ -4958,7 +6751,7 @@ export class OrehavenScene extends Phaser.Scene {
       const phaseRule = SUNSTONE_REVENANT_PHASES[nextPhase - 1];
       const phaseColor = phaseRule.color;
       enemy.rareAura?.setFillStyle(phaseColor, nextPhase === 3 ? 0.22 : 0.14).setStrokeStyle(nextPhase === 3 ? 4 : 3, phaseColor, 0.92);
-      if (!initial && previousPhase && nextPhase > previousPhase && enemy.hp > 0) {
+      if (regionalActive && !initial && previousPhase && nextPhase > previousPhase && enemy.hp > 0) {
         const phaseName = phaseRule.name;
         this.cameras.main.shake(260, nextPhase === 3 ? 0.008 : 0.005);
         this.callbacks.onToast({ title: `Aurex phase ${nextPhase}`, detail: `${phaseName} awakened • Watch the cast marker`, tone: "quest" });
@@ -4969,13 +6762,13 @@ export class OrehavenScene extends Phaser.Scene {
     enemy.status = normalizeEnemyStatus(state.status);
     const previousTargetPlayerId = enemy.targetPlayerId;
     enemy.targetPlayerId = typeof state.targetPlayerId === "string" ? state.targetPlayerId : null;
-    if (!initial && data.statusApplied && enemy.status) this.showEnemyStatusFx(enemy, enemy.status);
+    if (regionalActive && !initial && data.statusApplied && enemy.status) this.showEnemyStatusFx(enemy, enemy.status);
     const defeated = enemy.respawnAt > Date.now() || enemy.hp <= 0;
     const targetedPlayer = enemy.targetPlayerId === this.playerId;
     enemy.threatRing
       .setStrokeStyle(targetedPlayer ? 3 : 2, targetedPlayer ? 0xf05c4f : 0xe7a74f, targetedPlayer ? 0.98 : 0.72)
-      .setVisible(!defeated && Boolean(enemy.targetPlayerId));
-    if (!initial && targetedPlayer && previousTargetPlayerId !== this.playerId) this.showAggroAlert(enemy);
+      .setVisible(regionalActive && !defeated && Boolean(enemy.targetPlayerId));
+    if (regionalActive && !initial && targetedPlayer && previousTargetPlayerId !== this.playerId) this.showAggroAlert(enemy);
     if (this.selectedEnemyId === enemy.definition.id) {
       if (defeated && this.activeEnemyId !== enemy.definition.id) {
         this.selectedEnemyId = null;
@@ -4988,12 +6781,12 @@ export class OrehavenScene extends Phaser.Scene {
     if (enemy.definition.id === publicEventRotation().event.enemyId) this.emitHud({ worldEvent: this.featuredWorldEventState() }, false);
     const incomingStyle: CombatStyle = data.combatStyle === "range" || data.combatStyle === "magic" ? data.combatStyle : "melee";
     const incomingDamage = Math.max(0, Number(data.damage) || 0);
-    if (!initial && incomingDamage > 0) this.showDamageNumber(enemy, incomingDamage, incomingStyle);
+    if (regionalActive && !initial && incomingDamage > 0) this.showDamageNumber(enemy, incomingDamage, incomingStyle, Boolean(data.critical));
     const treeAbility = data.treeAbility ? SKILL_TREE_NODES.find((entry) => entry.id === data.abilityId) : null;
-    if (!initial && treeAbility && data.sourcePlayerId !== this.playerId && !data.secondary && !data.effectTick) {
+    if (regionalActive && !initial && treeAbility && data.sourcePlayerId !== this.playerId && !data.secondary && !data.effectTick) {
       this.playTreeAbilityFx(enemy, treeAbility);
     }
-    if (!initial && treeAbility && data.effectTick) this.showTreeTickFx(enemy, treeAbility);
+    if (regionalActive && !initial && treeAbility && data.effectTick) this.showTreeTickFx(enemy, treeAbility);
     if (defeated) {
       enemy.reaction = null;
       enemy.reactionUntil = 0;
@@ -5002,7 +6795,7 @@ export class OrehavenScene extends Phaser.Scene {
       enemy.threatRing.setVisible(false);
       enemy.hpBar.setVisible(false);
       enemy.hitZone.disableInteractive();
-      if (initial) {
+      if (initial || !regionalActive) {
         enemy.sprite.setVisible(false).setAlpha(0);
         enemy.shadow.setVisible(false).setAlpha(0);
         enemy.plate.setVisible(false).setAlpha(0);
@@ -5027,7 +6820,7 @@ export class OrehavenScene extends Phaser.Scene {
         enemy.plate.setVisible(false).setAlpha(0);
         enemy.rareAura?.setVisible(false).setAlpha(0);
       }
-    } else {
+    } else if (regionalActive) {
       enemy.sprite.setVisible(true).setAlpha(1);
       enemy.hitZone.setInteractive({ useHandCursor: true });
       enemy.shadow.setVisible(true).setAlpha(enemy.definition.rare ? 0.42 : 0.34);
@@ -5045,10 +6838,12 @@ export class OrehavenScene extends Phaser.Scene {
       }
       this.drawEnemyHp(enemy);
       enemy.hpBar.setVisible(enemy.hp < enemy.definition.maxHp);
+    } else {
+      this.setEnemyRegionalActive(enemy, false);
     }
 
     const retaliation = Math.max(0, Number(data.retaliation) || 0);
-    if (!initial && !defeated && retaliation > 0) {
+    if (regionalActive && !initial && !defeated && retaliation > 0) {
       const remoteSource = this.remotes.get(data.sourcePlayerId);
       const targetX = data.sourcePlayerId === this.playerId ? this.playerPos.x : remoteSource?.hero.x ?? this.playerPos.x;
       const targetY = data.sourcePlayerId === this.playerId ? this.playerPos.y : remoteSource?.hero.y ?? this.playerPos.y;
@@ -5123,7 +6918,7 @@ export class OrehavenScene extends Phaser.Scene {
             ...this.progress,
             questStep: questStepAfterCombat(this.progress.questStep, enemy.definition, combatStyle),
             activities: recordActivity(this.progress.activities, "combat", 1, enemy.definition.kind),
-            sideQuests: advanceSideQuests(this.progress.sideQuests, "combat", enemy.definition.kind),
+            sideQuests: advanceSideQuests(this.progress.sideQuests, "combat", enemy.definition.kind, enemy.definition.id),
           };
           this.progress = { ...this.progress, activities: recordLifetimeTarget(this.progress.activities, enemy.definition.id) };
           if (enemy.definition.id === publicEventRotation().event.enemyId) {
@@ -5272,6 +7067,7 @@ export class OrehavenScene extends Phaser.Scene {
 
   private resolveEnemyTelegraph(data: any) {
     const enemyId = String(data?.enemyId ?? "");
+    const enemy = this.enemyRuntime.get(enemyId);
     const container = this.enemyTelegraphs.get(enemyId);
     if (container) {
       container.destroy(true);
@@ -5309,6 +7105,7 @@ export class OrehavenScene extends Phaser.Scene {
         onComplete: () => spark.destroy(),
       });
     }
+    if (enemy) this.showCreatureSpecialImpact(enemy, x, y, radius, color);
     if (data?.targetPlayerId === this.playerId && !data?.hit) {
       const dodge = this.add
         .text(this.playerPos.x, this.playerPos.y - 54, "DODGED", {
@@ -5326,6 +7123,54 @@ export class OrehavenScene extends Phaser.Scene {
       this.callbacks.onAudio("quest");
       this.emitHud({ message: `Dodged ${String(data?.abilityName || "the enemy ability")}!` });
     }
+  }
+
+  private showCreatureSpecialImpact(enemy: EnemyRuntime, x: number, y: number, radius: number, color: number) {
+    const depth = y + 12;
+    if (enemy.definition.kind === "drake") {
+      const blast = this.add
+        .sprite(x, y - 18, ANSIMUZ_FIRE_BOMB_KEY, 0)
+        .setScale(Math.max(0.9, radius / 78))
+        .setDepth(depth)
+        .play("ore-ansimuz-fire-bomb");
+      blast.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => blast.destroy());
+      this.cameras.main.shake(110, 0.0021);
+      return;
+    }
+    if (enemy.definition.kind === "dune-stalker") {
+      for (let index = 0; index < 10; index += 1) {
+        const angle = (Math.PI * 2 * index) / 10;
+        const dust = this.add
+          .ellipse(x, y, 8, 4, index % 2 === 0 ? 0xf2cf78 : color, 0.78)
+          .setRotation(angle)
+          .setDepth(depth);
+        this.tweens.add({
+          targets: dust,
+          x: x + Math.cos(angle) * radius * 0.82,
+          y: y + Math.sin(angle) * radius * 0.4,
+          scaleX: 1.8,
+          scaleY: 1.8,
+          alpha: 0,
+          duration: 480,
+          ease: "Cubic.easeOut",
+          onComplete: () => dust.destroy(),
+        });
+      }
+      return;
+    }
+    if (enemy.definition.kind !== "boar") return;
+    const fissure = this.add.graphics().setDepth(depth);
+    fissure.lineStyle(3, 0xffc56b, 0.9);
+    for (let branch = 0; branch < 4; branch += 1) {
+      const angle = (Math.PI * 2 * branch) / 4 + 0.25;
+      fissure.beginPath();
+      fissure.moveTo(x, y);
+      fissure.lineTo(x + Math.cos(angle) * radius * 0.4, y + Math.sin(angle) * radius * 0.18);
+      fissure.lineTo(x + Math.cos(angle + 0.18) * radius * 0.78, y + Math.sin(angle + 0.18) * radius * 0.36);
+      fissure.strokePath();
+    }
+    this.tweens.add({ targets: fissure, alpha: 0, duration: 560, ease: "Quad.easeIn", onComplete: () => fissure.destroy() });
+    this.cameras.main.shake(80, 0.0015);
   }
 
   private applyWorldEventReward(data: any) {
@@ -5372,7 +7217,7 @@ export class OrehavenScene extends Phaser.Scene {
           ? recordActivity(this.progress.activities, "combat", 1, definition.kind)
           : this.progress.activities,
         sideQuests: definition
-          ? advanceSideQuests(this.progress.sideQuests, "combat", definition.kind)
+          ? advanceSideQuests(this.progress.sideQuests, "combat", definition.kind, definition.id)
           : this.progress.sideQuests,
       };
       if (definition) this.progress = { ...this.progress, activities: recordLifetimeTarget(this.progress.activities, definition.id) };
@@ -5605,16 +7450,25 @@ export class OrehavenScene extends Phaser.Scene {
     const targetX = targetPlayerId === this.playerId ? this.playerPos.x : remote?.hero.x;
     const targetY = targetPlayerId === this.playerId ? this.playerPos.y : remote?.hero.y;
     if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) return;
-    const angle = Phaser.Math.Angle.Between(enemy.definition.x, enemy.definition.y - 28, targetX!, targetY! - 22);
-    const ranged = enemy.definition.attackStyle === "range";
-    const bolt = ranged
+    const isDrake = enemy.definition.kind === "drake";
+    const launchY = enemy.definition.y - (isDrake ? 50 : 28);
+    const angle = Phaser.Math.Angle.Between(enemy.definition.x, launchY, targetX!, targetY! - 22);
+    const ranged = enemy.definition.attackStyle === "range" && !isDrake;
+    const bolt = isDrake
       ? this.add
-          .image(enemy.definition.x, enemy.definition.y - 28, ARROW_KEY)
+          .sprite(enemy.definition.x, launchY, FIREBALL_KEY, 0)
+          .setScale(1.62)
+          .setRotation(angle)
+          .setDepth(Math.max(enemy.sprite.depth, targetY!) + 9)
+          .play("ore-fireball-flight")
+      : ranged
+      ? this.add
+          .image(enemy.definition.x, launchY, ARROW_KEY)
           .setScale(0.82)
           .setRotation(angle)
           .setDepth(Math.max(enemy.sprite.depth, targetY!) + 9)
       : this.add
-          .sprite(enemy.definition.x, enemy.definition.y - 28, ARCANE_BOLT_KEY, 0)
+          .sprite(enemy.definition.x, launchY, ARCANE_BOLT_KEY, 0)
           .setScale(1.18)
           .setRotation(angle)
           .setDepth(Math.max(enemy.sprite.depth, targetY!) + 9)
@@ -5623,7 +7477,7 @@ export class OrehavenScene extends Phaser.Scene {
       targets: bolt,
       x: targetX!,
       y: targetY! - 22,
-      duration: 300,
+      duration: isDrake ? 380 : 300,
       ease: "Cubic.easeIn",
       onComplete: () => {
         if (ranged) {
@@ -5632,6 +7486,17 @@ export class OrehavenScene extends Phaser.Scene {
             .setStrokeStyle(2, 0xc8ef82, 0.9)
             .setDepth(Math.max(enemy.sprite.depth, targetY!) + 10);
           this.tweens.add({ targets: impact, scale: 1.7, alpha: 0, duration: 220, onComplete: () => impact.destroy() });
+          bolt.destroy();
+          return;
+        }
+        if (isDrake) {
+          const impact = this.add
+            .sprite(targetX!, targetY! - 20, ANSIMUZ_FIRE_BOMB_KEY, 0)
+            .setScale(1.18)
+            .setDepth(Math.max(enemy.sprite.depth, targetY!) + 10)
+            .play("ore-ansimuz-fire-bomb");
+          impact.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => impact.destroy());
+          this.cameras.main.shake(85, 0.0016);
           bolt.destroy();
           return;
         }
@@ -5654,13 +7519,16 @@ export class OrehavenScene extends Phaser.Scene {
     resource.available = Boolean(state.available);
     resource.claimedBy = typeof state.claimedBy === "string" ? state.claimedBy : null;
     resource.respawnAt = Math.max(0, Number(state.respawnAt) || 0);
+    const regionalActive = worldAreaAtY(resource.definition.y) === this.activeWorldArea;
 
     if (resource.available) {
       this.tweens.killTweensOf(resource.sprite);
-      resource.sprite.setVisible(true).setAlpha(1).setScale(resource.definition.scale);
-      resource.hitZone.setInteractive({ useHandCursor: true });
-      resource.plate.setVisible(true).setAlpha(1).setScale(1);
+      resource.sprite.setVisible(regionalActive).setAlpha(1).setScale(resource.definition.scale);
+      if (regionalActive) resource.hitZone.setInteractive({ useHandCursor: true });
+      else if (resource.hitZone.input) resource.hitZone.input.enabled = false;
+      resource.plate.setVisible(regionalActive).setAlpha(1).setScale(1);
       this.animateResource(resource);
+      if (!regionalActive) this.setTweenActivity(resource.sprite, false);
       return;
     }
 
@@ -5668,7 +7536,7 @@ export class OrehavenScene extends Phaser.Scene {
     this.tweens.killTweensOf(resource.sprite);
     resource.sprite.setAngle(0).setScale(resource.definition.scale);
     if (resource.claimedBy) {
-      resource.sprite.setVisible(true).setAlpha(resource.claimedBy === this.playerId ? 1 : 0.48);
+      resource.sprite.setVisible(regionalActive).setAlpha(resource.claimedBy === this.playerId ? 1 : 0.48);
       resource.plate.setAlpha(resource.claimedBy === this.playerId ? 1 : 0.45);
       if (resource.claimedBy === this.playerId && this.activeResourceId === resource.definition.id) {
         const endsAt = Math.max(Date.now() + 1, Number(state.completeAt) || Date.now() + 1);
@@ -5865,6 +7733,12 @@ export class OrehavenScene extends Phaser.Scene {
   private updateRemotes(delta: number) {
     const amount = Math.min(1, delta / 90);
     this.remotes.forEach((remote) => {
+      const regionalActive = worldAreaAtY(remote.targetY) === this.activeWorldArea;
+      remote.hero.setSimulationActive(regionalActive);
+      remote.shadow.setVisible(regionalActive);
+      remote.socialRing.setVisible(regionalActive);
+      remote.name.setVisible(regionalActive);
+      if (!regionalActive) return;
       const previousX = remote.hero.x;
       const previousY = remote.hero.y;
       const x = Phaser.Math.Linear(remote.hero.x, remote.targetX, amount);
@@ -5955,8 +7829,10 @@ export class OrehavenScene extends Phaser.Scene {
     this.ambientCitizens.forEach((citizen) => {
       citizen.hero.destroy();
       citizen.shadow.destroy();
+      citizen.hitZone.destroy();
     });
     this.ambientCitizens = [];
+    this.regionalAtmosphere.clear();
     this.ws?.close();
     this.ws = null;
   }
@@ -5965,7 +7841,8 @@ export class OrehavenScene extends Phaser.Scene {
     const { definition, sprite } = resource;
     this.tweens.killTweensOf(sprite);
     sprite.setPosition(definition.x, definition.y).setAngle(0).setAlpha(1).setScale(definition.scale);
-    if (definition.itemId === "sunstone-ore") sprite.setTint(0xffca63);
+    const visualColor = resourceVisualColor(definition.itemId);
+    if (visualColor !== 0xffffff) sprite.setTint(visualColor);
     else sprite.clearTint();
     if (definition.kind === "tree") {
       sprite.setAngle(-0.28);
@@ -6048,11 +7925,15 @@ function customizationKey(customization: CharacterCustomization) {
 function enemyShadowSize(kind: EnemyDefinition["kind"]) {
   if (kind === "rat") return { width: 18, height: 6 };
   if (kind === "wolf") return { width: 28, height: 9 };
+  if (kind === "drake") return { width: 48, height: 14 };
+  if (kind === "dune-stalker") return { width: 42, height: 12 };
+  if (kind === "boar") return { width: 40, height: 12 };
   if (kind === "slime") return { width: 25, height: 8 };
   if (kind === "orc") return { width: 30, height: 10 };
   if (kind === "lizard") return { width: 27, height: 9 };
   if (kind === "skeleton") return { width: 22, height: 7 };
   if (kind === "witch") return { width: 25, height: 8 };
+  if (kind === "treant") return { width: 62, height: 16 };
   return { width: 24, height: 8 };
 }
 
@@ -6067,12 +7948,16 @@ function enemyPalette(id: string) {
   if (id === "briar-bonecaller") return 0xd17aff;
   if (id === "emberbone-marksman") return 0xffb95e;
   if (id === "cryptflame-channeler") return 0xff8a5c;
+  if (id === "moonfen-stalker-1") return 0x7faaa4;
+  if (id === "frostmere-icewolf-1") return 0xb9eaff;
   return 0xffffff;
 }
 
 function appearanceName(appearance: AppearanceId) {
   if (appearance === "ranger") return "Oakbound Ranger";
   if (appearance === "arcanist") return "Moonspark Arcanist";
+  if (appearance === "stonewarden") return "Stonewarden";
+  if (appearance === "marshborn") return "Marshborn Mystic";
   return "Sunward Vanguard";
 }
 
@@ -6118,12 +8003,24 @@ function localCombatDamage(style: CombatStyle, level: number, weaponPower: numbe
   return Phaser.Math.Between(2, 5) + level + weaponPower;
 }
 
+function localCombatCritical(level: number, weaponPower: number) {
+  const chance = Math.min(0.14, 0.05 + level * 0.0006 + weaponPower * 0.002);
+  return Math.random() < chance;
+}
+
 function createNameplate(scene: Phaser.Scene, x: number, y: number, name: string, role: string, roleColor: string) {
   const container = scene.add.container(x, y).setDepth(y + 4);
   const nameText = scene.add.text(0, 0, name, nameStyle("#fff1c4")).setOrigin(0.5, 0);
   const roleText = scene.add.text(0, 12, role, nameStyle(roleColor, 7)).setOrigin(0.5, 0);
   container.add([nameText, roleText]);
   return container;
+}
+
+function updateNameplate(container: Phaser.GameObjects.Container | Phaser.GameObjects.Text, visible: boolean, detailVisible: boolean) {
+  container.setVisible(visible);
+  if (!(container instanceof Phaser.GameObjects.Container)) return;
+  const detail = container.getAt(1);
+  if (detail instanceof Phaser.GameObjects.Text) detail.setVisible(visible && detailVisible);
 }
 
 function nameStyle(color: string, fontSize = 8): Phaser.Types.GameObjects.Text.TextStyle {

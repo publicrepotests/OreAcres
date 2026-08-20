@@ -16,8 +16,8 @@ assert.equal(image.toString("ascii", 1, 4), "PNG", "catacomb artwork is not a PN
 assert.equal(image.readUInt32BE(16), 1536, "catacomb artwork width drifted");
 assert.equal(image.readUInt32BE(20), 1024, "catacomb artwork height drifted");
 assert.deepEqual(layout, serverLayout, "client/server catacomb collision geometry drifted");
-assert.match(clientData, /WORLD = \{ width: 1536, height: 3072 \}/);
-assert.match(server, /RPG_WORLD = \{ width: 1536, height: 3072 \}/);
+assert.match(clientData, /WORLD = \{ width: 1536, height: 9216 \}/);
+assert.match(server, /RPG_WORLD = \{ width: 1536, height: 9216 \}/);
 assert.match(scene, /SUNSTONE_CATACOMBS_KEY[\s\S]*?sunstone-catacombs\.png/);
 assert.match(scene, /createDungeonPortals\(\)/);
 assert.match(scene, /rpg_dungeon_travel/);

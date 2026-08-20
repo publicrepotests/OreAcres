@@ -16,6 +16,8 @@ export type GameAudioCue =
   | "quest"
   | "level";
 
+export type GameMusicState = "field" | "dungeon" | "battle";
+
 type ToneOptions = {
   delay?: number;
   duration?: number;
@@ -26,6 +28,19 @@ type ToneOptions = {
 };
 
 type SampleDefinition = { paths: string[]; gain: number; playbackVariance?: number };
+
+type MusicChannel = {
+  state: GameMusicState;
+  element: HTMLAudioElement;
+  source: MediaElementAudioSourceNode;
+  gain: GainNode;
+};
+
+const MUSIC_TRACKS: Record<GameMusicState, { path: string; gain: number; loopStart?: number }> = {
+  field: { path: "/assets/rpg/audio/music/orehaven-field.ogg", gain: 0.28 },
+  dungeon: { path: "/assets/rpg/audio/music/orehaven-dungeon.ogg", gain: 0.32 },
+  battle: { path: "/assets/rpg/audio/music/orehaven-battle.ogg", gain: 0.3, loopStart: 7.5 },
+};
 
 const SAMPLE_DEFINITIONS: Partial<Record<GameAudioCue, SampleDefinition>> = {
   footstep: {
@@ -55,12 +70,14 @@ export class GameAudioEngine {
   private master: GainNode | null = null;
   private musicBus: GainNode | null = null;
   private sfxBus: GainNode | null = null;
-  private musicTimer: number | null = null;
+  private desiredMusic: GameMusicState = "field";
+  private activeMusic: MusicChannel | null = null;
+  private retiringMusic = new Set<MusicChannel>();
+  private musicTransitionId = 0;
   private noiseBuffer: AudioBuffer | null = null;
   private sampleBuffers = new Map<string, AudioBuffer>();
   private samplePreloadStarted = false;
   private enabled = false;
-  private musicStep = 0;
   private lastCueAt = new Map<GameAudioCue, number>();
 
   setEnabled(enabled: boolean) {
@@ -74,6 +91,12 @@ export class GameAudioEngine {
     this.master?.gain.setTargetAtTime(0.72, context.currentTime, 0.04);
     void context.resume();
     void this.preloadSamples();
+    void this.transitionMusic(this.desiredMusic);
+  }
+
+  setMusic(state: GameMusicState) {
+    this.desiredMusic = state;
+    if (this.enabled) void this.transitionMusic(state);
   }
 
   play(cue: GameAudioCue) {
@@ -265,31 +288,64 @@ export class GameAudioEngine {
     source.stop(start + duration);
   }
 
-  private startMusic() {
-    if (this.musicTimer !== null) return;
-    const melody = [220, 261.63, 293.66, 329.63, 392, 329.63, 293.66, 246.94];
-    const bass = [110, 110, 130.81, 98];
-    const playStep = () => {
-      if (!this.enabled) return;
-      const note = melody[this.musicStep % melody.length];
-      this.tone(note, { duration: 0.72, gain: 0.018, type: "triangle", bus: "music" });
-      if (this.musicStep % 2 === 0) {
-        this.tone(bass[Math.floor(this.musicStep / 2) % bass.length], {
-          duration: 1.35,
-          gain: 0.012,
-          type: "sine",
-          bus: "music",
-        });
-      }
-      this.musicStep += 1;
-    };
-    playStep();
-    this.musicTimer = window.setInterval(playStep, 820);
+  private async transitionMusic(state: GameMusicState) {
+    if (!this.enabled || this.activeMusic?.state === state) return;
+    const transitionId = ++this.musicTransitionId;
+    const context = this.ensureContext();
+    const definition = MUSIC_TRACKS[state];
+    const element = new Audio(definition.path);
+    element.preload = "auto";
+    element.loop = definition.loopStart === undefined;
+    if (definition.loopStart !== undefined) {
+      element.addEventListener("ended", () => {
+        if (!this.enabled) return;
+        element.currentTime = definition.loopStart ?? 0;
+        void element.play().catch(() => undefined);
+      });
+    }
+    const source = context.createMediaElementSource(element);
+    const gain = context.createGain();
+    gain.gain.value = 0.0001;
+    source.connect(gain).connect(this.musicBus!);
+    const next: MusicChannel = { state, element, source, gain };
+    try {
+      await element.play();
+    } catch {
+      this.destroyMusicChannel(next);
+      return;
+    }
+    if (!this.enabled || transitionId !== this.musicTransitionId || this.desiredMusic !== state) {
+      this.destroyMusicChannel(next);
+      return;
+    }
+    const previous = this.activeMusic;
+    this.activeMusic = next;
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(definition.gain, context.currentTime + 1.1);
+    if (!previous) return;
+    this.retiringMusic.add(previous);
+    previous.gain.gain.cancelScheduledValues(context.currentTime);
+    previous.gain.gain.setValueAtTime(Math.max(0.0001, previous.gain.gain.value), context.currentTime);
+    previous.gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.9);
+    window.setTimeout(() => {
+      this.retiringMusic.delete(previous);
+      this.destroyMusicChannel(previous);
+    }, 1_000);
   }
 
   private stopMusic() {
-    if (this.musicTimer === null) return;
-    window.clearInterval(this.musicTimer);
-    this.musicTimer = null;
+    this.musicTransitionId += 1;
+    if (this.activeMusic) this.destroyMusicChannel(this.activeMusic);
+    this.activeMusic = null;
+    this.retiringMusic.forEach((channel) => this.destroyMusicChannel(channel));
+    this.retiringMusic.clear();
+  }
+
+  private destroyMusicChannel(channel: MusicChannel) {
+    channel.element.pause();
+    channel.element.removeAttribute("src");
+    channel.element.load();
+    channel.source.disconnect();
+    channel.gain.disconnect();
   }
 }

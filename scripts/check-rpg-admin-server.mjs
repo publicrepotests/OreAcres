@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import net from "node:net";
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
@@ -7,7 +8,14 @@ import WebSocket from "ws";
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const port = 8091;
+const port = await new Promise((resolve, reject) => {
+  const probe = net.createServer();
+  probe.once("error", reject);
+  probe.listen(0, "127.0.0.1", () => {
+    const assigned = probe.address().port;
+    probe.close(() => resolve(assigned));
+  });
+});
 const room = `admin-${process.pid}`;
 const server = spawn(process.execPath, ["src/index.js"], {
   cwd: path.join(root, "server"),

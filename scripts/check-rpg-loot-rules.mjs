@@ -45,6 +45,21 @@ const serverItemBlock = serverIndex.slice(serverIndex.indexOf("const RPG_ITEM_RU
 const droppedEquipment = ["briarhide-cloak", "auric-cleaver", "fallen-recurve", "bonecaller-focus"];
 const weaponVisualBlock = layeredHero.slice(layeredHero.indexOf("export const WEAPON_VISUALS"), layeredHero.indexOf("export const ARMOR_VISUALS"));
 const armorVisualBlock = layeredHero.slice(layeredHero.indexOf("export const ARMOR_VISUALS"), layeredHero.indexOf("export function resolveWeaponVisual"));
+const clientWeaponAbilityBlock = gameData.slice(gameData.indexOf("export const WEAPON_ABILITIES"), gameData.indexOf("export function weaponAbility"));
+const serverWeaponAbilityBlock = serverIndex.slice(serverIndex.indexOf("const RPG_WEAPON_ABILITIES"), serverIndex.indexOf("const RPG_SKILL_TREE"));
+const equippableWeaponIds = [...itemBlock.matchAll(/\{ id: "([^"]+)"[^\n]+slot: "weapon"/g)].map((match) => match[1]);
+const equippableArmorIds = [...itemBlock.matchAll(/\{ id: "([^"]+)"[^\n]+slot: "armor"/g)].map((match) => match[1]);
+const hasVisualMapping = (block, itemId) => new RegExp(`(?:"${itemId}"|\\b${itemId}\\b)\\s*:`).test(block);
+const abilityIdFor = (block, itemId) => new RegExp(`(?:"${itemId}"|\\b${itemId}\\b)\\s*:\\s*\\{\\s*id:\\s*"([^"]+)"`).exec(block)?.[1] ?? "";
+equippableWeaponIds.forEach((itemId) => assert.ok(hasVisualMapping(weaponVisualBlock, itemId), `${itemId} is missing an explicit animated weapon visual`));
+equippableWeaponIds.forEach((itemId) => {
+  const clientAbilityId = abilityIdFor(clientWeaponAbilityBlock, itemId);
+  const serverAbilityId = abilityIdFor(serverWeaponAbilityBlock, itemId);
+  assert.ok(clientAbilityId, `${itemId} is missing an explicit client signature ability`);
+  assert.ok(serverAbilityId, `${itemId} is missing an explicit authoritative server signature ability`);
+  assert.equal(serverAbilityId, clientAbilityId, `${itemId} has mismatched client/server signature abilities`);
+});
+equippableArmorIds.forEach((itemId) => assert.ok(hasVisualMapping(armorVisualBlock, itemId), `${itemId} is missing an explicit animated armor visual`));
 droppedEquipment.forEach((itemId) => {
   assert.ok(serverItemBlock.includes(`"${itemId}"`), `server is missing equipment authority for ${itemId}`);
   const expectedBlock = itemId === "briarhide-cloak" ? armorVisualBlock : weaponVisualBlock;
@@ -80,6 +95,9 @@ console.log(JSON.stringify({
   possibleDrops: Object.values(clientRules).reduce((sum, table) => sum + table.length, 0),
   collectibles: collectibleIds.length,
   droppedEquipment: droppedEquipment.length,
+  equippableWeaponVisuals: equippableWeaponIds.length,
+  equippableWeaponAbilities: equippableWeaponIds.length,
+  equippableArmorVisuals: equippableArmorIds.length,
   droppedEquipmentVisuals: true,
   worldDropAtlasAnimation: true,
   clientServerParity: true,

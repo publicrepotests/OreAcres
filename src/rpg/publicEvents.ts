@@ -34,6 +34,30 @@ export const PUBLIC_EVENTS: readonly PublicEventDefinition[] = [
     rally: "Disrupt the moonwell ritual before the marsh is consumed.",
     accent: "#9f9af2",
   },
+  {
+    enemyId: "emberfall-caldera-lord",
+    name: "Varkul, Caldera Lord",
+    location: "Emberfall crater throne",
+    region: "Emberfall Highlands",
+    rally: "Break the Caldera Lord before the crater road collapses.",
+    accent: "#ff7958",
+  },
+  {
+    enemyId: "frostmere-lighthouse-warden",
+    name: "Eira, Lighthouse Warden",
+    location: "Frostmere lighthouse cliff",
+    region: "Frostmere Coast",
+    rally: "Relight the beacon before the frozen coast loses its last safe harbor.",
+    accent: "#8bdfff",
+  },
+  {
+    enemyId: "sunscar-tomb-king",
+    name: "Khepri, Tomb King",
+    location: "Sealed tomb beneath the Sunscar dunes",
+    region: "Sunscar Expanse",
+    rally: "Break the solar seal before Khepri wakes the buried court.",
+    accent: "#ffb45c",
+  },
 ] as const;
 
 export function publicEventRotation(at = Date.now()) {
