@@ -37,6 +37,7 @@ import {
   type AppearanceId,
   type BossIntroductionDefinition,
   type CharacterCustomization,
+  type CompanionId,
   type CombatStyle,
   type DecorationDefinition,
   type Direction,
@@ -330,6 +331,15 @@ type RemoteEntity = {
   guild: GuildMembership | null;
   displayName: string;
   socialRing: Phaser.GameObjects.Ellipse;
+  companion: CompanionRuntime | null;
+};
+
+type CompanionRuntime = {
+  id: Exclude<CompanionId, "none">;
+  sprite: Phaser.GameObjects.Sprite;
+  shadow: Phaser.GameObjects.Ellipse;
+  direction: Direction;
+  moving: boolean;
 };
 
 type PlayerWorldAction = "idle" | "walk" | "attack" | "gather" | "mine" | "chop" | "fish" | "attune";
@@ -739,6 +749,7 @@ export class OrehavenScene extends Phaser.Scene {
   private player!: LayeredHero;
   private playerName!: Phaser.GameObjects.Text;
   private playerShadow!: Phaser.GameObjects.Ellipse;
+  private playerCompanion: CompanionRuntime | null = null;
   private playerBeacon!: Phaser.GameObjects.Ellipse;
   private playerPos = new Phaser.Math.Vector2(PLAYER_START.x, PLAYER_START.y);
   private facing: Direction = "down";
@@ -963,6 +974,7 @@ export class OrehavenScene extends Phaser.Scene {
       this.progress.customization,
     );
     this.player.setDepth(5000);
+    this.playerCompanion = this.createCompanion(this.progress.customization.companion, this.playerPos.x - 24, this.playerPos.y + 18);
     this.applyEquipmentVisuals();
     this.playerName = this.add.text(0, 0, this.displayName, nameStyle("#fff0b0")).setOrigin(0.5, 1).setDepth(5001);
     this.selectedRing = this.add.ellipse(0, 0, 56, 26).setStrokeStyle(2, 0xf2c75c, 0.95).setVisible(false).setDepth(4900);
@@ -1084,7 +1096,13 @@ export class OrehavenScene extends Phaser.Scene {
       this.remotes.forEach((remote) => {
         remote.hero.setLoadout(remote.equipped);
         remote.hero.setCustomization(remote.customization);
+        if (remote.companion) {
+          this.playCompanionAnimation(remote.companion, remote.companion.direction, remote.companion.moving);
+        }
       });
+      if (this.playerCompanion) {
+        this.playCompanionAnimation(this.playerCompanion, this.playerCompanion.direction, this.playerCompanion.moving);
+      }
       this.setHeroAction(this.heroAction);
       this.syncRegionalSimulation();
     });
@@ -1111,6 +1129,7 @@ export class OrehavenScene extends Phaser.Scene {
       this.spawnFootstepDust();
     }
     this.updatePlayerView();
+    this.updateCompanion(this.playerCompanion, this.playerPos.x, this.playerPos.y, this.facing, delta, true);
     this.checkRegionDiscovery();
     this.updateAmbientCitizens(delta);
     this.updateRemotes(delta);
@@ -1466,10 +1485,14 @@ export class OrehavenScene extends Phaser.Scene {
 
   setAppearance(appearance: AppearanceId) {
     if (this.useAuthoritativeProfileAction({ action: "appearance", appearance }, "Updating appearance...")) return;
-    const customization = customizationForAppearance(appearance);
+    const customization = {
+      ...customizationForAppearance(appearance),
+      companion: this.progress.customization.companion,
+    };
     this.progress = { ...this.progress, appearance, customization };
     this.player.setAppearance(appearance);
     this.player.setCustomization(customization);
+    this.playerCompanion = this.replaceCompanion(this.playerCompanion, customization.companion, this.playerPos.x, this.playerPos.y);
     this.applyEquipmentVisuals();
     this.setHeroAction("idle");
     this.emitHud({ message: `${appearanceName(appearance)} appearance equipped.` });
@@ -1482,6 +1505,7 @@ export class OrehavenScene extends Phaser.Scene {
     )) return;
     this.progress = { ...this.progress, customization: { ...customization } };
     this.player.setCustomization(customization);
+    this.playerCompanion = this.replaceCompanion(this.playerCompanion, customization.companion, this.playerPos.x, this.playerPos.y);
     this.setHeroAction("idle");
     this.emitHud({ message: "Character customization updated." });
   }
@@ -1498,6 +1522,7 @@ export class OrehavenScene extends Phaser.Scene {
     this.progress = { ...this.progress, appearance, customization: { ...customization } };
     this.player.setAppearance(appearance);
     this.player.setCustomization(customization);
+    this.playerCompanion = this.replaceCompanion(this.playerCompanion, customization.companion, this.playerPos.x, this.playerPos.y);
     this.applyEquipmentVisuals();
     this.setHeroAction("idle");
     window.localStorage.setItem("ore-acres-rpg-name", safeName);
@@ -6533,6 +6558,12 @@ export class OrehavenScene extends Phaser.Scene {
     if (patch.heal) this.progress = { ...this.progress, hp: this.progress.maxHp };
     this.player?.setAppearance(this.progress.appearance);
     this.player?.setCustomization(this.progress.customization);
+    this.playerCompanion = this.replaceCompanion(
+      this.playerCompanion,
+      this.progress.customization.companion,
+      this.playerPos.x,
+      this.playerPos.y,
+    );
     this.applyEquipmentVisuals();
     this.setHeroAction(this.heroAction);
     this.refreshTreasureMarker();
@@ -6605,6 +6636,12 @@ export class OrehavenScene extends Phaser.Scene {
     this.profileRevision = Math.max(this.profileRevision, Number(profile.revision) || 0);
     this.player?.setAppearance(this.progress.appearance);
     this.player?.setCustomization(this.progress.customization);
+    this.playerCompanion = this.replaceCompanion(
+      this.playerCompanion,
+      this.progress.customization.companion,
+      this.playerPos.x,
+      this.playerPos.y,
+    );
     this.applyEquipmentVisuals();
     this.setHeroAction(this.heroAction);
     if (restoredHp > 0) {
@@ -7739,7 +7776,8 @@ export class OrehavenScene extends Phaser.Scene {
       const socialRing = this.add.ellipse(remote.x, remote.y + 1, 38, 15).setStrokeStyle(2, 0x82d379, 0.9).setVisible(false).setDepth(remote.y - 0.5);
       const hero = new LayeredHero(this, remote.x, remote.y, appearance, equipped, customization).setAlpha(0.88);
       const name = this.add.text(remote.x, remote.y - 44, remote.name || "Adventurer", nameStyle("#a9d9ff")).setOrigin(0.5, 1);
-      entity = { hero, shadow, name, targetX: remote.x, targetY: remote.y, direction, action, appearance, customization, equipped, totalLevel: Math.max(10, Number(remote.totalLevel) || 10), guild: normalizeGuildMembership(remote.guild), displayName: remote.name || "Adventurer", socialRing };
+      const companion = this.createCompanion(customization.companion, remote.x - 24, remote.y + 18);
+      entity = { hero, shadow, name, targetX: remote.x, targetY: remote.y, direction, action, appearance, customization, equipped, totalLevel: Math.max(10, Number(remote.totalLevel) || 10), guild: normalizeGuildMembership(remote.guild), displayName: remote.name || "Adventurer", socialRing, companion };
       this.remotes.set(remote.id, entity);
     } else if (entity.appearance !== appearance) {
       entity.appearance = appearance;
@@ -7751,6 +7789,7 @@ export class OrehavenScene extends Phaser.Scene {
     if (customizationKey(entity.customization) !== customizationKey(customization)) {
       entity.customization = customization;
       entity.hero.setCustomization(customization);
+      entity.companion = this.replaceCompanion(entity.companion, customization.companion, entity.hero.x, entity.hero.y);
     }
     if (
       entity.equipped.weapon !== equipped.weapon ||
@@ -7842,6 +7881,7 @@ export class OrehavenScene extends Phaser.Scene {
                   : "idle";
         remote.hero.play(visualAction, remote.direction);
       }
+      this.updateCompanion(remote.companion, x, y, remote.direction, delta, regionalActive);
     });
   }
 
@@ -7849,6 +7889,7 @@ export class OrehavenScene extends Phaser.Scene {
     const remote = this.remotes.get(playerId);
     remote?.hero.destroy();
     remote?.shadow.destroy();
+    this.destroyCompanion(remote?.companion ?? null);
     remote?.socialRing.destroy();
     remote?.name.destroy();
     this.chatBubbles.get(playerId)?.destroy(true);
@@ -7902,6 +7943,8 @@ export class OrehavenScene extends Phaser.Scene {
       citizen.hitZone.destroy();
     });
     this.ambientCitizens = [];
+    this.destroyCompanion(this.playerCompanion);
+    this.playerCompanion = null;
     this.regionalAtmosphere.clear();
     this.ws?.close();
     this.ws = null;
@@ -7939,6 +7982,88 @@ export class OrehavenScene extends Phaser.Scene {
       yoyo: true,
       repeat: -1,
     });
+  }
+
+  private createCompanion(id: CompanionId, x: number, y: number): CompanionRuntime | null {
+    if (id === "none") return null;
+    const visual = id === "ore-slime"
+      ? { texture: SLIME_KEY, frame: 0, scale: 0.15, width: 22, height: 7, tint: 0xa8efd1 }
+      : id === "pinefang-pup"
+        ? { texture: WOLF_KEY, frame: 0, scale: 0.17, width: 25, height: 8, tint: 0xb8d6a3 }
+        : { texture: DRAKE_KEY, frame: 8, scale: 0.18, width: 28, height: 8, tint: 0xffc48b };
+    const shadow = this.createActorShadow(x, y, visual.width, visual.height, id === "ashwing-whelp" ? 0.2 : 0.3);
+    const sprite = this.add
+      .sprite(x, y - (id === "ashwing-whelp" ? 7 : 0), visual.texture, visual.frame)
+      .setOrigin(0.5, 0.92)
+      .setScale(visual.scale)
+      .setTint(visual.tint)
+      .setDepth(y + 1);
+    const runtime: CompanionRuntime = { id, sprite, shadow, direction: "down", moving: false };
+    this.playCompanionAnimation(runtime, "down", false);
+    return runtime;
+  }
+
+  private replaceCompanion(current: CompanionRuntime | null, id: CompanionId, x: number, y: number) {
+    if (current?.id === id) return current;
+    this.destroyCompanion(current);
+    return this.createCompanion(id, x, y);
+  }
+
+  private destroyCompanion(companion: CompanionRuntime | null) {
+    companion?.sprite.destroy();
+    companion?.shadow.destroy();
+  }
+
+  private updateCompanion(
+    companion: CompanionRuntime | null,
+    ownerX: number,
+    ownerY: number,
+    ownerDirection: Direction,
+    delta: number,
+    visible: boolean,
+  ) {
+    if (!companion) return;
+    companion.sprite.setVisible(visible);
+    companion.shadow.setVisible(visible);
+    if (!visible) return;
+    const followOffset: Record<Direction, { x: number; y: number }> = {
+      down: { x: -24, y: -25 },
+      up: { x: 24, y: 28 },
+      left: { x: 31, y: 12 },
+      right: { x: -31, y: 12 },
+    };
+    const target = followOffset[ownerDirection];
+    const targetX = ownerX + target.x;
+    const targetY = ownerY + target.y;
+    const currentY = companion.sprite.y + (companion.id === "ashwing-whelp" ? 7 : 0);
+    const distance = Phaser.Math.Distance.Between(companion.sprite.x, currentY, targetX, targetY);
+    const amount = distance > 190 ? 1 : Math.min(1, delta / 165);
+    const x = Phaser.Math.Linear(companion.sprite.x, targetX, amount);
+    const y = Phaser.Math.Linear(currentY, targetY, amount);
+    const movedX = x - companion.sprite.x;
+    const movedY = y - currentY;
+    const moving = Math.abs(movedX) + Math.abs(movedY) > 0.08;
+    const direction = moving
+      ? Math.abs(movedX) > Math.abs(movedY)
+        ? movedX > 0 ? "right" : "left"
+        : movedY > 0 ? "down" : "up"
+      : companion.direction;
+    companion.sprite.setPosition(x, y - (companion.id === "ashwing-whelp" ? 7 : 0)).setDepth(y + 1);
+    companion.shadow.setPosition(x, y + 1).setDepth(y - 1);
+    if (direction !== companion.direction || moving !== companion.moving) {
+      companion.direction = direction;
+      companion.moving = moving;
+      this.playCompanionAnimation(companion, direction, moving);
+    }
+  }
+
+  private playCompanionAnimation(companion: CompanionRuntime, direction: Direction, moving: boolean) {
+    const key = companion.id === "ore-slime"
+      ? "ore-slime-idle"
+      : companion.id === "pinefang-pup"
+        ? `ore-wolf-${moving ? "walk" : "idle"}-${direction}`
+        : `ore-drake-${moving ? "walk" : "idle"}-${direction}`;
+    if (this.anims.exists(key)) companion.sprite.play(key, true);
   }
 
   private createActorShadow(x: number, y: number, width: number, height: number, alpha: number) {

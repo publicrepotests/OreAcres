@@ -134,6 +134,7 @@ const customized = normalizeRpgProgress({
     helmetStyle: "greathelm",
     capeStyle: "briar",
     shieldStyle: "crusader",
+    companion: "ashwing-whelp",
     showHelmet: false,
     showCape: false,
     showShield: false,
@@ -148,6 +149,7 @@ assert.equal(customized.customization.weaponDye, "sunsteel");
 assert.equal(customized.customization.helmetStyle, "greathelm");
 assert.equal(customized.customization.capeStyle, "briar");
 assert.equal(customized.customization.shieldStyle, "crusader");
+assert.equal(customized.customization.companion, "ashwing-whelp");
 assert.equal(customized.customization.showHelmet, false);
 assert.equal(customized.customization.showCape, false);
 assert.equal(customized.customization.showShield, false);
@@ -160,6 +162,7 @@ assert.equal(normalizeRpgProgress({ customization: { weaponDye: "neon-hack" } })
 assert.equal(normalizeRpgProgress({ customization: { helmetStyle: "../../bad" } }).customization.helmetStyle, "auto");
 assert.equal(normalizeRpgProgress({ customization: { capeStyle: "../../bad" } }).customization.capeStyle, "auto");
 assert.equal(normalizeRpgProgress({ customization: { shieldStyle: "../../bad" } }).customization.shieldStyle, "auto");
+assert.equal(normalizeRpgProgress({ customization: { companion: "../../bad" } }).customization.companion, "none");
 assert.equal(normalizeRpgProgress({ customization: { showHelmet: "no" } }).customization.showHelmet, true);
 const staleActivities = normalizeRpgProgress({
   activities: {
@@ -198,6 +201,7 @@ console.log(JSON.stringify({
   customizationWhitelisted: true,
   gearDyesWhitelisted: true,
   wardrobeVisibilityWhitelisted: true,
+  companionWhitelisted: true,
   activityPersistenceVerified: true,
   staleDailyActivityReset: true,
   collectionLogPersistenceVerified: true,

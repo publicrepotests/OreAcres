@@ -97,6 +97,15 @@ const gameUi = await readFile(new URL("../src/PhaserRpgGame.tsx", import.meta.ur
 const serverProfiles = await readFile(new URL("../server/src/rpgProfiles.js", import.meta.url), "utf8");
 const credits = await readFile(new URL("../public/assets/rpg/characters/lpc/face/ASSET-CREDITS.md", import.meta.url), "utf8");
 const shieldCredits = await readFile(new URL("../public/assets/rpg/characters/lpc/shield/ASSET-CREDITS.md", import.meta.url), "utf8");
+const companionAssets = [
+  "ore-slime-sheet-1024.png",
+  "forest-wolf-sheet-v2.png",
+  "ashwing-drake-sheet-1024.png",
+];
+for (const asset of companionAssets) {
+  const sheet = await readFile(new URL(`../public/assets/rpg/creatures/${asset}`, import.meta.url));
+  assert.deepEqual(pngDimensions(sheet), [1024, 1024], `${asset} must preserve the 4x4 creature frame grid`);
+}
 
 for (const appearance of ["stonewarden", "marshborn"]) {
   assert.ok(gameData.includes(`\"${appearance}\"`), `${appearance} must be available in character creation`);
@@ -171,6 +180,15 @@ assert.ok(gameUi.includes("paperdollDirection"), "the equipment screen must reta
 assert.ok(gameUi.includes("paperdollAction") && gameUi.includes('action={paperdollAction}'), "the equipment screen must allow live idle, walk, and attack inspection");
 assert.ok(gameUi.includes("Visual only • armor stats remain unchanged"), "the wardrobe must distinguish transmog from progression stats");
 assert.ok(gameUi.includes('transmogLayers.join(" • ")'), "the wardrobe must summarize the player's custom gear silhouette");
+for (const companion of ["none", "ore-slime", "pinefang-pup", "ashwing-whelp"]) {
+  assert.ok(gameData.includes(`id: "${companion}"`), `${companion} must be exposed by the shared companion catalog`);
+  assert.ok(serverProfiles.includes(`"${companion}"`), `${companion} must be accepted by authoritative profiles`);
+}
+assert.ok(gameScene.includes("private updateCompanion("), "companions must smoothly follow their owner in the world");
+assert.ok(gameScene.includes("remote.companion"), "companions must be visible on nearby multiplayer characters");
+assert.ok(gameScene.includes("this.destroyCompanion(this.playerCompanion)"), "the local companion must be cleaned up with its scene");
+assert.ok(gameUi.includes("COMPANIONS.map"), "the equipment menu must expose the companion collection");
+assert.ok(gameUi.includes("Cosmetic follower"), "the companion UI must clearly avoid implying combat power");
 for (const direction of ["up", "left", "down", "right"]) {
   assert.ok(gameUi.includes(`direction: "${direction}"`), `the paper doll must expose ${direction} inspection`);
 }
@@ -196,6 +214,7 @@ console.log(JSON.stringify({
   playableSilhouettes: 5,
   directionalGearInspection: 4,
   independentTransmogLayers: 3,
+  animatedCompanions: companionAssets.length,
   attributionPresent: true,
   paidAssetsUsed: false,
   result: "PASS",

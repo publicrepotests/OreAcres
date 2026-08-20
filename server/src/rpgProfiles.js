@@ -25,6 +25,7 @@ const GEAR_DYES = new Set(["original", "iron", "sunsteel", "verdant", "moonsteel
 const HELMET_STYLES = new Set(["auto", "barbuta", "greathelm", "sugarloaf", "plate"]);
 const CAPE_STYLES = new Set(["auto", "solid", "tattered", "briar"]);
 const SHIELD_STYLES = new Set(["auto", "crusader"]);
+const COMPANIONS = new Set(["none", "ore-slime", "pinefang-pup", "ashwing-whelp"]);
 const WAYSTONES = new Set(["orehaven-gate", "moonwater-dock", "eastern-quarry", "briarwild-crossing", "moonfen-marsh", "ranger-camp", "sunstone-catacombs", "moonfen-expanse", "emberfall-highlands", "frostmere-coast", "sunscar-expanse", "guild-hall"]);
 const REGIONS = new Set(["orehaven", "western-woods", "moonwater-pond", "eastern-quarry", "goblin-camp", "southroad", "briarwild-crossing", "old-sun-shrine", "moonfen-marsh", "ranger-camp", "raider-dens", "sunstone-catacombs", "moonfen-expanse", "emberfall-highlands", "frostmere-coast", "sunscar-expanse", "orehaven-guild-hall", "icefang-vault"]);
 const SKILL_TREE_NODES = new Set([
@@ -46,11 +47,11 @@ const ARMOR_MAX_HP_BONUSES = {
   "frostguard-aegis": 42,
 };
 const APPEARANCE_CUSTOMIZATION = {
-  vanguard: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "ivory", hairColor: "silver", shirtColor: "guild-blue", pantsColor: "slate", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  ranger: { faceStyle: "cheerful", hairStyle: "shorthawk", beardStyle: "stubble", skinTone: "warm", hairColor: "chestnut", shirtColor: "leaf-green", pantsColor: "charcoal", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  arcanist: { faceStyle: "wide-eyed", hairStyle: "spiked2", beardStyle: "none", skinTone: "sunlit", hairColor: "violet", shirtColor: "violet", pantsColor: "slate", bootsColor: "charcoal", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  stonewarden: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "umber", hairColor: "raven", shirtColor: "crimson", pantsColor: "charcoal", bootsColor: "brown", armorDye: "iron", weaponDye: "iron", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  marshborn: { faceStyle: "wide-eyed", hairStyle: "plain", beardStyle: "none", skinTone: "deep", hairColor: "raven", shirtColor: "slate", pantsColor: "charcoal", bootsColor: "brown", armorDye: "moonsteel", weaponDye: "moonsteel", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  vanguard: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "ivory", hairColor: "silver", shirtColor: "guild-blue", pantsColor: "slate", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  ranger: { faceStyle: "cheerful", hairStyle: "shorthawk", beardStyle: "stubble", skinTone: "warm", hairColor: "chestnut", shirtColor: "leaf-green", pantsColor: "charcoal", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  arcanist: { faceStyle: "wide-eyed", hairStyle: "spiked2", beardStyle: "none", skinTone: "sunlit", hairColor: "violet", shirtColor: "violet", pantsColor: "slate", bootsColor: "charcoal", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  stonewarden: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "umber", hairColor: "raven", shirtColor: "crimson", pantsColor: "charcoal", bootsColor: "brown", armorDye: "iron", weaponDye: "iron", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  marshborn: { faceStyle: "wide-eyed", hairStyle: "plain", beardStyle: "none", skinTone: "deep", hairColor: "raven", shirtColor: "slate", pantsColor: "charcoal", bootsColor: "brown", armorDye: "moonsteel", weaponDye: "moonsteel", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
 };
 
 export function customizationForRpgAppearance(appearance) {
@@ -73,6 +74,7 @@ export function normalizeRpgCustomization(value, fallback = customizationForRpgA
     helmetStyle: HELMET_STYLES.has(candidate.helmetStyle) ? candidate.helmetStyle : fallback.helmetStyle,
     capeStyle: CAPE_STYLES.has(candidate.capeStyle) ? candidate.capeStyle : fallback.capeStyle,
     shieldStyle: SHIELD_STYLES.has(candidate.shieldStyle) ? candidate.shieldStyle : fallback.shieldStyle,
+    companion: COMPANIONS.has(candidate.companion) ? candidate.companion : fallback.companion,
     showHelmet: typeof candidate.showHelmet === "boolean" ? candidate.showHelmet : fallback.showHelmet,
     showCape: typeof candidate.showCape === "boolean" ? candidate.showCape : fallback.showCape,
     showShield: typeof candidate.showShield === "boolean" ? candidate.showShield : fallback.showShield,

@@ -12,6 +12,7 @@ import {
   GEAR_DYES,
   HELMET_STYLES,
   CAPE_STYLES,
+  COMPANIONS,
   SHIELD_STYLES,
   HAIR_COLORS,
   HAIR_STYLES,
@@ -3356,6 +3357,30 @@ export function PhaserRpgGame({
                           />
                           <b>{appearance.name}</b>
                           <small>{appearance.role}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                  <section className="rpg-companion-picker">
+                    <header>
+                      <div><span>TRAVEL COMPANION</span><h3>Choose a trail friend</h3></div>
+                      <small>Cosmetic follower</small>
+                    </header>
+                    <p>Companions follow your movement and are visible to nearby adventurers.</p>
+                    <div>
+                      {COMPANIONS.map((companion) => (
+                        <button
+                          key={companion.id}
+                          type="button"
+                          className={hud.progress.customization.companion === companion.id ? "active" : ""}
+                          aria-pressed={hud.progress.customization.companion === companion.id}
+                          onClick={() => apiRef.current?.setCustomization({
+                            ...hud.progress.customization,
+                            companion: companion.id,
+                          })}
+                        >
+                          <i className={`rpg-companion-picker__sprite rpg-companion-picker__sprite--${companion.id}`} aria-hidden="true" />
+                          <span><b>{companion.name}</b><small>{companion.detail}</small></span>
                         </button>
                       ))}
                     </div>

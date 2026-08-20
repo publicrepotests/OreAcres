@@ -14,6 +14,7 @@ export type GearDyeId = "original" | "iron" | "sunsteel" | "verdant" | "moonstee
 export type HelmetStyleId = "auto" | "barbuta" | "greathelm" | "sugarloaf" | "plate";
 export type CapeStyleId = "auto" | "solid" | "tattered" | "briar";
 export type ShieldStyleId = "auto" | "crusader";
+export type CompanionId = "none" | "ore-slime" | "pinefang-pup" | "ashwing-whelp";
 export type CharacterCustomization = {
   faceStyle: FaceStyleId;
   hairStyle: HairStyleId;
@@ -28,6 +29,7 @@ export type CharacterCustomization = {
   helmetStyle: HelmetStyleId;
   capeStyle: CapeStyleId;
   shieldStyle: ShieldStyleId;
+  companion: CompanionId;
   showHelmet: boolean;
   showCape: boolean;
   showShield: boolean;
@@ -540,13 +542,19 @@ export const SHIELD_STYLES: Array<{ id: ShieldStyleId; name: string }> = [
   { id: "auto", name: "Armor set" },
   { id: "crusader", name: "Crusader shield" },
 ];
+export const COMPANIONS: Array<{ id: CompanionId; name: string; detail: string }> = [
+  { id: "none", name: "No companion", detail: "Travel the frontier alone." },
+  { id: "ore-slime", name: "Glimmer Slime", detail: "A curious ore-born blob that bounces at your heels." },
+  { id: "pinefang-pup", name: "Pinefang Pup", detail: "A loyal Briarwild wolf pup with a nose for trails." },
+  { id: "ashwing-whelp", name: "Ashwing Whelp", detail: "A tiny drake that glides just above the road." },
+];
 
 const APPEARANCE_CUSTOMIZATION: Record<AppearanceId, CharacterCustomization> = {
-  vanguard: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "ivory", hairColor: "silver", shirtColor: "guild-blue", pantsColor: "slate", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  ranger: { faceStyle: "cheerful", hairStyle: "shorthawk", beardStyle: "stubble", skinTone: "warm", hairColor: "chestnut", shirtColor: "leaf-green", pantsColor: "charcoal", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  arcanist: { faceStyle: "wide-eyed", hairStyle: "spiked2", beardStyle: "none", skinTone: "sunlit", hairColor: "violet", shirtColor: "violet", pantsColor: "slate", bootsColor: "charcoal", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  stonewarden: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "umber", hairColor: "raven", shirtColor: "crimson", pantsColor: "charcoal", bootsColor: "brown", armorDye: "iron", weaponDye: "iron", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
-  marshborn: { faceStyle: "wide-eyed", hairStyle: "plain", beardStyle: "none", skinTone: "deep", hairColor: "raven", shirtColor: "slate", pantsColor: "charcoal", bootsColor: "brown", armorDye: "moonsteel", weaponDye: "moonsteel", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  vanguard: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "ivory", hairColor: "silver", shirtColor: "guild-blue", pantsColor: "slate", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  ranger: { faceStyle: "cheerful", hairStyle: "shorthawk", beardStyle: "stubble", skinTone: "warm", hairColor: "chestnut", shirtColor: "leaf-green", pantsColor: "charcoal", bootsColor: "brown", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  arcanist: { faceStyle: "wide-eyed", hairStyle: "spiked2", beardStyle: "none", skinTone: "sunlit", hairColor: "violet", shirtColor: "violet", pantsColor: "slate", bootsColor: "charcoal", armorDye: "original", weaponDye: "original", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  stonewarden: { faceStyle: "determined", hairStyle: "plain", beardStyle: "none", skinTone: "umber", hairColor: "raven", shirtColor: "crimson", pantsColor: "charcoal", bootsColor: "brown", armorDye: "iron", weaponDye: "iron", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
+  marshborn: { faceStyle: "wide-eyed", hairStyle: "plain", beardStyle: "none", skinTone: "deep", hairColor: "raven", shirtColor: "slate", pantsColor: "charcoal", bootsColor: "brown", armorDye: "moonsteel", weaponDye: "moonsteel", helmetStyle: "auto", capeStyle: "auto", shieldStyle: "auto", companion: "none", showHelmet: true, showCape: true, showShield: true, showWeapon: true },
 };
 
 export function customizationForAppearance(appearance: AppearanceId): CharacterCustomization {
@@ -577,6 +585,7 @@ export function normalizeCharacterCustomization(
     helmetStyle: pick(candidate.helmetStyle, HELMET_STYLES, fallback.helmetStyle),
     capeStyle: pick(candidate.capeStyle, CAPE_STYLES, fallback.capeStyle),
     shieldStyle: pick(candidate.shieldStyle, SHIELD_STYLES, fallback.shieldStyle),
+    companion: pick(candidate.companion, COMPANIONS, fallback.companion),
     showHelmet: pickVisibility(candidate.showHelmet, fallback.showHelmet),
     showCape: pickVisibility(candidate.showCape, fallback.showCape),
     showShield: pickVisibility(candidate.showShield, fallback.showShield),

@@ -3322,7 +3322,9 @@ kbd {
 }
 
 .rpg-paperdoll {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 1;
   height: 460px;
   min-height: 460px;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -3514,6 +3516,89 @@ kbd {
   background: radial-gradient(circle, #27352b 0%, #101712 72%);
   image-rendering: pixelated;
   object-fit: contain;
+}
+
+.rpg-companion-picker {
+  padding: 12px;
+  border: 1px solid #4b5a4e;
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(114, 170, 126, 0.15), transparent 38%),
+    linear-gradient(180deg, rgba(34, 48, 39, 0.97), rgba(17, 24, 20, 0.99));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+}
+.rpg-companion-picker > header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.rpg-companion-picker > header div { display: grid; gap: 4px; }
+.rpg-companion-picker > header span { color: #9db69f; font: 800 0.55rem/1 Verdana, sans-serif; letter-spacing: 0.12em; }
+.rpg-companion-picker > header h3 { margin: 0; color: #ecd799; font: 700 0.9rem/1.2 Georgia, serif; }
+.rpg-companion-picker > header small {
+  padding: 4px 6px;
+  border: 1px solid #3e6c55;
+  border-radius: 3px;
+  color: #8ed3a7;
+  font: 800 0.46rem/1 Verdana, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.rpg-companion-picker > p { margin: 6px 0 10px; color: #9cad9b; font: 600 0.56rem/1.4 Verdana, sans-serif; }
+.rpg-companion-picker > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.rpg-companion-picker button {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 58px;
+  padding: 5px 8px 5px 4px;
+  overflow: hidden;
+  border: 1px solid #465449;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #253129, #1b241e);
+  text-align: left;
+}
+.rpg-companion-picker button:hover { border-color: #8d7941; background: linear-gradient(180deg, #303a2d, #222b22); }
+.rpg-companion-picker button.active {
+  border-color: #d2aa4f;
+  background: linear-gradient(180deg, #383a27, #282d23);
+  box-shadow: inset 3px 0 #e6c66c, 0 0 0 1px rgba(218, 178, 81, 0.08);
+}
+.rpg-companion-picker button > span { display: grid; gap: 3px; min-width: 0; }
+.rpg-companion-picker button b { color: #e8dab0; font: 700 0.61rem/1.1 Verdana, sans-serif; }
+.rpg-companion-picker button small { color: #91a28f; font: 600 0.49rem/1.25 Verdana, sans-serif; }
+.rpg-companion-picker__sprite {
+  width: 50px;
+  height: 50px;
+  background-repeat: no-repeat;
+  background-size: 200px 200px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.42));
+}
+.rpg-companion-picker__sprite--none {
+  position: relative;
+  border: 1px dashed #526054;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(142, 162, 142, 0.08), transparent 70%);
+}
+.rpg-companion-picker__sprite--none::after {
+  content: "-";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #718274;
+  font: 700 1.1rem/1 Georgia, serif;
+}
+.rpg-companion-picker__sprite--ore-slime {
+  background-image: url("/assets/rpg/creatures/ore-slime-sheet-1024.png");
+  background-position: 0 0;
+}
+.rpg-companion-picker__sprite--pinefang-pup {
+  background-image: url("/assets/rpg/creatures/forest-wolf-sheet-v2.png");
+  background-position: 0 0;
+}
+.rpg-companion-picker__sprite--ashwing-whelp {
+  background-image: url("/assets/rpg/creatures/ashwing-drake-sheet-1024.png");
+  background-position: 0 -100px;
 }
 
 .rpg-character-customizer {
@@ -4380,7 +4465,7 @@ kbd {
   .rpg-milestones > div { grid-template-columns: 1fr; }
   .rpg-collection-log > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rpg-equipment { align-content: start; }
-  .rpg-paperdoll { height: 360px; min-height: 360px; }
+  .rpg-paperdoll { position: relative; top: auto; height: 360px; min-height: 360px; }
   .rpg-paperdoll__figure { width: 190px; height: 190px; }
   .rpg-paperdoll article { width: 150px; }
   .rpg-paperdoll .slot-armor { left: 18px; top: 18px; }
