@@ -738,6 +738,7 @@ export class OrehavenScene extends Phaser.Scene {
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private player!: LayeredHero;
   private playerName!: Phaser.GameObjects.Text;
+  private playerShadow!: Phaser.GameObjects.Ellipse;
   private playerBeacon!: Phaser.GameObjects.Ellipse;
   private playerPos = new Phaser.Math.Vector2(PLAYER_START.x, PLAYER_START.y);
   private facing: Direction = "down";
@@ -936,6 +937,7 @@ export class OrehavenScene extends Phaser.Scene {
     this.createResources();
     this.createEnemies();
 
+    this.playerShadow = this.add.ellipse(0, 0, 28, 10, 0x07100b, 0.45).setDepth(4998);
     this.playerBeacon = this.add
       .ellipse(0, 0, 40, 16)
       .setStrokeStyle(1.5, 0x67f5d3, 0.48)
@@ -5374,6 +5376,7 @@ export class OrehavenScene extends Phaser.Scene {
   private updatePlayerView() {
     this.player.setPosition(this.playerPos.x, this.playerPos.y);
     this.player.setDepth(this.playerPos.y + 4);
+    this.playerShadow.setPosition(this.playerPos.x, this.playerPos.y + 7).setDepth(this.playerPos.y + 1);
     this.playerBeacon.setPosition(this.playerPos.x, this.playerPos.y + 7).setDepth(this.playerPos.y + 2);
     this.playerName
       .setPosition(this.playerPos.x, this.playerPos.y - 44)
