@@ -94,7 +94,7 @@ assert.match(audio, /type GameMusicState = "field" \| "dungeon" \| "battle"/, "T
 assert.match(audio, /createMediaElementSource\(element\)/, "Music should stream instead of decoding every track into memory.");
 assert.match(audio, /exponentialRampToValueAtTime\(definition\.gain/, "Music transitions do not crossfade.");
 assert.match(scene, /this\.callbacks\.onMusic\("battle"\)/, "Combat does not switch to battle music.");
-assert.match(scene, /this\.activeWorldArea === "dungeon" \? "dungeon" : "field"/, "World regions do not restore exploration music.");
+assert.match(scene, /this\.activeWorldArea === "dungeon" \|\| this\.activeWorldArea === "icefang" \? "dungeon" : "field"/, "Dungeon regions do not restore exploration music.");
 for (const cue of ["range-shot", "magic-cast", "hurt", "heal", "fish", "gather-complete", "victory", "level"]) {
   assert.match(audio, new RegExp(`(?:"${cue}"|${cue}): \\{ paths:`), `${cue} does not use a recorded sample`);
 }
