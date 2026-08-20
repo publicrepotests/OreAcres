@@ -1409,8 +1409,8 @@ export function PhaserRpgGame({
   }, [hud.abilityCooldowns.secondWindReadyAt, hud.abilityCooldowns.signatureReadyAt, hud.abilityCooldowns.treeReadyAt, hud.activeAction, hud.incomingCast, hud.target?.status?.expiresAt, hud.worldEvent?.endsAt, hud.worldEvent?.respawnAt, social.party?.expedition?.status]);
 
   useEffect(() => {
-    audioRef.current?.setEnabled(soundOn);
-  }, [soundOn]);
+    audioRef.current?.setEnabled(soundOn && sceneReady);
+  }, [sceneReady, soundOn]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

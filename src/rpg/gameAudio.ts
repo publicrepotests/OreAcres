@@ -16,7 +16,14 @@ export type GameAudioCue =
   | "quest"
   | "level";
 
-export type GameMusicState = "field" | "dungeon" | "battle";
+export type GameMusicState =
+  | "field"
+  | "moonfen"
+  | "emberfall"
+  | "frostmere"
+  | "sunscar"
+  | "dungeon"
+  | "battle";
 
 type ToneOptions = {
   delay?: number;
@@ -38,6 +45,10 @@ type MusicChannel = {
 
 const MUSIC_TRACKS: Record<GameMusicState, { path: string; gain: number; loopStart?: number }> = {
   field: { path: "/assets/rpg/audio/music/orehaven-field.ogg", gain: 0.28 },
+  moonfen: { path: "/assets/rpg/audio/music/biomes/moonfen-swamp.ogg", gain: 0.24 },
+  emberfall: { path: "/assets/rpg/audio/music/biomes/emberfall-dark.ogg", gain: 0.23 },
+  frostmere: { path: "/assets/rpg/audio/music/biomes/frostmere-snow.ogg", gain: 0.25 },
+  sunscar: { path: "/assets/rpg/audio/music/biomes/sunscar-desert.mp3", gain: 0.24 },
   dungeon: { path: "/assets/rpg/audio/music/orehaven-dungeon.ogg", gain: 0.32 },
   battle: { path: "/assets/rpg/audio/music/orehaven-battle.ogg", gain: 0.3, loopStart: 7.5 },
 };

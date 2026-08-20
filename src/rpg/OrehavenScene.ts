@@ -449,6 +449,7 @@ const SUNSCAR_EXPANSE_KEY = "sunscar-expanse";
 const GUILD_HALL_KEY = "orehaven-guildhall";
 const ICEFANG_VAULT_KEY = "icefang-vault";
 const WORLD_MAP_REVISION = "icefang-vault-20260819";
+const CREATURE_ASSET_REVISION = "treant-20260820";
 const WORLD_LAYER_MANIFEST: ReadonlyArray<{ key: string; path: string; y: number; depth?: number }> = [
   { key: BRIARWILD_KEY, path: WORLD_AREAS.overworld.images[1], y: WORLD_AREAS.overworld.top + 1024 },
   { key: BRIARWILD_TRANSITION_KEY, path: "/assets/rpg/world/orehaven-briarwild-transition.png", y: 864, depth: -49 },
@@ -829,6 +830,12 @@ export class OrehavenScene extends Phaser.Scene {
     this.load.maxParallelDownloads = 32;
     this.load.on("progress", (value: number) => this.callbacks.onLoadProgress?.(value));
     this.load.image(WORLD_KEY, `${WORLD_AREAS.overworld.images[0]}?v=${WORLD_MAP_REVISION}`);
+    const savedArea = worldAreaAtY(this.playerPos.y);
+    WORLD_LAYER_MANIFEST
+      .filter((layer) => savedArea === "overworld"
+        ? this.playerPos.y >= 840 && (layer.key === BRIARWILD_KEY || layer.key === BRIARWILD_TRANSITION_KEY)
+        : layer.y === WORLD_AREAS[savedArea].top)
+      .forEach((layer) => this.load.image(layer.key, `${layer.path}?v=${WORLD_MAP_REVISION}`));
     preloadLayeredHeroAssets(this, {
       essentialOnly: true,
       appearance: this.progress.appearance,
@@ -916,11 +923,9 @@ export class OrehavenScene extends Phaser.Scene {
       if (this.textures.exists(key)) this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
     });
     this.addLoadedWorldImage(WORLD_KEY, 0);
-    this.addLoadedWorldImage(BRIARWILD_KEY, 1024);
-    // This authored strip bridges the town gate into the forest road, hiding
-    // the hard edge where the two painted region canvases meet.
-    this.addLoadedWorldImage(BRIARWILD_TRANSITION_KEY, 864, -49);
-    this.addLoadedWorldImage(SUNSTONE_CATACOMBS_KEY, 2048);
+    // Attach whichever saved region was preloaded before the loading veil
+    // clears. The remaining world canvases continue streaming in the back.
+    WORLD_LAYER_MANIFEST.forEach((layer) => this.addLoadedWorldImage(layer.key, layer.y, layer.depth ?? -50));
     this.createAtmosphere();
     this.createRegionalAtmosphere();
     this.createCatacombAtmosphere();
@@ -1071,10 +1076,10 @@ export class OrehavenScene extends Phaser.Scene {
   private queueBackgroundWorldMaps() {
     if (this.backgroundWorldMapsQueued || this.disposed) return;
     this.backgroundWorldMapsQueued = true;
-    const maps = WORLD_LAYER_MANIFEST;
+    const maps = WORLD_LAYER_MANIFEST.filter((map) => !this.textures.exists(map.key));
     maps.forEach((map) => this.load.image(map.key, map.path));
-    this.load.spritesheet(TREANT_KEY, "/assets/rpg/creatures/briar-treant-idle.png", { frameWidth: 543, frameHeight: 724 });
-    this.load.spritesheet(TREANT_ATTACK_KEY, "/assets/rpg/creatures/briar-treant-rootwake.png", { frameWidth: 362, frameHeight: 724 });
+    this.load.spritesheet(TREANT_KEY, `/assets/rpg/creatures/briar-treant-idle.png?v=${CREATURE_ASSET_REVISION}`, { frameWidth: 543, frameHeight: 724 });
+    this.load.spritesheet(TREANT_ATTACK_KEY, `/assets/rpg/creatures/briar-treant-rootwake.png?v=${CREATURE_ASSET_REVISION}`, { frameWidth: 362, frameHeight: 724 });
     this.load.spritesheet(SKELETON_IDLE_KEY, "/assets/rpg/creatures/skeleton-idle.png", { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet(SKELETON_MOVE_KEY, "/assets/rpg/creatures/skeleton-move.png", { frameWidth: 128, frameHeight: 128 });
     this.load.spritesheet(WITCH_IDLE_KEY, "/assets/rpg/creatures/witch-doctor-idle.png", { frameWidth: 128, frameHeight: 128 });
@@ -1086,7 +1091,10 @@ export class OrehavenScene extends Phaser.Scene {
       if (this.disposed) return;
       maps.forEach((map) => this.addLoadedWorldImage(map.key, map.y, map.depth ?? -50));
       this.createCreatureAnimations();
-      this.enemyRuntime.forEach((enemy) => this.playEnemyIdle(enemy));
+      this.enemyRuntime.forEach((enemy) => {
+        if (enemy.sprite instanceof Phaser.GameObjects.Sprite) enemy.sprite.setData("deferredCreature", false);
+        this.playEnemyIdle(enemy);
+      });
       // Replay every modular actor once the deferred paper-doll catalog is
       // decoded. Missing layers are hidden during initial creation and would
       // otherwise leave NPC clothing, hair, armor, or weapons invisible.
@@ -3227,7 +3235,8 @@ export class OrehavenScene extends Phaser.Scene {
 
   private setEnemyRegionalActive(enemy: EnemyRuntime, active: boolean) {
     const alive = enemy.hp > 0 && enemy.respawnAt <= Date.now();
-    const visible = active && alive;
+    const deferredCreature = enemy.sprite instanceof Phaser.GameObjects.Sprite && enemy.sprite.getData("deferredCreature") === true;
+    const visible = active && alive && !deferredCreature;
     enemy.hero?.setSimulationActive(visible);
     if (!enemy.hero && enemy.sprite instanceof Phaser.GameObjects.Sprite) {
       enemy.sprite.setVisible(visible);
@@ -3299,7 +3308,7 @@ export class OrehavenScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, area.top, WORLD.width, area.height);
     this.refreshRegionalAtmosphere();
     this.syncRegionalSimulation();
-    if (!this.activeEnemyId) this.callbacks.onMusic(this.activeWorldArea === "dungeon" || this.activeWorldArea === "icefang" ? "dungeon" : "field");
+    if (!this.activeEnemyId) this.callbacks.onMusic(explorationMusicForArea(this.activeWorldArea));
     if (centerCamera && this.player) this.cameras.main.centerOn(this.playerPos.x, this.playerPos.y);
   }
 
@@ -3615,17 +3624,23 @@ export class OrehavenScene extends Phaser.Scene {
           .setDepth(definition.y);
         if (definition.rare) sprite.setTint(0xffdc73);
       } else if (definition.kind === "treant") {
+        const textureReady = this.textures.exists(TREANT_KEY);
         sprite = this.add
-          .sprite(definition.x, definition.y, TREANT_KEY, 0)
+          .sprite(definition.x, definition.y, textureReady ? TREANT_KEY : RAT_KEY, 0)
           .setOrigin(0.5, 0.94)
           .setScale(0.17)
+          .setData("deferredCreature", !textureReady)
+          .setVisible(textureReady)
           .setDepth(definition.y);
       } else if (definition.kind === "skeleton" || definition.kind === "witch") {
         const texture = definition.kind === "skeleton" ? SKELETON_IDLE_KEY : WITCH_IDLE_KEY;
+        const textureReady = this.textures.exists(texture);
         sprite = this.add
-          .sprite(definition.x, definition.y, texture, 0)
+          .sprite(definition.x, definition.y, textureReady ? texture : RAT_KEY, 0)
           .setOrigin(0.5, 0.64)
           .setScale(definition.kind === "skeleton" ? 1.42 : 1.38)
+          .setData("deferredCreature", !textureReady)
+          .setVisible(textureReady)
           .setDepth(definition.y);
       } else {
         sprite = this.add
@@ -4954,7 +4969,7 @@ export class OrehavenScene extends Phaser.Scene {
     this.destroyFishingFx();
     this.selectedRing.setVisible(false);
     this.setHeroAction("idle");
-    this.callbacks.onMusic(this.activeWorldArea === "dungeon" || this.activeWorldArea === "icefang" ? "dungeon" : "field");
+    this.callbacks.onMusic(explorationMusicForArea(this.activeWorldArea));
     this.emitHud({ activeAction: null, message, action: "Explore", target: null });
   }
 
@@ -5417,7 +5432,8 @@ export class OrehavenScene extends Phaser.Scene {
     this.enemyRuntime.forEach((value) => {
       const distance = Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, value.definition.x, value.definition.y);
       const activeTarget = value.definition.id === this.activeEnemyId;
-      updateNameplate(value.plate, !activeTarget && value.respawnAt <= Date.now() && distance < 230, distance < 150);
+      const deferredCreature = value.sprite instanceof Phaser.GameObjects.Sprite && value.sprite.getData("deferredCreature") === true;
+      updateNameplate(value.plate, !deferredCreature && !activeTarget && value.respawnAt <= Date.now() && distance < 230, distance < 150);
     });
     this.resourceRuntime.forEach((value) => {
       const distance = Phaser.Math.Distance.Between(this.playerPos.x, this.playerPos.y, value.definition.x, value.definition.y);
@@ -8184,6 +8200,15 @@ function combatStyleLabel(style: CombatStyle) {
   if (style === "range") return "Ranged";
   if (style === "magic") return "Arcane";
   return "Melee";
+}
+
+function explorationMusicForArea(area: WorldArea): GameMusicState {
+  if (area === "dungeon") return "dungeon";
+  if (area === "marsh") return "moonfen";
+  if (area === "highlands") return "emberfall";
+  if (area === "frostmere" || area === "icefang") return "frostmere";
+  if (area === "sunscar") return "sunscar";
+  return "field";
 }
 
 function directionToward(fromX: number, fromY: number, targetX: number, targetY: number): Direction {

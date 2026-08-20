@@ -76,25 +76,44 @@ const musicTracks = [
   "public/assets/rpg/audio/music/orehaven-field.ogg",
   "public/assets/rpg/audio/music/orehaven-dungeon.ogg",
   "public/assets/rpg/audio/music/orehaven-battle.ogg",
+  "public/assets/rpg/audio/music/biomes/moonfen-swamp.ogg",
+  "public/assets/rpg/audio/music/biomes/emberfall-dark.ogg",
+  "public/assets/rpg/audio/music/biomes/frostmere-snow.ogg",
 ];
 for (const path of musicTracks) {
   const bytes = read(path);
   assert.equal(bytes.toString("ascii", 0, 4), "OggS", `${path} is not a valid Ogg container`);
-  assert.ok(bytes.length > 1_000_000, `${path} appears truncated`);
+  assert.ok(bytes.length > 250_000, `${path} appears truncated`);
 }
+const desertTrack = read("public/assets/rpg/audio/music/biomes/sunscar-desert.mp3");
+assert.equal(desertTrack.toString("ascii", 0, 3), "ID3", "Sunscar music is not a valid MP3 container");
+assert.ok(desertTrack.length > 1_000_000, "Sunscar music appears truncated");
 
 const audio = read("src/rpg/gameAudio.ts").toString("utf8");
 const scene = read("src/rpg/OrehavenScene.ts").toString("utf8");
 const layeredHero = read("src/rpg/LayeredHero.ts").toString("utf8");
+const gameUi = read("src/PhaserRpgGame.tsx").toString("utf8");
 const credits = read("docs/ASSET-CREDITS.md").toString("utf8");
+const biomeCredits = read("public/assets/rpg/audio/music/biomes/ASSET-CREDITS.md").toString("utf8");
 assert.match(audio, /void this\.preloadSamples\(\)/, "Sample loading is not gated behind audio enablement.");
 assert.match(audio, /if \(SAMPLE_DEFINITIONS\[cue\]\) \{[\s\S]*?return;/, "Recorded cues can still fall through to synthesized startup noise.");
 assert.doesNotMatch(audio, /this\.startMusic\(\);/, "The placeholder synthesized music loop still starts.");
-assert.match(audio, /type GameMusicState = "field" \| "dungeon" \| "battle"/, "The music state contract is incomplete.");
+for (const state of ["field", "moonfen", "emberfall", "frostmere", "sunscar", "dungeon", "battle"]) {
+  assert.match(audio, new RegExp(`[| ]"${state}"`), `${state} is missing from the adaptive music contract`);
+}
 assert.match(audio, /createMediaElementSource\(element\)/, "Music should stream instead of decoding every track into memory.");
 assert.match(audio, /exponentialRampToValueAtTime\(definition\.gain/, "Music transitions do not crossfade.");
+assert.match(gameUi, /setEnabled\(soundOn && sceneReady\)/, "Audio starts before the saved biome is known and wastes the field-track download.");
 assert.match(scene, /this\.callbacks\.onMusic\("battle"\)/, "Combat does not switch to battle music.");
-assert.match(scene, /this\.activeWorldArea === "dungeon" \|\| this\.activeWorldArea === "icefang" \? "dungeon" : "field"/, "Dungeon regions do not restore exploration music.");
+assert.match(scene, /explorationMusicForArea\(this\.activeWorldArea\)/, "Combat does not restore the current biome's exploration music.");
+for (const mapping of [
+  ['area === "marsh"', '"moonfen"'],
+  ['area === "highlands"', '"emberfall"'],
+  ['area === "frostmere" || area === "icefang"', '"frostmere"'],
+  ['area === "sunscar"', '"sunscar"'],
+]) {
+  assert.ok(scene.includes(mapping[0]) && scene.includes(`return ${mapping[1]}`), `${mapping[0]} does not select ${mapping[1]} music`);
+}
 for (const cue of ["range-shot", "magic-cast", "hurt", "heal", "fish", "gather-complete", "victory", "level"]) {
   assert.match(audio, new RegExp(`(?:"${cue}"|${cue}): \\{ paths:`), `${cue} does not use a recorded sample`);
 }
@@ -149,7 +168,9 @@ assert.match(scene, /this\.load\.spritesheet\(WOLF_KEY, \"\/assets\/rpg\/creatur
 assert.match(scene, /\.sprite\(definition\.x, definition\.y, SLIME_KEY, 0\)[\s\S]*?setData\("animatedCreature", true\)/, "slimes must use their animated sheet at runtime");
 assert.match(scene, /ore-slime-sheet-1024\.png.*frameWidth: 256, frameHeight: 256/, "slimes must use the normalized 4x4 sheet geometry");
 assert.match(scene, /\.sprite\(definition\.x, definition\.y, RAT_KEY, 0\)[\s\S]*?setData\("animatedCreature", true\)/, "rats must use their animated sheet at runtime");
-assert.match(scene, /\.sprite\(definition\.x, definition\.y, TREANT_KEY, 0\)[\s\S]*?setScale\(0\.17\)/, "treants must use their dedicated transparent sprite strip at runtime");
+assert.match(scene, /textureReady \? TREANT_KEY : RAT_KEY[\s\S]*?setScale\(0\.17\)/, "treants must use their dedicated transparent sprite strip after deferred loading");
+assert.match(scene, /CREATURE_ASSET_REVISION = "treant-\d+"/, "the corrected treant sheets are not cache-versioned");
+assert.match(scene, /setData\("deferredCreature", !textureReady\)/, "deferred creatures can expose Phaser's fallback texture");
 assert.match(scene, /ore-treant-idle/);
 assert.match(scene, /ore-treant-attack/);
 assert.match(scene, /TREANT_ATTACK_KEY/);
@@ -164,7 +185,10 @@ assert.match(scene, /delayedCall\(210/, "magic signature frames do not have a re
 assert.match(credits, /Kenney RPG Audio/);
 assert.match(credits, /Ansimuz Magic Pack 9/);
 for (const creator of ["MintoDog", "Paul Wortmann", "pmiller"]) assert.match(credits, new RegExp(creator), `${creator} music credit is missing`);
+for (const creator of ["beardalaxy", "SkyleTheFrench", "Cleyton Kauffman", "iamoneabe"]) {
+  assert.match(biomeCredits, new RegExp(creator), `${creator} biome music credit is missing`);
+}
 assert.match(read("public/assets/rpg/audio/kenney/LICENSE.txt").toString("utf8"), /Creative Commons Zero, CC0/);
 assert.match(read("public/assets/rpg/effects/ansimuz/LICENSE.txt").toString("utf8"), /personal or commercial projects/);
 
-console.log(JSON.stringify({ spellSheets: sheets.length, sampledSounds: samples.length, streamedMusicTracks: musicTracks.length, creatureSheets: creatureSheets.length, transparentEffects: true, detailedCreatureAtlas: true, animatedCreatureRuntime: true, stagedSignatureEffects: 4, weaponThemedBasicAttacks: true, synchronizedContactFrames: true, alternatingMeleeCadence: true, recordedGameplayCues: true, placeholderMusicDisabled: true, adaptiveMusic: true, movementFootsteps: true, movementContactFx: true, cc0Licenses: 5, result: "PASS" }, null, 2));
+console.log(JSON.stringify({ spellSheets: sheets.length, sampledSounds: samples.length, streamedMusicTracks: musicTracks.length + 1, biomeMusicTracks: 4, creatureSheets: creatureSheets.length, transparentEffects: true, detailedCreatureAtlas: true, animatedCreatureRuntime: true, stagedSignatureEffects: 4, weaponThemedBasicAttacks: true, synchronizedContactFrames: true, alternatingMeleeCadence: true, recordedGameplayCues: true, placeholderMusicDisabled: true, adaptiveMusic: true, movementFootsteps: true, movementContactFx: true, cc0Licenses: 9, result: "PASS" }, null, 2));

@@ -23,6 +23,9 @@ assert.match(scene, /worldAreaMovementBounds\(this\.activeWorldArea/, "player mo
 assert.doesNotMatch(scene, /activeWorldArea === "highlands" \? WORLD\.height/, "late-region movement can still leak across map bands");
 assert.match(shell, /areaDefinition\.images\.map/, "the map UI does not render from the shared chart manifest");
 assert.match(scene, /const WORLD_LAYER_MANIFEST:[\s\S]*?= \[[\s\S]*?WORLD_AREAS\.icefang\.images\[0\]/, "Phaser map loading does not use the complete shared chart manifest");
+assert.match(scene, /const savedArea = worldAreaAtY\(this\.playerPos\.y\);[\s\S]*?WORLD_LAYER_MANIFEST[\s\S]*?this\.load\.image/, "the player's saved chart is not preloaded before the loading veil clears");
+assert.match(scene, /WORLD_LAYER_MANIFEST\.forEach\(\(layer\) => this\.addLoadedWorldImage/, "preloaded destination charts are not attached during initial scene creation");
+assert.match(scene, /const deferredCreature[\s\S]*?const visible = active && alive && !deferredCreature;/, "deferred creatures can show a fallback sprite before their real sheet loads");
 const landmarkBlock = scene.match(/const REGIONAL_LANDMARK_ACCENTS:[\s\S]*?\n\];/)?.[0] ?? "";
 assert.equal((landmarkBlock.match(/area: "/g) ?? []).length, 8, "every destination chart needs a distinct animated landmark");
 assert.match(scene, /createRegionalLandmarkAccents\(\);[\s\S]*?refreshRegionalAtmosphere\(\);/, "new landmarks are not immediately scoped to the active chart");
