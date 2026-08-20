@@ -396,7 +396,14 @@ function textureKey(layer: string, action: string) {
   return `lpc-${layer.replaceAll("/", "-")}-${action}`;
 }
 
+const queuedSheetKeys = new WeakMap<Phaser.Scene, Set<string>>();
+
 function loadSheet(scene: Phaser.Scene, key: string, path: string, frameSize: number) {
+  if (scene.textures.exists(key)) return;
+  const queued = queuedSheetKeys.get(scene) ?? new Set<string>();
+  if (queued.has(key)) return;
+  queued.add(key);
+  queuedSheetKeys.set(scene, queued);
   scene.load.spritesheet(key, path, { frameWidth: frameSize, frameHeight: frameSize });
 }
 
@@ -522,7 +529,7 @@ function preloadEssentialHeroAssets(scene: Phaser.Scene, options: HeroPreloadOpt
     preloadSwordAssets(scene, resolveSwordAssetSet(weapon));
   } else if (weapon?.kind === "bow") {
     preloadBowAssets(scene, resolveBowAssetSet(weapon));
-  } else {
+  } else if (weapon?.kind === "staff") {
     loadSheet(scene, "lpc-staff-walk-bg", `${LPC_ROOT}/weapon/staff/walk-bg.png`, 64);
     loadSheet(scene, "lpc-staff-walk-fg", `${LPC_ROOT}/weapon/staff/walk-fg.png`, 64);
     loadSheet(scene, "lpc-staff-spellcast-bg", `${LPC_ROOT}/weapon/staff/spellcast-bg.png`, 64);

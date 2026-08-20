@@ -565,6 +565,33 @@ const NPC_VISUALS: Record<
   scribe: { appearance: "pella", equipped: { weapon: "arcane-staff", tool: "bronze-pick", armor: "moonweave-mantle" } },
 };
 
+function layeredEnemyVisual(definition: EnemyDefinition): {
+  appearance: ActorAppearanceId;
+  equipped: PlayerProgress["equipped"];
+} | null {
+  if (definition.kind !== "goblin" && definition.kind !== "orc" && definition.kind !== "lizard") return null;
+  const appearance: ActorAppearanceId = definition.kind;
+  const defaultWeapon = definition.kind === "lizard"
+    ? definition.attackStyle === "magic"
+      ? "arcane-staff"
+      : definition.attackStyle === "range"
+        ? "iron-bow"
+        : "iron-sword"
+    : definition.kind === "orc"
+      ? "iron-sword"
+      : definition.attackStyle === "range"
+        ? "oak-bow"
+        : "bronze-sword";
+  return {
+    appearance,
+    equipped: {
+      weapon: definition.visual?.weapon ?? defaultWeapon,
+      tool: "iron-pick",
+      armor: definition.visual?.armor ?? (definition.kind === "orc" || definition.kind === "lizard" ? "warden-mail" : ""),
+    },
+  };
+}
+
 const AMBIENT_CITIZENS: AmbientCitizenDefinition[] = [
   {
     id: "town-courier",
@@ -826,6 +853,31 @@ export class OrehavenScene extends Phaser.Scene {
     this.lastQuestToastStep = progress.questStep;
   }
 
+  private preloadActiveActorAssets(area: WorldArea) {
+    const preloadActor = (appearance: ActorAppearanceId, equipped: PlayerProgress["equipped"]) => {
+      preloadLayeredHeroAssets(this, {
+        essentialOnly: true,
+        appearance,
+        weaponId: equipped.weapon,
+        armorId: equipped.armor,
+      });
+    };
+    NPCS.forEach((definition) => {
+      if (worldAreaAtY(definition.y) !== area) return;
+      const visual = NPC_VISUALS[definition.id];
+      preloadActor(visual.appearance, visual.equipped);
+    });
+    AMBIENT_CITIZENS.forEach((definition) => {
+      if (worldAreaAtY(definition.route[0]?.y ?? 0) !== area) return;
+      preloadActor(definition.appearance, definition.equipped);
+    });
+    ENEMIES.forEach((definition) => {
+      if (worldAreaAtY(definition.y) !== area) return;
+      const visual = layeredEnemyVisual(definition);
+      if (visual) preloadActor(visual.appearance, visual.equipped);
+    });
+  }
+
   preload() {
     this.load.maxParallelDownloads = 32;
     this.load.on("progress", (value: number) => this.callbacks.onLoadProgress?.(value));
@@ -843,6 +895,7 @@ export class OrehavenScene extends Phaser.Scene {
       weaponId: this.progress.equipped.weapon,
       armorId: this.progress.equipped.armor,
     });
+    this.preloadActiveActorAssets(savedArea);
     this.load.spritesheet(WORLD_ATLAS_KEY, "/assets/rpg/atlas/world.png", {
       frameWidth: ATLAS_FRAME.width,
       frameHeight: ATLAS_FRAME.height,
@@ -3556,27 +3609,11 @@ export class OrehavenScene extends Phaser.Scene {
       }
       let hero: LayeredHero | undefined;
       let sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Container;
-      if (definition.kind === "goblin" || definition.kind === "orc" || definition.kind === "lizard") {
-        const appearance: ActorAppearanceId = definition.kind;
-        const defaultWeapon = definition.kind === "lizard"
-          ? definition.attackStyle === "magic"
-            ? "arcane-staff"
-            : definition.attackStyle === "range"
-              ? "iron-bow"
-              : "iron-sword"
-          : definition.kind === "orc"
-            ? "iron-sword"
-            : definition.attackStyle === "range"
-              ? "oak-bow"
-              : "bronze-sword";
-        const equipped = {
-          weapon: definition.visual?.weapon ?? defaultWeapon,
-          tool: "iron-pick",
-          armor: definition.visual?.armor ?? (definition.kind === "orc" || definition.kind === "lizard" ? "warden-mail" : ""),
-        };
+      const layeredVisual = layeredEnemyVisual(definition);
+      if (layeredVisual) {
         const actorScale = definition.visual?.scale
           ?? (definition.kind === "orc" ? 1.02 : definition.kind === "lizard" ? 0.96 : 0.86);
-        hero = new LayeredHero(this, definition.x, definition.y, appearance, equipped)
+        hero = new LayeredHero(this, definition.x, definition.y, layeredVisual.appearance, layeredVisual.equipped)
           .setScale(actorScale)
           .setDepth(definition.y);
         sprite = hero.root;

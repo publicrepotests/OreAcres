@@ -90,8 +90,17 @@ assert.ok(layeredHero.includes("private syncPoseMotion("), "layered actors need 
 assert.match(layeredHero, /action === "walk"[\s\S]*?targets: this\.visualRoot/, "walking must animate the actor pose instead of remaining rigid");
 assert.match(layeredHero, /sprite\.setVisible\(true\)\.setTint/, "streamed animated layers must recover visibility when their texture becomes available");
 assert.match(layeredHero, /sprite\.setVisible\(true\)\.setTexture/, "streamed static gear layers must recover visibility when their texture becomes available");
+assert.ok(layeredHero.includes("const queuedSheetKeys = new WeakMap<Phaser.Scene, Set<string>>()"), "layered asset requests must be deduplicated per scene");
+assert.ok(layeredHero.includes("if (scene.textures.exists(key)) return;"), "loaded layered textures must not be requested again");
+assert.ok(layeredHero.includes("if (queued.has(key)) return;"), "queued layered textures must not be requested again");
+assert.ok(layeredHero.includes('else if (weapon?.kind === "staff")'), "an empty weapon slot must not preload staff assets");
 const gameScene = await readFile(new URL("../src/rpg/OrehavenScene.ts", import.meta.url), "utf8");
 assert.match(gameScene, /private createActorShadow\(/, "the scene must retain one depth-sorted grounding system for world actors");
+assert.ok(gameScene.includes("this.preloadActiveActorAssets(savedArea);"), "the saved region's visible actors must load before world entry");
+assert.match(gameScene, /NPCS\.forEach[\s\S]*?worldAreaAtY\(definition\.y\) !== area/, "static NPC preload must stay scoped to the active region");
+assert.match(gameScene, /AMBIENT_CITIZENS\.forEach[\s\S]*?worldAreaAtY\(definition\.route\[0\]\?\.y \?\? 0\) !== area/, "ambient citizen preload must stay scoped to the active region");
+assert.match(gameScene, /ENEMIES\.forEach[\s\S]*?worldAreaAtY\(definition\.y\) !== area/, "layered enemy preload must stay scoped to the active region");
+assert.ok((gameScene.match(/layeredEnemyVisual\(definition\)/g) ?? []).length >= 2, "enemy preload and rendering must share one visual definition");
 const heroPortrait = await readFile(new URL("../src/rpg/HeroPortrait.tsx", import.meta.url), "utf8");
 const gameUi = await readFile(new URL("../src/PhaserRpgGame.tsx", import.meta.url), "utf8");
 const serverProfiles = await readFile(new URL("../server/src/rpgProfiles.js", import.meta.url), "utf8");
