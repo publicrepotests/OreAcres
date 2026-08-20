@@ -26,6 +26,7 @@ import { ADVENTURE_CHRONICLES, adventureProgress } from "./adventureProgress.js"
 import { advanceSideQuests, sideQuestById } from "./sideQuestProgress.js";
 import { featuredRpgPublicEvent, isFeaturedRpgPublicEvent, rpgPublicEventForEnemy } from "./publicEvents.js";
 import { sunstoneRevenantAbility } from "./catacombRules.js";
+import { rimeboundKingAbility } from "./icefangRules.js";
 import RPG_LOOT_RULES from "./lootRules.json" with { type: "json" };
 import EDITABLE_WORLD_LAYOUT from "./worldLayout.json" with { type: "json" };
 
@@ -885,7 +886,7 @@ function normalizePendingEnemyCast(value) {
     targetPlayerId: value.targetPlayerId.slice(0, 64),
     x: Math.max(0, Math.min(RPG_WORLD.width, x)),
     y: Math.max(0, Math.min(RPG_WORLD.height, y)),
-    radius: Math.max(24, Math.min(120, radius)),
+    radius: Math.max(24, Math.min(160, radius)),
     color: Number.isFinite(color) ? Math.max(0, Math.min(0xffffff, Math.floor(color))) : 0xe66a52,
     multiplier: Number.isFinite(multiplier) ? Math.max(1, Math.min(2.5, multiplier)) : 1.4,
     completesAt,
@@ -925,6 +926,7 @@ function mitigateEnemyDamage(rawDamage, defense) {
 function enemySpecialAbility(definition, enemy) {
   if (!definition || definition.level < 6 || definition.kind === "rat") return null;
   if (definition.id === "sunstone-revenant") return sunstoneRevenantAbility(enemy?.hp ?? definition.maxHp, enemy?.maxHp ?? definition.maxHp);
+  if (definition.id === "icefang-rimebound-king") return rimeboundKingAbility(enemy?.hp ?? definition.maxHp, enemy?.maxHp ?? definition.maxHp);
   const rareAbilities = {
     "goblin-firestarter": { name: "Cinder Volley", radius: 76, castMs: 1_500, cooldownMs: 7_600, color: 0xff7a3d, multiplier: 1.62 },
     "ironhide-grukk": { name: "Ironquake", radius: 94, castMs: 1_800, cooldownMs: 8_400, color: 0xffc454, multiplier: 1.9 },

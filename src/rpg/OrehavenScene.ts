@@ -56,6 +56,7 @@ import {
 import { publicEventRotation } from "./publicEvents";
 import { WORLD_AREAS, worldAreaForY, worldAreaMovementBounds, type WorldAreaId } from "./worldAreas";
 import { SUNSTONE_REVENANT_PHASES, sunstoneRevenantPhase } from "./catacombRules";
+import { RIMEBOUND_KING_PHASES, rimeboundKingPhase } from "./icefangRules";
 import type { GameAudioCue, GameMusicState } from "./gameAudio";
 import {
   LayeredHero,
@@ -6758,6 +6759,18 @@ export class OrehavenScene extends Phaser.Scene {
         this.emitHud({ message: `Aurex enters phase ${nextPhase}: ${phaseName}!` });
       }
     }
+    if (enemy.definition.id === "icefang-rimebound-king") {
+      const nextPhase = rimeboundKingPhase(enemy.hp, enemy.definition.maxHp);
+      const previousPhase = enemy.phase;
+      enemy.phase = nextPhase;
+      const phaseRule = RIMEBOUND_KING_PHASES[nextPhase - 1];
+      enemy.rareAura?.setFillStyle(phaseRule.color, nextPhase === 3 ? 0.25 : 0.16).setStrokeStyle(nextPhase === 3 ? 5 : 3, phaseRule.color, 0.96);
+      if (regionalActive && !initial && previousPhase && nextPhase > previousPhase && enemy.hp > 0) {
+        this.showRimeboundPhaseFx(enemy, phaseRule.color, nextPhase);
+        this.callbacks.onToast({ title: `Hroth breaks oath ${nextPhase}`, detail: `${phaseRule.name} awakened • Leave the marked ice`, tone: "quest" });
+        this.emitHud({ message: `Hroth enters phase ${nextPhase}: ${phaseRule.name}!` });
+      }
+    }
     enemy.respawnAt = Math.max(0, Number(state.respawnAt) || 0);
     enemy.status = normalizeEnemyStatus(state.status);
     const previousTargetPlayerId = enemy.targetPlayerId;
@@ -7005,12 +7018,47 @@ export class OrehavenScene extends Phaser.Scene {
     });
   }
 
+  private showRimeboundPhaseFx(enemy: EnemyRuntime, color: number, phase: number) {
+    const x = enemy.sprite.x;
+    const y = enemy.sprite.y + 2;
+    const radius = 62 + phase * 20;
+    this.callbacks.onAudio("magic-cast");
+    this.cameras.main.shake(320, phase === 3 ? 0.01 : 0.006);
+    const floorFlash = this.add.ellipse(x, y, 34, 18, color, 0.5).setStrokeStyle(4, 0xffffff, 0.9).setDepth(y + 8);
+    this.tweens.add({
+      targets: floorFlash,
+      scaleX: radius / 17,
+      scaleY: radius / 17,
+      alpha: 0,
+      duration: 720,
+      ease: "Cubic.easeOut",
+      onComplete: () => floorFlash.destroy(),
+    });
+    for (let index = 0; index < 12; index += 1) {
+      const angle = (Math.PI * 2 * index) / 12;
+      const shard = this.add
+        .rectangle(x, y - 8, phase === 3 ? 5 : 4, 14 + phase * 3, index % 2 ? color : 0xe9fdff, 0.94)
+        .setAngle(Phaser.Math.RadToDeg(angle) + 90)
+        .setDepth(y + 10);
+      this.tweens.add({
+        targets: shard,
+        x: x + Math.cos(angle) * radius,
+        y: y + Math.sin(angle) * radius * 0.55 - 12,
+        angle: shard.angle + (index % 2 ? 70 : -70),
+        alpha: 0,
+        duration: 520 + index * 18,
+        ease: "Quad.easeOut",
+        onComplete: () => shard.destroy(),
+      });
+    }
+  }
+
   private showEnemyTelegraph(data: any) {
     const enemy = this.enemyRuntime.get(String(data?.enemyId ?? ""));
     const x = Number(data?.x);
     const y = Number(data?.y);
     if (!enemy || !Number.isFinite(x) || !Number.isFinite(y) || enemy.respawnAt > Date.now()) return;
-    const radius = Phaser.Math.Clamp(Number(data?.radius) || 64, 36, 120);
+    const radius = Phaser.Math.Clamp(Number(data?.radius) || 64, 36, 160);
     const color = Phaser.Math.Clamp(Math.floor(Number(data?.color) || 0xe66a52), 0, 0xffffff);
     const abilityName = typeof data?.abilityName === "string" ? data.abilityName.slice(0, 36) : "Incoming attack";
     const duration = Phaser.Math.Clamp(Math.floor(Number(data?.completesAt) - Date.now()), 250, 2_500);
@@ -7080,7 +7128,7 @@ export class OrehavenScene extends Phaser.Scene {
     const x = Number(data?.x);
     const y = Number(data?.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    const radius = Phaser.Math.Clamp(Number(data?.radius) || 64, 36, 120);
+    const radius = Phaser.Math.Clamp(Number(data?.radius) || 64, 36, 160);
     const color = Phaser.Math.Clamp(Math.floor(Number(data?.color) || 0xe66a52), 0, 0xffffff);
     const impact = this.add.ellipse(x, y + 2, radius * 1.15, radius * 0.66, color, 0.32).setStrokeStyle(3, color, 0.96).setDepth(y + 9);
     this.tweens.add({
