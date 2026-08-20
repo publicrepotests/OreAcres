@@ -270,7 +270,7 @@
     { "itemId": "frostspire-staff", "chance": 0.018 }
   ],
   "icefang-rimebound-king": [
-    { "itemId": "frostglass-ore", "chance": 0.78 },
+    { "itemId": "frostglass-ore", "chance": 0.62 },
     { "itemId": "aurora-longbow", "chance": 0.02 },
     { "itemId": "frostspire-staff", "chance": 0.026 },
     { "itemId": "frostguard-aegis", "chance": 0.018 },
