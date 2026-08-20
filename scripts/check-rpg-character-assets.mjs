@@ -86,6 +86,11 @@ for (const [variant, actions] of Object.entries(bowVariantDimensions)) {
 
 const gameData = await readFile(new URL("../src/rpg/gameData.ts", import.meta.url), "utf8");
 const layeredHero = await readFile(new URL("../src/rpg/LayeredHero.ts", import.meta.url), "utf8");
+assert.ok(layeredHero.includes("private readonly groundShadow"), "layered actors need a stable contact shadow so they do not float above the map");
+assert.ok(layeredHero.includes("private syncPoseMotion("), "layered actors need action-specific locomotion and profession pose motion");
+assert.match(layeredHero, /action === "walk"[\s\S]*?targets: this\.groundShadow/, "walking must animate both the actor pose and ground contact");
+assert.match(layeredHero, /sprite\.setVisible\(true\)\.setTint/, "streamed animated layers must recover visibility when their texture becomes available");
+assert.match(layeredHero, /sprite\.setVisible\(true\)\.setTexture/, "streamed static gear layers must recover visibility when their texture becomes available");
 const gameScene = await readFile(new URL("../src/rpg/OrehavenScene.ts", import.meta.url), "utf8");
 const heroPortrait = await readFile(new URL("../src/rpg/HeroPortrait.tsx", import.meta.url), "utf8");
 const gameUi = await readFile(new URL("../src/PhaserRpgGame.tsx", import.meta.url), "utf8");

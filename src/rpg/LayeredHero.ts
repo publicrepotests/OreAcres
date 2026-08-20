@@ -610,6 +610,7 @@ export class LayeredHero {
 
   private readonly scene: Phaser.Scene;
   private readonly visualRoot: Phaser.GameObjects.Container;
+  private readonly groundShadow: Phaser.GameObjects.Ellipse;
   private readonly aura: Phaser.GameObjects.Ellipse;
   private readonly layers: Record<SpriteLayer, Phaser.GameObjects.Sprite>;
   private appearance: ActorAppearanceId;
@@ -638,6 +639,9 @@ export class LayeredHero {
     this.customization = customization;
     this.root = scene.add.container(x, y).setScale(HERO_SCALE).setSize(42, 58);
     this.visualRoot = scene.add.container(0, 0);
+    this.groundShadow = scene.add
+      .ellipse(0, 1, 27, 8, 0x07100b, 0.38)
+      .setStrokeStyle(1, 0x9bc5a3, 0.08);
     this.aura = scene.add
       .ellipse(0, -1, 34, 10, 0xffffff, 0.12)
       .setStrokeStyle(1, 0xffffff, 0.7)
@@ -673,7 +677,7 @@ export class LayeredHero {
       weaponFront: makeLayer(),
     };
     this.visualRoot.add([this.aura, ...Object.values(this.layers)]);
-    this.root.add(this.visualRoot);
+    this.root.add([this.groundShadow, this.visualRoot]);
     scene.tweens.add({
       targets: this.aura,
       scaleX: 1.14,
@@ -725,7 +729,7 @@ export class LayeredHero {
       if (active) sprite.anims.resume();
       else sprite.anims.pause();
     });
-    [this.visualRoot, this.aura].forEach((target) => {
+    [this.visualRoot, this.groundShadow, this.aura].forEach((target) => {
       this.scene.tweens.getTweensOf(target).forEach((tween) => {
         if (active) tween.resume();
         else tween.pause();
@@ -775,7 +779,9 @@ export class LayeredHero {
     this.direction = direction;
     this.signature = nextSignature;
     this.scene.tweens.killTweensOf(this.visualRoot);
+    this.scene.tweens.killTweensOf(this.groundShadow);
     this.visualRoot.setPosition(0, 0).setScale(1).setAngle(0);
+    this.groundShadow.setScale(1).setAlpha(1);
     const spec = ACTIONS[action];
     const style = resolveActorAppearanceStyle(this.appearance, this.customization);
 
@@ -809,6 +815,10 @@ export class LayeredHero {
     this.syncArmor(spec, direction);
     this.syncWeapon(action, direction);
     this.syncAura();
+    this.syncPoseMotion(action, direction);
+  }
+
+  private syncPoseMotion(action: HeroVisualAction, direction: Direction) {
     if (action === "idle") {
       this.scene.tweens.add({
         targets: this.visualRoot,
@@ -816,6 +826,77 @@ export class LayeredHero {
         scaleX: 1.012,
         scaleY: 0.992,
         duration: 880,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      return;
+    }
+    if (action === "walk") {
+      this.scene.tweens.add({
+        targets: this.visualRoot,
+        y: -1.6,
+        angle: direction === "left" ? -0.7 : direction === "right" ? 0.7 : 0,
+        scaleX: 1.012,
+        scaleY: 0.988,
+        duration: 220,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.scene.tweens.add({
+        targets: this.groundShadow,
+        scaleX: 0.91,
+        scaleY: 0.86,
+        alpha: 0.76,
+        duration: 220,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      return;
+    }
+    if (action === "channel" || action === "magicSignature") {
+      this.scene.tweens.add({
+        targets: this.visualRoot,
+        y: -4,
+        scaleX: 1.025,
+        scaleY: 1.025,
+        duration: 420,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      this.scene.tweens.add({
+        targets: this.groundShadow,
+        scaleX: 1.16,
+        alpha: 0.58,
+        duration: 420,
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+      return;
+    }
+    if (action === "mine" || action === "gather" || action === "chop" || action === "smith") {
+      this.scene.tweens.add({
+        targets: this.visualRoot,
+        y: 1.2,
+        scaleX: 1.025,
+        scaleY: 0.975,
+        duration: action === "chop" ? 330 : 300,
+        yoyo: true,
+        repeat: -1,
+        ease: "Quad.easeInOut",
+      });
+      return;
+    }
+    if (action === "fish") {
+      this.scene.tweens.add({
+        targets: this.visualRoot,
+        y: -1.2,
+        angle: direction === "left" ? -0.55 : direction === "right" ? 0.55 : 0,
+        duration: 750,
         yoyo: true,
         repeat: -1,
         ease: "Sine.easeInOut",
@@ -931,6 +1012,7 @@ export class LayeredHero {
 
   destroy() {
     this.scene.tweens.killTweensOf(this.visualRoot);
+    this.scene.tweens.killTweensOf(this.groundShadow);
     this.root.destroy(true);
   }
 
@@ -1112,7 +1194,7 @@ export class LayeredHero {
         repeat: spec.repeat,
       });
     }
-    sprite.setTint(tint).setAngle(0).setFlipX(false).play(animationKey, true);
+    sprite.setVisible(true).setTint(tint).setAngle(0).setFlipX(false).play(animationKey, true);
   }
 
   private setStaticLayer(
@@ -1127,6 +1209,6 @@ export class LayeredHero {
       return;
     }
     sprite.anims.stop();
-    sprite.setTexture(key, DIRECTION_ROW[direction] * columns).setTint(tint).setAngle(0).setFlipX(false);
+    sprite.setVisible(true).setTexture(key, DIRECTION_ROW[direction] * columns).setTint(tint).setAngle(0).setFlipX(false);
   }
 }
