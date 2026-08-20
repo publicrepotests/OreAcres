@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
-import { readFile, stat } from "node:fs/promises";
+import { access, readFile, stat } from "node:fs/promises";
 
 const dist = new URL("../dist/", import.meta.url);
+const wrangler = JSON.parse(await readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+assert.equal(wrangler.assets?.directory, "./dist", "Cloudflare does not publish the Vite output directory.");
+assert.equal(wrangler.assets?.not_found_handling, "single-page-application", "Direct SPA routes such as /game will not preserve their URL.");
+await assert.rejects(access(new URL("../public/_redirects", import.meta.url)), "Legacy redirect rules can override Cloudflare SPA routing.");
 const index = await readFile(new URL("index.html", dist), "utf8");
 const mainPath = index.match(/<script type="module" crossorigin src="\/(assets\/main-[^"]+\.js)"/)?.[1];
 assert.ok(mainPath, "The production entry chunk is missing.");
@@ -26,5 +30,6 @@ console.log(JSON.stringify({
   homepagePreloadsWallet: false,
   rpgChunkKb: Math.round(gameBytes / 1024),
   phaserCachedSeparately: true,
+  directGameRoutePreserved: true,
   result: "PASS",
 }, null, 2));
